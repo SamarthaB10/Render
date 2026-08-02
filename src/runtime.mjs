@@ -5,6 +5,7 @@ import path from "node:path";
 import vm from "node:vm";
 import * as sdk from "../packages/sdk/src/index.ts";
 import { checkWorkspace } from "./workspace.mjs";
+import { extractManifest } from "./manifest.mjs";
 
 export function buildRuntimeTree(source, filename = "widget.tsx") {
   const transformed = source
@@ -23,7 +24,8 @@ export function buildRuntimeTree(source, filename = "widget.tsx") {
     throw new Error("widget.tsx must export the result of widget(manifest, render)");
   }
   const tree = definition.render();
-  validateRuntimeTree(tree, "root");
+  const subscriptions = new Set(definition.manifest?.subscribe ?? []);
+  validateRuntimeTree(tree, "root", subscriptions);
   return JSON.parse(JSON.stringify(tree));
 }
 
@@ -34,6 +36,7 @@ export function prepareRun(workspace, requestId = randomUUID()) {
   const root = path.resolve(workspace);
   const sourcePath = path.join(root, "widget.tsx");
   const source = readFileSync(sourcePath, "utf8");
+  const manifest = extractManifest(source);
   let tree;
   try {
     tree = buildRuntimeTree(source, sourcePath);
@@ -48,6 +51,7 @@ export function prepareRun(workspace, requestId = randomUUID()) {
   }
 
   const runtimePath = path.join(root, ".render/runtime/tree.json");
+  const manifestPath = path.join(root, ".render/runtime/manifest.json");
   if (!existsSync(path.dirname(runtimePath))) {
     return {
       requestId,
@@ -64,6 +68,9 @@ export function prepareRun(workspace, requestId = randomUUID()) {
   const candidatePath = `${runtimePath}.${randomUUID()}.tmp`;
   writeFileSync(candidatePath, `${JSON.stringify(tree, null, 2)}\n`, "utf8");
   renameSync(candidatePath, runtimePath);
+  const manifestCandidatePath = `${manifestPath}.${randomUUID()}.tmp`;
+  writeFileSync(manifestCandidatePath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+  renameSync(manifestCandidatePath, manifestPath);
 
   return {
     requestId,
@@ -71,6 +78,7 @@ export function prepareRun(workspace, requestId = randomUUID()) {
     workspace: root,
     ok: true,
     runtimeTreePath: runtimePath,
+    runtimeManifestPath: manifestPath,
     diagnostics: []
   };
 }
@@ -102,7 +110,7 @@ export function runWorkspace(workspace, requestId = randomUUID(), options = {}) 
   return { ...prepared, running: true, processId: child.pid };
 }
 
-function validateRuntimeTree(node, pathName) {
+function validateRuntimeTree(node, pathName, subscriptions) {
   if (!node || typeof node !== "object") {
     throw new Error(`${pathName}: render() must return a widget node`);
   }
@@ -112,14 +120,23 @@ function validateRuntimeTree(node, pathName) {
   }
   if (node.children !== undefined) {
     if (!Array.isArray(node.children)) throw new Error(`${pathName}.children: must be an array`);
-    node.children.forEach((child, index) => validateRuntimeTree(child, `${pathName}.children[${index}]`));
+    node.children.forEach((child, index) => validateRuntimeTree(child, `${pathName}.children[${index}]`, subscriptions));
   }
-  if (node.kind === "text" && typeof node.text !== "string") {
-    throw new Error(`${pathName}.text: text nodes require text`);
+  if (node.provider !== undefined && (typeof node.provider !== "string" || node.provider.length === 0)) {
+    throw new Error(`${pathName}.provider: provider bindings require a name`);
   }
-  if (node.kind === "gauge" &&
-      (typeof node.value !== "number" || typeof node.maximum !== "number" || node.maximum <= 0)) {
-    throw new Error(`${pathName}: gauge nodes require a positive maximum`);
+  if (node.provider !== undefined && !subscriptions.has(node.provider)) {
+    throw new Error(`${pathName}.provider: ${node.provider} must be listed in manifest.subscribe`);
+  }
+  if (node.kind === "text" && typeof node.text !== "string" && node.provider === undefined) {
+    throw new Error(`${pathName}.text: text nodes require text or a provider`);
+  }
+  if (node.kind === "gauge") {
+    const hasProvider = typeof node.provider === "string" && node.provider.length > 0;
+    const hasValue = typeof node.value === "number";
+    if ((!hasProvider && !hasValue) || typeof node.maximum !== "number" || node.maximum <= 0) {
+      throw new Error(`${pathName}: gauge nodes require a provider or value and a positive maximum`);
+    }
   }
 }
 

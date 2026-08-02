@@ -10,6 +10,7 @@ export interface WidgetNode {
   kind: WidgetNodeKind;
   children?: WidgetNode[];
   text?: string;
+  provider?: string;
   style?: WidgetStyle;
   value?: number;
   maximum?: number;
@@ -59,16 +60,22 @@ export function Stack(children: WidgetNode[], style?: WidgetStyle): WidgetNode {
   return nodeWithOptionalStyle({ kind: "stack", children }, style);
 }
 
-export function Text(text: string, style?: WidgetStyle): WidgetNode {
-  return nodeWithOptionalStyle({ kind: "text", text }, style);
+export function Text(text: string | ProviderBinding, style?: WidgetStyle): WidgetNode {
+  const node = typeof text === "string"
+    ? { kind: "text" as const, text }
+    : { kind: "text" as const, provider: text.name };
+  return nodeWithOptionalStyle(node, style);
 }
 
 export function Shape(style?: WidgetStyle): WidgetNode {
   return nodeWithOptionalStyle({ kind: "shape" }, style);
 }
 
-export function Gauge(value: number, maximum: number, style?: WidgetStyle): WidgetNode {
-  return nodeWithOptionalStyle({ kind: "gauge", value, maximum }, style);
+export function Gauge(value: number | ProviderBinding, maximum: number, style?: WidgetStyle): WidgetNode {
+  const node = typeof value === "number"
+    ? { kind: "gauge" as const, value, maximum }
+    : { kind: "gauge" as const, provider: value.name, maximum };
+  return nodeWithOptionalStyle(node, style);
 }
 
 export function useProvider(name: string): ProviderBinding {

@@ -30,7 +30,7 @@ Build the smallest vertical slice that can grow into Render's first local macOS 
 
 ### Checkpoint: Native boundary
 
-- [ ] Swift build succeeds with the available command-line toolchain.
+- [x] Swift build succeeds with the available command-line toolchain.
 - [ ] Focused host/protocol tests pass.
 - [ ] The host boundary does not expose DOM, browser, or arbitrary native widget APIs.
 
@@ -49,7 +49,7 @@ Build the smallest vertical slice that can grow into Render's first local macOS 
 ### Phase 3: First widget path
 
 - [x] Task 6: Implement the native tree renderer for the initial primitives and a static widget.
-- [ ] Task 7: Add host-owned CPU/RAM providers and host-scheduled one-second updates.
+- [x] Task 7: Add host-owned CPU/RAM providers and host-scheduled one-second updates.
 - [ ] Task 8: Add `render run --watch`, candidate promotion, and last-known-good rollback.
 
 ### Checkpoint: First prototype

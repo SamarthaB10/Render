@@ -9,7 +9,7 @@ import path from "node:path";
 import { extractManifest, validateManifest } from "./manifest.mjs";
 
 const WIDGET_SOURCE = [
-  'import { Column, Gauge, Text, widget } from "@render/sdk";',
+  'import { Column, Gauge, Text, useProvider, widget } from "@render/sdk";',
   "",
   "export default widget({",
   '  "schemaVersion": 1,',
@@ -20,8 +20,10 @@ const WIDGET_SOURCE = [
   '  "capabilities": [],',
   '  "subscribe": ["system.cpu", "system.memory"]',
   "}, () => Column([",
-  '  Text("Render"),',
-  "  Gauge(0, 100)",
+  '  Text("CPU"),',
+  '  Gauge(useProvider("system.cpu"), 100),',
+  '  Text("Memory"),',
+  '  Gauge(useProvider("system.memory"), 100)',
   "]));",
   ""
 ].join("\n");

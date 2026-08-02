@@ -23,17 +23,37 @@ test("builds a serializable runtime tree from the SDK boundary", () => {
   });
 });
 
+test("rejects provider bindings that are not explicitly subscribed", () => {
+  const source = `
+    import { Text, useProvider, widget } from "@render/sdk";
+    export default widget({
+      "schemaVersion": 1, "name": "Test", "sdkVersion": "0.1.0",
+      "size": { "width": 320, "height": 180 },
+      "anchor": { "corner": "top-left", "offset": { "x": 24, "y": 24 } },
+      "capabilities": [], "subscribe": []
+    }, () => Text(useProvider("system.cpu")));
+  `;
+
+  assert.throws(() => buildRuntimeTree(source), /must be listed in manifest.subscribe/);
+});
+
 test("prepareRun atomically writes the candidate tree", () => {
   const workspace = mkdtempSync(path.join(os.tmpdir(), "render-runtime-"));
   try {
     initWorkspace(workspace, "request-init");
     const result = prepareRun(workspace, "request-run");
     assert.equal(result.ok, true);
+    assert.deepEqual(JSON.parse(readFileSync(result.runtimeManifestPath, "utf8")).subscribe, [
+      "system.cpu",
+      "system.memory"
+    ]);
     assert.deepEqual(JSON.parse(readFileSync(result.runtimeTreePath, "utf8")), {
       kind: "column",
       children: [
-        { kind: "text", text: "Render" },
-        { kind: "gauge", value: 0, maximum: 100 }
+        { kind: "text", text: "CPU" },
+        { kind: "gauge", provider: "system.cpu", maximum: 100 },
+        { kind: "text", text: "Memory" },
+        { kind: "gauge", provider: "system.memory", maximum: 100 }
       ]
     });
   } finally {
