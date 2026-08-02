@@ -33,9 +33,16 @@ final class DesktopWindowPolicyTests: XCTestCase {
             tree.validationIssues(),
             [
                 .init(path: "root", message: "container nodes cannot define text"),
-                .init(path: "root.children[0]", message: "text nodes require non-empty text"),
+                .init(path: "root.children[0]", message: "text nodes require non-empty text or a provider"),
                 .init(path: "root.children[0].style.width", message: "width must be greater than zero")
             ]
+        )
+    }
+
+    func testProviderUnavailableStateIsExplicit() {
+        XCTAssertEqual(
+            ProviderValue.unavailable(name: "system.cpu", message: "sampling unavailable"),
+            ProviderValue(name: "system.cpu", state: .unavailable, message: "sampling unavailable")
         )
     }
 }
