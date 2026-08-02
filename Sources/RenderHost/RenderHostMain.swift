@@ -10,16 +10,36 @@ private final class RenderHostDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         let policy = DesktopWindowPolicy()
         let workspace = workspaceArgument()
-        let providers = ProviderStore(subscriptions: loadSubscriptions(workspace: workspace))
+        let manifest = loadManifest(workspace: workspace)
+        let providers = ProviderStore(subscriptions: Set(manifest.subscribe))
         providers.start()
         let panel = DesktopWidgetPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 320, height: 180),
+            contentRect: NSRect(
+                x: 0,
+                y: 0,
+                width: manifest.size.width,
+                height: manifest.size.height
+            ),
             policy: policy
         )
         panel.contentView = NSHostingView(
             rootView: WidgetTreeView(tree: loadTree(workspace: workspace), providers: providers)
         )
-        panel.placeOnPrimaryDisplay(using: policy)
+        if let placement = loadPlacement(workspace: workspace),
+           let screen = screen(for: placement, panel: panel) {
+            panel.place(placement, on: screen)
+        } else {
+            panel.placeOnPrimaryDisplay(
+                using: policy,
+                anchor: manifest.anchor.corner,
+                offsetX: manifest.anchor.offset.x,
+                offsetY: manifest.anchor.offset.y
+            )
+        }
+        panel.onDragEnded = { [weak self, weak panel] origin in
+            guard let self, let panel else { return }
+            self.savePlacement(workspace: workspace, origin: origin, panel: panel)
+        }
         panel.orderFrontRegardless()
         self.panel = panel
         self.providers = providers
@@ -44,15 +64,56 @@ private final class RenderHostDelegate: NSObject, NSApplicationDelegate {
         return tree
     }
 
-    private func loadSubscriptions(workspace: String?) -> Set<String> {
+    private func loadManifest(workspace: String?) -> RuntimeManifest {
         guard
             let workspace,
             let data = try? Data(contentsOf: URL(fileURLWithPath: workspace).appendingPathComponent(".render/runtime/manifest.json")),
             let manifest = try? JSONDecoder().decode(RuntimeManifest.self, from: data)
         else {
-            return []
+            return .fallback
         }
-        return Set(manifest.subscribe)
+        return manifest
+    }
+
+    private func loadPlacement(workspace: String?) -> WidgetPlacement? {
+        guard
+            let workspace,
+            let data = try? Data(contentsOf: placementURL(workspace: workspace))
+        else {
+            return nil
+        }
+        return try? JSONDecoder().decode(WidgetPlacement.self, from: data)
+    }
+
+    private func savePlacement(workspace: String?, origin: NSPoint, panel: DesktopWidgetPanel) {
+        guard
+            let workspace,
+            let screen = panel.screen(containing: origin),
+            let screenID = panel.displayID(for: screen)
+        else {
+            return
+        }
+
+        let placement = WidgetPlacement(
+            screenID: screenID,
+            originX: origin.x,
+            originY: origin.y
+        )
+        guard let data = try? JSONEncoder().encode(placement) else { return }
+        try? data.write(to: placementURL(workspace: workspace), options: .atomic)
+    }
+
+    private func screen(for placement: WidgetPlacement, panel: DesktopWidgetPanel) -> NSScreen? {
+        if let screenID = placement.screenID,
+           let screen = NSScreen.screens.first(where: { panel.displayID(for: $0) == screenID }) {
+            return screen
+        }
+        return panel.screen(containing: NSPoint(x: placement.originX, y: placement.originY))
+            ?? NSScreen.screens.first
+    }
+
+    private func placementURL(workspace: String) -> URL {
+        URL(fileURLWithPath: workspace).appendingPathComponent(".render/runtime/placement.json")
     }
 
     private func workspaceArgument() -> String? {
@@ -63,7 +124,30 @@ private final class RenderHostDelegate: NSObject, NSApplicationDelegate {
 }
 
 private struct RuntimeManifest: Decodable {
+    let size: Size
+    let anchor: Anchor
     let subscribe: [String]
+
+    struct Size: Decodable {
+        let width: Double
+        let height: Double
+    }
+
+    struct Anchor: Decodable {
+        let corner: WidgetAnchor
+        let offset: Offset
+    }
+
+    struct Offset: Decodable {
+        let x: Double
+        let y: Double
+    }
+
+    static let fallback = RuntimeManifest(
+        size: Size(width: 320, height: 180),
+        anchor: Anchor(corner: .topLeft, offset: Offset(x: 24, y: 24)),
+        subscribe: []
+    )
 }
 
 @main

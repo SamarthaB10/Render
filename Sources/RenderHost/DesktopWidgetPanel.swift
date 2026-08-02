@@ -2,6 +2,11 @@ import AppKit
 import RenderHostCore
 
 final class DesktopWidgetPanel: NSPanel {
+    var onDragEnded: ((NSPoint) -> Void)?
+
+    private var dragStartMouseLocation: NSPoint?
+    private var dragStartOrigin: NSPoint?
+
     init(contentRect: NSRect, policy: DesktopWindowPolicy) {
         super.init(
             contentRect: contentRect,
@@ -22,13 +27,106 @@ final class DesktopWidgetPanel: NSPanel {
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
 
-    func placeOnPrimaryDisplay(using policy: DesktopWindowPolicy) {
+    override func mouseDown(with event: NSEvent) {
+        dragStartMouseLocation = NSEvent.mouseLocation
+        dragStartOrigin = frame.origin
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        guard let dragStartMouseLocation, let dragStartOrigin else { return }
+
+        let mouseLocation = NSEvent.mouseLocation
+        let candidateOrigin = NSPoint(
+            x: dragStartOrigin.x + mouseLocation.x - dragStartMouseLocation.x,
+            y: dragStartOrigin.y + mouseLocation.y - dragStartMouseLocation.y
+        )
+        if let screen = screen(containing: candidateOrigin) {
+            setFrameOrigin(clampedOrigin(candidateOrigin, to: screen.visibleFrame))
+        } else {
+            setFrameOrigin(candidateOrigin)
+        }
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        guard dragStartOrigin != nil else { return }
+        dragStartMouseLocation = nil
+        dragStartOrigin = nil
+        onDragEnded?(frame.origin)
+    }
+
+    func placeOnPrimaryDisplay(
+        using policy: DesktopWindowPolicy,
+        anchor: WidgetAnchor = .topLeft,
+        offsetX: Double? = nil,
+        offsetY: Double? = nil
+    ) {
         guard let screen = NSScreen.screens.first else { return }
-        let visibleFrame = screen.visibleFrame
-        let origin = NSPoint(
-            x: visibleFrame.minX + policy.offsetX,
-            y: visibleFrame.maxY - frame.height - policy.offsetY
+
+        let origin = origin(
+            on: screen,
+            anchor: anchor,
+            offsetX: offsetX ?? policy.offsetX,
+            offsetY: offsetY ?? policy.offsetY
         )
         setFrameOrigin(origin)
+    }
+
+    func place(_ placement: WidgetPlacement, on screen: NSScreen) {
+        setFrameOrigin(
+            clampedOrigin(
+                NSPoint(x: placement.originX, y: placement.originY),
+                to: screen.visibleFrame
+            )
+        )
+    }
+
+    func displayID(for screen: NSScreen) -> UInt32? {
+        (screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value
+    }
+
+    func screen(containing origin: NSPoint) -> NSScreen? {
+        let center = NSPoint(x: origin.x + frame.width / 2, y: origin.y + frame.height / 2)
+        return NSScreen.screens.first { $0.frame.contains(center) }
+    }
+
+    private func origin(
+        on screen: NSScreen,
+        anchor: WidgetAnchor,
+        offsetX: Double,
+        offsetY: Double
+    ) -> NSPoint {
+        let visibleFrame = screen.visibleFrame
+
+        switch anchor {
+        case .topLeft:
+            return NSPoint(
+                x: visibleFrame.minX + offsetX,
+                y: visibleFrame.maxY - frame.height - offsetY
+            )
+        case .topRight:
+            return NSPoint(
+                x: visibleFrame.maxX - frame.width - offsetX,
+                y: visibleFrame.maxY - frame.height - offsetY
+            )
+        case .bottomLeft:
+            return NSPoint(
+                x: visibleFrame.minX + offsetX,
+                y: visibleFrame.minY + offsetY
+            )
+        case .bottomRight:
+            return NSPoint(
+                x: visibleFrame.maxX - frame.width - offsetX,
+                y: visibleFrame.minY + offsetY
+            )
+        }
+    }
+
+    private func clampedOrigin(_ origin: NSPoint, to visibleFrame: NSRect) -> NSPoint {
+        let maximumX = max(visibleFrame.minX, visibleFrame.maxX - frame.width)
+        let maximumY = max(visibleFrame.minY, visibleFrame.maxY - frame.height)
+        return NSPoint(
+            x: min(max(origin.x, visibleFrame.minX), maximumX),
+            y: min(max(origin.y, visibleFrame.minY), maximumY)
+        )
     }
 }
