@@ -1,0 +1,11 @@
+{
+  "name": "render",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "render": "bin/render.mjs"
+  },
+  "scripts": {
+    "test": "node --test"
+  }
+}
