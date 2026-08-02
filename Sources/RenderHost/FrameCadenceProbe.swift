@@ -49,6 +49,7 @@ struct FrameCadenceProbe {
             Thread.sleep(forTimeInterval: duration)
             CVDisplayLinkStop(displayLink)
         }
+        CVDisplayLinkSetOutputCallback(displayLink, nil, nil)
         let elapsed = start.duration(to: .now)
         context.release()
 

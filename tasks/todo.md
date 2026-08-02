@@ -21,4 +21,4 @@
 ## Phase 4 - Future isolation preparation
 
 - [x] Add versioned supervisor/worker protocol boundaries.
-- [ ] Measure runtime and snapshot performance before setting tripwires.
+- [x] Measure runtime and snapshot performance before setting tripwires; receipt: `perf/receipts/first-prototype.json`.
