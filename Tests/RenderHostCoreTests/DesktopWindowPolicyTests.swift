@@ -1,4 +1,5 @@
 #if canImport(XCTest)
+import Foundation
 import XCTest
 @testable import RenderHostCore
 
@@ -10,7 +11,7 @@ final class DesktopWindowPolicyTests: XCTestCase {
         XCTAssertEqual(policy.anchor, .topLeft)
         XCTAssertEqual(policy.offsetX, 24)
         XCTAssertEqual(policy.offsetY, 24)
-        XCTAssertTrue(policy.ignoresMouseEvents)
+        XCTAssertFalse(policy.ignoresMouseEvents)
         XCTAssertTrue(policy.joinsAllSpaces)
     }
 
@@ -53,6 +54,22 @@ final class DesktopWindowPolicyTests: XCTestCase {
             message.validationIssues(),
             [.init(path: "tree", message: "render messages require a tree")]
         )
+    }
+
+    func testTreeDecodesLeafWithoutChildrenField() throws {
+        let data = Data(#"{"kind":"text","text":"CPU"}"#.utf8)
+
+        let tree = try JSONDecoder().decode(WidgetTree.self, from: data)
+
+        XCTAssertEqual(tree.children, [])
+        XCTAssertEqual(tree.text, "CPU")
+    }
+
+    func testWidgetPlacementRoundTripsAsSerializableData() throws {
+        let placement = WidgetPlacement(screenID: 123, originX: 480, originY: 720)
+        let data = try JSONEncoder().encode(placement)
+
+        XCTAssertEqual(try JSONDecoder().decode(WidgetPlacement.self, from: data), placement)
     }
 }
 #endif

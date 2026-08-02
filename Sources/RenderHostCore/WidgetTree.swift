@@ -46,6 +46,27 @@ public struct WidgetTree: Codable, Equatable, Sendable {
         self.maximum = maximum
     }
 
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        kind = try container.decode(WidgetNodeKind.self, forKey: .kind)
+        children = try container.decodeIfPresent([WidgetTree].self, forKey: .children) ?? []
+        text = try container.decodeIfPresent(String.self, forKey: .text)
+        provider = try container.decodeIfPresent(String.self, forKey: .provider)
+        style = try container.decodeIfPresent(WidgetStyle.self, forKey: .style)
+        value = try container.decodeIfPresent(Double.self, forKey: .value)
+        maximum = try container.decodeIfPresent(Double.self, forKey: .maximum)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case kind
+        case children
+        case text
+        case provider
+        case style
+        case value
+        case maximum
+    }
+
     public func validationIssues(path: String = "root") -> [WidgetTreeValidationIssue] {
         var issues: [WidgetTreeValidationIssue] = []
         let isContainer = kind == .column || kind == .row || kind == .stack

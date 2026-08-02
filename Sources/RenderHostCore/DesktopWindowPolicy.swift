@@ -19,7 +19,7 @@ public struct DesktopWindowPolicy: Codable, Equatable, Sendable {
         anchor: Anchor = .topLeft,
         offsetX: Double = 24,
         offsetY: Double = 24,
-        ignoresMouseEvents: Bool = true,
+        ignoresMouseEvents: Bool = false,
         joinsAllSpaces: Bool = true
     ) {
         self.level = level
