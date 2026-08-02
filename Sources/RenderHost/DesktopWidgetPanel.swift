@@ -14,12 +14,12 @@ final class DesktopWidgetPanel: NSPanel {
         backgroundColor = .clear
         hasShadow = false
         ignoresMouseEvents = policy.ignoresMouseEvents
-        level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopWindow)))
+        level = NSWindow.Level(rawValue: DesktopWindowLevel.interactive)
         collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary]
         isReleasedWhenClosed = false
     }
 
-    override var canBecomeKey: Bool { false }
+    override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
 
     func move(to candidateOrigin: NSPoint) {

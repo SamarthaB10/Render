@@ -1,5 +1,6 @@
 #if canImport(XCTest)
 import Foundation
+import AppKit
 import XCTest
 @testable import RenderHostCore
 
@@ -13,6 +14,17 @@ final class DesktopWindowPolicyTests: XCTestCase {
         XCTAssertEqual(policy.offsetY, 24)
         XCTAssertFalse(policy.ignoresMouseEvents)
         XCTAssertTrue(policy.joinsAllSpaces)
+    }
+
+    func testInteractiveWidgetLayerIsAboveFinderDesktopButBelowNormalWindows() {
+        XCTAssertGreaterThan(
+            DesktopWindowLevel.interactive,
+            Int(CGWindowLevelForKey(.desktopIconWindow))
+        )
+        XCTAssertLessThan(
+            DesktopWindowLevel.interactive,
+            Int(CGWindowLevelForKey(.normalWindow))
+        )
     }
 
     func testPolicyRoundTripsAsSerializableData() throws {
