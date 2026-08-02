@@ -60,7 +60,7 @@ Build the smallest vertical slice that can grow into Render's first local macOS 
 
 ### Phase 4: Future isolation preparation
 
-- [ ] Task 9: Add versioned supervisor/worker protocol boundaries without moving execution out of process yet.
+- [x] Task 9: Add versioned supervisor/worker protocol boundaries without moving execution out of process yet.
 - [ ] Task 10: Measure CPU, memory, wakeups, frame cadence, and snapshot disk use before adding tripwires.
 
 ## Risks and mitigations

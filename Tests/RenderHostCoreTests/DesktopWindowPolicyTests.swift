@@ -45,5 +45,14 @@ final class DesktopWindowPolicyTests: XCTestCase {
             ProviderValue(name: "system.cpu", state: .unavailable, message: "sampling unavailable")
         )
     }
+
+    func testRuntimeProtocolRejectsMissingRenderPayload() {
+        let message = RuntimeMessage(kind: .render, messageID: "message-1", widgetID: "widget-1")
+
+        XCTAssertEqual(
+            message.validationIssues(),
+            [.init(path: "tree", message: "render messages require a tree")]
+        )
+    }
 }
 #endif
