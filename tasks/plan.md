@@ -70,6 +70,22 @@ Build the smallest vertical slice that can grow into Render's first local macOS 
 - [x] Task 13: Verify the skill through an end-to-end agent workflow for create, remix, move, check, watch, and rollback.
 - [x] Task 14: Make SDK discovery agent-complete with exact contracts, canonical examples, and a scaffold command.
 
+### Phase 6: Crash-isolated runtime
+
+- [x] Task 15: Define and validate the version-negotiated supervisor/worker protocol.
+- [x] Task 16: Run widget TypeScript in a disposable worker process owned by the native supervisor.
+- [x] Task 17: Preserve the active tree across worker failure and restart with bounded backoff.
+- [x] Task 18: Add worker diagnostics, session-scoped runtime state, and measured CPU/memory tripwires.
+- [x] Task 19: Route native `render run`, watch reload, logical move, and rollback through candidate supervisor handoff.
+
+### Checkpoint: Crash isolation
+
+- [x] Worker protocol tests pass in Node and native protocol validation is covered by the Swift test target.
+- [x] The native build succeeds with the available command-line toolchain.
+- [x] A native worker crash was observed to enter `restarting`, retain the last-known-good tree, and return to `ready`.
+- [x] Candidate supervisor startup is session-scoped and cannot replace the active supervisor until the worker reports ready.
+- [x] Worker resource measurements and tripwires are recorded in `perf/receipts/phase8-worker.json`.
+
 ## Risks and mitigations
 
 | Risk | Impact | Mitigation |

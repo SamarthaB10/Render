@@ -2,6 +2,8 @@ export type WidgetNodeKind = "column" | "row" | "stack" | "text" | "shape" | "ga
 
 export { describeSdkCatalog, listSdkCatalog, SDK_PACKAGE, SDK_VERSION } from "./catalog.ts";
 export type { SdkCatalogItem, SdkCatalogKind } from "./catalog.ts";
+export { RENDER_WORKER_PROTOCOL_VERSION } from "./worker-protocol.ts";
+export type { WorkerDiagnostic, WorkerMessage, WorkerMessageKind } from "./worker-protocol.ts";
 
 export interface WidgetStyle {
   width?: number;

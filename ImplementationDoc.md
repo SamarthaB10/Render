@@ -89,8 +89,8 @@ flowchart TD
     A --> S[Dedicated widget workspace]
     A --> C[render check]
     C -->|valid| R[render run or render run --watch]
-    R --> H[Native Render host]
-    H --> J[Embedded JavaScript engine]
+    R --> H[Native Render supervisor]
+    H --> J[Disposable TypeScript worker]
     J --> T[Serializable widget tree and actions]
     T --> N[SwiftUI content renderer]
     H --> W[AppKit desktop-layer window]
@@ -109,6 +109,8 @@ The first agent boundary is a local CLI plus an agent skill:
 - `render run` ensures the native host is running and returns when the widget is live.
 - `render run --watch` observes source changes and hot-reloads successful candidates.
 - `render status`, `render move`, and `render rollback` expose deterministic lifecycle operations.
+- The native host is the supervisor; widget source executes in a disposable worker process.
+- `render status --json` includes worker protocol, process, restart, resource, and diagnostic state.
 - Human-readable output is the default.
 - `--json` is the stable machine-readable contract for agents.
 - MCP is not part of this first boundary.
@@ -130,22 +132,26 @@ Generated widget code does not own native windows and does not access arbitrary 
 ### TypeScript execution boundary
 
 - TypeScript is the authoring format.
-- The runtime transpiles TypeScript locally to JavaScript.
-- An embedded JavaScript engine executes the generated JavaScript.
-- The exact embedded engine and transpilation implementation remain implementation choices, subject to native macOS constraints and measured performance.
+- The worker transpiles TypeScript locally to JavaScript.
+- The worker executes the generated JavaScript in a disposable Node runtime.
 - Widget code returns a serializable, platform-neutral declarative tree.
 - Events emit serializable action messages rather than arbitrary serialized closures.
+- The worker has no native window ownership; the supervisor owns the desktop surface.
 
-### Future supervisor and worker boundary
+### Supervisor and worker boundary (Phase 8)
 
-The first prototype may run one widget in-process, but it must preserve the boundary required for later isolation:
+The first prototype now runs one active widget through the same boundary required for later multi-widget isolation:
 
 - A native supervisor owns lifecycle, windows, providers, permissions, identity, placement, rollback, restart policy, and compatibility.
 - Each widget worker executes TypeScript and emits serialized trees and actions.
 - Workers never own native macOS windows or unrestricted native resources.
 - Workers are disposable and independently restartable from the last-known-good snapshot.
 - Supervisor-worker communication uses a versioned protocol with compatibility negotiation.
-- CPU, memory, wakeups, and frame cadence are measured before becoming per-widget tripwires.
+- Worker CPU and resident memory are sampled by the supervisor and enforced only through measured tripwires.
+- A worker failure leaves the current native tree in place while the supervisor retries with bounded exponential backoff.
+- Session-specific worker state and tree files prevent a candidate supervisor from overwriting the active supervisor's state.
+
+See [docs/phase8-supervision.md](docs/phase8-supervision.md) for the message contract, recovery states, and measured receipt.
 
 ## Workspace and source contract
 
@@ -398,14 +404,16 @@ The CLI lifecycle is covered by the deterministic end-to-end fixture in
 - Verify agent-readable errors and JSON output.
 - Record performance receipts before setting tripwires.
 
-### Phase 8 - Future crash isolation
+### Phase 8 - Crash isolation
 
-- Introduce the native supervisor without changing the widget tree or CLI contract.
-- Move TypeScript execution into one worker process per widget.
-- Keep native windows, providers, permissions, identity, rollback, and restart in the supervisor.
-- Add version negotiation between supervisor and worker.
-- Add measured worker resource tripwires and actionable diagnostics.
-- Test worker crash, restart, backoff, and last-known-good recovery.
+- [x] Introduce the native supervisor without changing the widget tree or CLI contract.
+- [x] Move TypeScript execution into one worker process for the active widget.
+- [x] Keep native windows, providers, permissions, identity, rollback, and restart in the supervisor.
+- [x] Add version negotiation between supervisor and worker.
+- [x] Add measured worker resource tripwires and actionable diagnostics.
+- [x] Test worker crash, restart, backoff, and last-known-good recovery.
+
+Phase 8 is implemented on the current branch. The native host remains a single supervisor process for the first prototype, while the widget execution boundary is now disposable and ready to expand to one worker per widget when multiple active widgets are introduced.
 
 ## Acceptance checklist
 
@@ -427,13 +435,14 @@ The CLI lifecycle is covered by the deterministic end-to-end fixture in
 - [ ] `render rollback` can restore an earlier successful snapshot.
 - [ ] `--json` output is sufficient for an agent to act without reading source code.
 - [x] Performance receipts exist before any enforced resource limits are added (`perf/receipts/first-prototype.json`).
+- [x] Worker protocol negotiation, restart/backoff, last-known-good retention, and resource telemetry are covered by Phase 8 tests and receipt (`perf/receipts/phase8-worker.json`).
 
 ## Deferred questions discovered during implementation
 
 These are implementation details, not unresolved product direction:
 
 - Exact native macOS target structure and build tooling.
-- Exact embedded JavaScript engine and local TypeScript transpilation path.
+- Whether a future embedded JavaScript engine should replace the current Node worker, based on measured startup and resource behavior.
 - Exact SwiftUI/AppKit bridge implementation.
 - Native widget render-pass cadence instrumentation beyond display-link cadence.
 - Exact workspace metadata filenames.

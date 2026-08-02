@@ -84,7 +84,7 @@ render run --workspace "$WORKSPACE" --json
 render status --workspace "$WORKSPACE" --json
 ```
 
-Wait for the status result to report the active widget as running. For iterative edits, use:
+Wait for the status result to report the active widget as running and, when native supervision is available, `worker.status` as `ready`. The status JSON also exposes the worker protocol version, worker process ID, restart count, latest resource sample, and actionable diagnostics. For iterative edits, use:
 
 ```bash
 render run --workspace "$WORKSPACE" --watch
@@ -104,6 +104,8 @@ render move --workspace "$WORKSPACE" --corner top-right --offset-x 24 --offset-y
 
 - Never pass raw screen coordinates to `render move`.
 - If a candidate fails, inspect `render status --json`; keep the last-known-good version running.
+- If the worker exits, inspect `render status --json` while it reports `restarting`; the native supervisor retains the current tree and retries with bounded backoff.
+- Do not treat a `restarting` worker as a blank-widget success. Wait for `worker.status: "ready"` or use the diagnostic path to repair the candidate.
 - To restore a prior successful version, run:
 
 ```bash

@@ -172,7 +172,11 @@ export function statusWorkspace(workspace, requestId = randomUUID()) {
 
   try {
     const state = readState(root);
-    return { requestId, operation: "status", workspace: root, ok: true, state, diagnostics: [] };
+    const workerStatePath = state.workerStatePath ?? path.join(root, ".render/runtime/worker-state.json");
+    const worker = existsSync(workerStatePath)
+      ? JSON.parse(readFileSync(workerStatePath, "utf8"))
+      : null;
+    return { requestId, operation: "status", workspace: root, ok: true, state, worker, diagnostics: [] };
   } catch {
     return result(requestId, "status", root, false, [{
       code: "invalid-metadata",
