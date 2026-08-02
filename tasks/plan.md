@@ -68,7 +68,7 @@ Build the smallest vertical slice that can grow into Render's first local macOS 
 - [x] Task 11: Add the canonical SDK catalog and deterministic `render sdk list` / `render sdk describe` discovery commands.
 - [x] Task 12: Package the catalog-guided Render agent skill with isolated-workspace, capability, validation, run, remix, and rollback guidance.
 - [x] Task 13: Verify the skill through an end-to-end agent workflow for create, remix, move, check, watch, and rollback.
-- [ ] Task 14: Make SDK discovery agent-complete with exact contracts, canonical examples, and a scaffold command.
+- [x] Task 14: Make SDK discovery agent-complete with exact contracts, canonical examples, and a scaffold command.
 
 ## Risks and mitigations
 

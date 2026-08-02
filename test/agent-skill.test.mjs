@@ -12,7 +12,9 @@ test("Render agent skill defines the complete widget lifecycle", () => {
 
   for (const command of [
     "render sdk list",
+    "render sdk describe",
     "render init",
+    "render scaffold",
     "render check",
     "render run",
     "render status",
@@ -24,6 +26,15 @@ test("Render agent skill defines the complete widget lifecycle", () => {
   assert.match(skill, /widget\.tsx/);
   assert.match(skill, /last-known-good/i);
   assert.match(skill, /unrelated/i);
+});
+
+test("Render agent skill points agents to exact SDK contracts", () => {
+  const skill = readFileSync(skillPath, "utf8");
+
+  assert.match(skill, /--json/);
+  assert.match(skill, /signature/i);
+  assert.match(skill, /canonical `?example/i);
+  assert.match(skill, /scaffold/);
 });
 
 test("Render agent skill keeps capabilities and unsupported integrations explicit", () => {

@@ -382,6 +382,7 @@ The first prototype may be ad-hoc signed for local development. Developer ID sig
 - Verify create, remix-in-place, move, check, hot reload, and rollback through Codex.
 - Verify that an eventual request for a mini Spotify player can follow the same create, check, run, remix, and rollback workflow.
 - Verify that the skill does not modify unrelated projects.
+- Make SDK discovery agent-complete with exact JSON contracts, canonical examples, and a workspace scaffold command.
 
 The CLI lifecycle is covered by the deterministic end-to-end fixture in
 [`test/agent-workflow.test.mjs`](test/agent-workflow.test.mjs). That fixture proves the agent boundary without claiming native GUI, Spaces, permission, or login verification; those remain manual macOS checks.

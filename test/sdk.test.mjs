@@ -39,13 +39,22 @@ test("SDK catalog exposes canonical primitives, providers, styles, and capabilit
   const names = catalog.listSdkCatalog().map((item) => item.name);
 
   assert.deepEqual(names, [
+    "widget",
     "Column",
     "Row",
     "Stack",
     "Text",
     "Shape",
     "Gauge",
+    "useProvider",
+    "useTimer",
     "WidgetStyle",
+    "WidgetNode",
+    "WidgetNodeKind",
+    "WidgetManifest",
+    "WidgetDefinition",
+    "ProviderBinding",
+    "TimerBinding",
     "system.cpu",
     "system.memory",
     "network",
@@ -56,6 +65,28 @@ test("SDK catalog exposes canonical primitives, providers, styles, and capabilit
   assert.deepEqual(catalog.describeSdkCatalog("WidgetStyle").fields, ["width", "height", "color"]);
 });
 
+test("SDK catalog gives agents exact contracts and canonical examples", async () => {
+  const catalog = await import("../packages/sdk/src/catalog.ts");
+  const text = catalog.describeSdkCatalog("Text");
+  const manifest = catalog.describeSdkCatalog("WidgetManifest");
+
+  assert.equal(catalog.SDK_VERSION, "0.1.0");
+  assert.equal(text.importPath, "@render/sdk");
+  assert.equal(text.signature, "Text(text: string | ProviderBinding, style?: WidgetStyle): WidgetNode");
+  assert.match(text.example, /Text\("CPU"\)/);
+  assert.deepEqual(manifest.fields, [
+    "schemaVersion: 1",
+    "name: string",
+    "sdkVersion: string",
+    "size: { width: number; height: number }",
+    'anchor: { corner: "top-left" | "top-right" | "bottom-left" | "bottom-right"; offset: { x: number; y: number } }',
+    'capabilities: Array<"network" | "filesystem.read" | "filesystem.write">',
+    "subscribe: string[]"
+  ]);
+  assert.match(catalog.CANONICAL_WIDGET_SOURCE, /from "@render\/sdk"/);
+  assert.match(catalog.CANONICAL_WIDGET_SOURCE, /system\.memory/);
+});
+
 test("CLI exposes SDK catalog list and describe operations", () => {
   const listed = execute(["sdk", "list"]);
   const described = execute(["sdk", "describe", "system.cpu"]);
@@ -63,12 +94,17 @@ test("CLI exposes SDK catalog list and describe operations", () => {
 
   assert.equal(listed.ok, true);
   assert.equal(listed.operation, "sdk.list");
-  assert.equal(listed.items.length, 12);
+  assert.equal(listed.items.length, 21);
+  assert.equal(listed.sdkVersion, "0.1.0");
   assert.deepEqual(described.item, {
     name: "system.cpu",
     kind: "provider",
     summary: "Host CPU utilization percentage, sampled once per second",
-    value: "number | unavailable"
+    value: "number | unavailable",
+    importPath: "@render/sdk",
+    signature: 'useProvider("system.cpu"): ProviderBinding',
+    example: 'Gauge(useProvider("system.cpu"), 100)',
+    notes: ["Declare \"system.cpu\" in the widget manifest subscribe array."]
   });
   assert.equal(missing.ok, false);
   assert.deepEqual(missing.diagnostics[0], {

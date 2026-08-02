@@ -3,7 +3,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "no
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { checkWorkspace, initWorkspace, statusWorkspace } from "../src/workspace.mjs";
+import { checkWorkspace, initWorkspace, scaffoldWorkspace, statusWorkspace } from "../src/workspace.mjs";
 import { extractManifest } from "../src/manifest.mjs";
 import { moveWorkspace } from "../src/runtime.mjs";
 
@@ -21,6 +21,21 @@ test("init creates an isolated workspace that check and status can inspect", () 
     assert.equal(status.state.lastKnownGoodVersion, null);
     assert.equal(existsSync(path.join(workspace, "widget.tsx")), true);
     assert.equal(existsSync(path.join(workspace, ".render", "metadata.json")), true);
+  } finally {
+    rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
+test("scaffold creates the canonical SDK widget for an agent", () => {
+  const workspace = mkdtempSync(path.join(os.tmpdir(), "render-scaffold-"));
+  try {
+    const scaffolded = scaffoldWorkspace(workspace, "request-scaffold");
+    const source = readWidget(workspace);
+
+    assert.equal(scaffolded.ok, true);
+    assert.equal(scaffolded.operation, "scaffold");
+    assert.match(source, /from "@render\/sdk"/);
+    assert.equal(checkWorkspace(workspace).ok, true);
   } finally {
     rmSync(workspace, { recursive: true, force: true });
   }
