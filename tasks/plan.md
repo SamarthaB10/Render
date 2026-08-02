@@ -48,7 +48,7 @@ Build the smallest vertical slice that can grow into Render's first local macOS 
 
 ### Phase 3: First widget path
 
-- [ ] Task 6: Implement the native tree renderer for the initial primitives and a static widget.
+- [x] Task 6: Implement the native tree renderer for the initial primitives and a static widget.
 - [ ] Task 7: Add host-owned CPU/RAM providers and host-scheduled one-second updates.
 - [ ] Task 8: Add `render run --watch`, candidate promotion, and last-known-good rollback.
 

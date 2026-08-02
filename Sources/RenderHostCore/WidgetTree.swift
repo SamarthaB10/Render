@@ -24,17 +24,23 @@ public struct WidgetTree: Codable, Equatable, Sendable {
     public let children: [WidgetTree]
     public let text: String?
     public let style: WidgetStyle?
+    public let value: Double?
+    public let maximum: Double?
 
     public init(
         kind: WidgetNodeKind,
         children: [WidgetTree] = [],
         text: String? = nil,
-        style: WidgetStyle? = nil
+        style: WidgetStyle? = nil,
+        value: Double? = nil,
+        maximum: Double? = nil
     ) {
         self.kind = kind
         self.children = children
         self.text = text
         self.style = style
+        self.value = value
+        self.maximum = maximum
     }
 
     public func validationIssues(path: String = "root") -> [WidgetTreeValidationIssue] {
@@ -49,6 +55,13 @@ public struct WidgetTree: Codable, Equatable, Sendable {
         }
         if kind == .text && (text == nil || text?.isEmpty == true) {
             issues.append(.init(path: path, message: "text nodes require non-empty text"))
+        }
+        if kind == .gauge {
+            if value == nil || maximum == nil {
+                issues.append(.init(path: path, message: "gauge nodes require value and maximum"))
+            } else if let value, let maximum, value < 0 || value > maximum || maximum <= 0 {
+                issues.append(.init(path: path, message: "gauge value must be within a positive maximum"))
+            }
         }
         if let width = style?.width, width <= 0 {
             issues.append(.init(path: "\(path).style.width", message: "width must be greater than zero"))

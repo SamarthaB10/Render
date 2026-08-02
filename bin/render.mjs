@@ -3,6 +3,7 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { checkWorkspace, initWorkspace, statusWorkspace } from "../src/workspace.mjs";
+import { runWorkspace } from "../src/runtime.mjs";
 
 export function execute(argv, cwd = process.cwd()) {
   const command = argv[0];
@@ -12,6 +13,7 @@ export function execute(argv, cwd = process.cwd()) {
   if (command === "init") return initWorkspace(workspace);
   if (command === "check") return checkWorkspace(workspace);
   if (command === "status") return statusWorkspace(workspace);
+  if (command === "run") return runWorkspace(workspace);
   return {
     requestId: "unassigned",
     operation: command ?? "help",
@@ -20,7 +22,7 @@ export function execute(argv, cwd = process.cwd()) {
     diagnostics: [{
       code: "unknown-command",
       path: "command",
-      message: "use render init, render check, or render status"
+      message: "use render init, render check, render run, or render status"
     }]
   };
 }
