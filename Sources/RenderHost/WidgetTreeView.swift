@@ -6,42 +6,50 @@ struct WidgetTreeView: View {
 
     var body: some View {
         content
-            .frame(
-                width: tree.style?.width.map(CGFloat.init),
-                height: tree.style?.height.map(CGFloat.init)
-            )
+            .frame(width: width, height: height)
     }
 
-    @ViewBuilder
-    private var content: some View {
+    private var width: CGFloat? {
+        guard let width = tree.style?.width else { return nil }
+        return CGFloat(width)
+    }
+
+    private var height: CGFloat? {
+        guard let height = tree.style?.height else { return nil }
+        return CGFloat(height)
+    }
+
+    private var content: AnyView {
         switch tree.kind {
         case .column:
-            VStack(alignment: .leading, spacing: 8) {
-                ForEach(Array(tree.children.enumerated()), id: \.offset) { _, child in
-                    WidgetTreeView(tree: child)
+            return AnyView(VStack(alignment: .leading, spacing: 8) {
+                ForEach(tree.children.indices, id: \.self) { index in
+                    WidgetTreeView(tree: tree.children[index])
                 }
-            }
+            })
         case .row:
-            HStack(alignment: .center, spacing: 8) {
-                ForEach(Array(tree.children.enumerated()), id: \.offset) { _, child in
-                    WidgetTreeView(tree: child)
+            return AnyView(HStack(alignment: .center, spacing: 8) {
+                ForEach(tree.children.indices, id: \.self) { index in
+                    WidgetTreeView(tree: tree.children[index])
                 }
-            }
+            })
         case .stack:
-            ZStack {
-                ForEach(Array(tree.children.enumerated()), id: \.offset) { _, child in
-                    WidgetTreeView(tree: child)
+            return AnyView(ZStack {
+                ForEach(tree.children.indices, id: \.self) { index in
+                    WidgetTreeView(tree: tree.children[index])
                 }
-            }
+            })
         case .text:
-            Text(tree.text ?? "")
+            return AnyView(Text(tree.text ?? ""))
         case .shape:
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color.blue.opacity(0.92))
+            return AnyView(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color.blue.opacity(0.92))
+            )
         case .gauge:
-            SwiftUI.Gauge(value: tree.value ?? 0, in: 0...(tree.maximum ?? 1)) {
+            return AnyView(SwiftUI.Gauge(value: tree.value ?? 0, in: 0...(tree.maximum ?? 1)) {
                 Text("")
-            }
+            })
         }
     }
 }

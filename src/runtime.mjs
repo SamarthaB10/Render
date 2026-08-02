@@ -75,13 +75,13 @@ export function prepareRun(workspace, requestId = randomUUID()) {
   };
 }
 
-export function runWorkspace(workspace, requestId = randomUUID()) {
+export function runWorkspace(workspace, requestId = randomUUID(), options = {}) {
   const prepared = prepareRun(workspace, requestId);
   if (!prepared.ok) return prepared;
 
   const root = path.resolve(workspace);
-  const hostPath = findHostPath();
-  if (!hostPath) {
+  const hostPath = options.hostPath === undefined ? findHostPath() : options.hostPath;
+  if (!hostPath || !existsSync(hostPath)) {
     return {
       ...prepared,
       ok: false,
