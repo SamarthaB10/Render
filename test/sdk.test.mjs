@@ -25,3 +25,10 @@ test("SDK exposes a serializable primitive contract", async () => {
     maximum: 100
   });
 });
+
+test("SDK exposes a versioned runtime protocol contract", async () => {
+  const protocol = await import("../packages/sdk/src/protocol.ts");
+
+  assert.equal(protocol.RENDER_PROTOCOL_VERSION, 1);
+  assert.deepEqual(protocol.RENDER_PROTOCOL_VERSION, 1);
+});

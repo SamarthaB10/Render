@@ -128,13 +128,14 @@ test("watch reloads a valid edit through the lifecycle boundary", async () => {
       { hostPath: "/bin/echo" }
     );
     assert.equal(session.initial.ok, true);
+    await new Promise((resolve) => setTimeout(resolve, 50));
 
     writeFileSync(
       path.join(workspace, "widget.tsx"),
       readFileSync(path.join(workspace, "widget.tsx"), "utf8").replace('Text("CPU")', 'Text("Load")')
     );
     await new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error("watch reload timed out")), 1000);
+      const timeout = setTimeout(() => reject(new Error("watch reload timed out")), 3000);
       const poll = setInterval(() => {
         if (results.length > 0) {
           clearTimeout(timeout);

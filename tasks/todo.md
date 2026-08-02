@@ -20,5 +20,5 @@
 
 ## Phase 4 - Future isolation preparation
 
-- [ ] Add versioned supervisor/worker protocol boundaries.
+- [x] Add versioned supervisor/worker protocol boundaries.
 - [ ] Measure runtime and snapshot performance before setting tripwires.
