@@ -15,4 +15,13 @@ test("SDK exposes a serializable primitive contract", async () => {
   });
   assert.deepEqual(sdk.useProvider("system.cpu"), { kind: "provider", name: "system.cpu" });
   assert.deepEqual(sdk.useTimer(1000), { kind: "timer", intervalMs: 1000 });
+  assert.deepEqual(sdk.Text(sdk.useProvider("system.cpu")), {
+    kind: "text",
+    provider: "system.cpu"
+  });
+  assert.deepEqual(sdk.Gauge(sdk.useProvider("system.memory"), 100), {
+    kind: "gauge",
+    provider: "system.memory",
+    maximum: 100
+  });
 });

@@ -23,6 +23,7 @@ public struct WidgetTree: Codable, Equatable, Sendable {
     public let kind: WidgetNodeKind
     public let children: [WidgetTree]
     public let text: String?
+    public let provider: String?
     public let style: WidgetStyle?
     public let value: Double?
     public let maximum: Double?
@@ -31,6 +32,7 @@ public struct WidgetTree: Codable, Equatable, Sendable {
         kind: WidgetNodeKind,
         children: [WidgetTree] = [],
         text: String? = nil,
+        provider: String? = nil,
         style: WidgetStyle? = nil,
         value: Double? = nil,
         maximum: Double? = nil
@@ -38,6 +40,7 @@ public struct WidgetTree: Codable, Equatable, Sendable {
         self.kind = kind
         self.children = children
         self.text = text
+        self.provider = provider
         self.style = style
         self.value = value
         self.maximum = maximum
@@ -53,12 +56,12 @@ public struct WidgetTree: Codable, Equatable, Sendable {
         if !isContainer && !children.isEmpty {
             issues.append(.init(path: path, message: "leaf nodes cannot define children"))
         }
-        if kind == .text && (text == nil || text?.isEmpty == true) {
-            issues.append(.init(path: path, message: "text nodes require non-empty text"))
+        if kind == .text && ((text == nil || text?.isEmpty == true) && provider == nil) {
+            issues.append(.init(path: path, message: "text nodes require non-empty text or a provider"))
         }
         if kind == .gauge {
-            if value == nil || maximum == nil {
-                issues.append(.init(path: path, message: "gauge nodes require value and maximum"))
+            if (value == nil && provider == nil) || maximum == nil {
+                issues.append(.init(path: path, message: "gauge nodes require value or a provider and maximum"))
             } else if let value, let maximum, value < 0 || value > maximum || maximum <= 0 {
                 issues.append(.init(path: path, message: "gauge value must be within a positive maximum"))
             }

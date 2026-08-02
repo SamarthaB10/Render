@@ -15,8 +15,8 @@
 ## Phase 3 - First widget path
 
 - [x] Render the initial primitive tree natively.
-- [ ] Add CPU/RAM providers and one-second host updates.
-- [ ] Add watch reload, snapshots, persistence, and rollback.
+- [x] Add CPU/RAM providers and one-second host updates.
+- [x] Add watch reload, snapshots, persistence, and rollback.
 
 ## Phase 4 - Future isolation preparation
 
