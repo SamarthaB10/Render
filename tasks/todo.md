@@ -2,15 +2,15 @@
 
 ## Phase 1 - Toolchain and native host proof
 
-- [ ] Prove SwiftPM/AppKit host build with the installed command-line toolchain.
-- [ ] Add the serializable widget-tree protocol.
-- [ ] Add focused tests for protocol validation and encoding.
+- [x] Add SwiftPM/AppKit host source with a transparent desktop window boundary.
+- [x] Add the serializable widget-tree protocol.
+- [x] Add focused tests for protocol validation and encoding.
 
 ## Phase 2 - SDK and CLI contracts
 
-- [ ] Add `@render/sdk` package and initial primitives.
-- [ ] Add manifest and capability validation.
-- [ ] Add workspace-scoped `render init`, `render check`, and `render status`.
+- [x] Add `@render/sdk` package and initial primitives.
+- [x] Add manifest and capability validation.
+- [x] Add workspace-scoped `render init`, `render check`, and `render status`.
 
 ## Phase 3 - First widget path
 

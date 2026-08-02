@@ -25,8 +25,8 @@ Build the smallest vertical slice that can grow into Render's first local macOS 
 
 ### Phase 1: Toolchain and native host proof
 
-- [ ] Task 1: Prove a Swift package can compile and launch a native macOS host with a transparent, non-activating window boundary.
-- [ ] Task 2: Define the host-side serializable widget-tree protocol and unit-test its validation/encoding.
+- [x] Task 1: Add the Swift package and native macOS host boundary with a transparent, non-activating window.
+- [x] Task 2: Define the host-side serializable widget-tree protocol and focused validation tests.
 
 ### Checkpoint: Native boundary
 
@@ -36,15 +36,15 @@ Build the smallest vertical slice that can grow into Render's first local macOS 
 
 ### Phase 2: SDK and CLI contracts
 
-- [ ] Task 3: Add the minimal TypeScript SDK package with the first primitives, manifest wrapper, provider hooks, and serializable output types.
-- [ ] Task 4: Add a deterministic `render check` CLI against an explicit workspace and structured `--json` errors.
-- [ ] Task 5: Add `render init` and `render status` workspace metadata without hidden global widget state.
+- [x] Task 3: Add the minimal TypeScript SDK package with the first primitives, manifest wrapper, provider hooks, and serializable output types.
+- [x] Task 4: Add a deterministic `render check` CLI against an explicit workspace and structured `--json` errors.
+- [x] Task 5: Add `render init` and `render status` workspace metadata without hidden global widget state.
 
 ### Checkpoint: Agent boundary
 
-- [ ] SDK contract tests pass.
-- [ ] `render check` rejects invalid manifests and unknown imports with source-oriented diagnostics.
-- [ ] A fresh workspace can be initialized and inspected without touching unrelated paths.
+- [x] SDK contract tests pass.
+- [x] `render check` rejects invalid manifests and unknown imports with source-oriented diagnostics.
+- [x] A fresh workspace can be initialized and inspected without touching unrelated paths.
 
 ### Phase 3: First widget path
 
