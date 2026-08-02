@@ -54,7 +54,8 @@ struct RenderHostMain {
 
         let application = NSApplication.shared
         application.setActivationPolicy(.accessory)
-        application.delegate = RenderHostDelegate()
+        let delegate = RenderHostDelegate()
+        application.delegate = delegate
         application.run()
     }
 }
