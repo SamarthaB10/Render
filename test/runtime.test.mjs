@@ -45,7 +45,7 @@ test("run reports a missing native host instead of claiming the widget is runnin
   const workspace = mkdtempSync(path.join(os.tmpdir(), "render-runtime-"));
   try {
     initWorkspace(workspace, "request-init");
-    const result = runWorkspace(workspace, "request-run");
+    const result = runWorkspace(workspace, "request-run", { hostPath: "/nonexistent/RenderHost" });
     assert.equal(result.ok, false);
     assert.equal(result.diagnostics[0].code, "host-not-built");
   } finally {

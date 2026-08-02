@@ -3,6 +3,9 @@ import PackageDescription
 
 let package = Package(
     name: "Render",
+    platforms: [
+        .macOS(.v13)
+    ],
     products: [
         .library(name: "RenderHostCore", targets: ["RenderHostCore"]),
         .executable(name: "RenderHost", targets: ["RenderHost"])
