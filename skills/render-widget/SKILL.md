@@ -94,6 +94,13 @@ Successful edits update the existing widget in place. The first prototype is dra
 
 - For a visual remix, edit the existing `widget.tsx`, then run `render check` and `render run` again.
 - For logical movement, update the manifest anchor rather than hard-coding screen coordinates.
+- To move through the lifecycle boundary, use a logical corner and optional offsets:
+
+```bash
+render move --workspace "$WORKSPACE" --corner top-right --offset-x 24 --offset-y 24 --json
+```
+
+- Never pass raw screen coordinates to `render move`.
 - If a candidate fails, inspect `render status --json`; keep the last-known-good version running.
 - To restore a prior successful version, run:
 

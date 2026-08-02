@@ -27,4 +27,5 @@
 
 - [x] Add the canonical SDK catalog and `render sdk list` / `render sdk describe` commands.
 - [x] Add the Render agent skill with catalog-guided arbitrary widget authoring; CPU/RAM is the first fixture and Spotify-style integrations are the north-star validation.
+- [x] Add logical `render move` with atomic anchor updates and lifecycle reruns.
 - [ ] Verify the agent skill through the complete create, remix, move, check, watch, and rollback workflow.
