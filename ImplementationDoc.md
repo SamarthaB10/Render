@@ -8,7 +8,17 @@ The decision map is recorded in the closed [Render: first local macOS widget fou
 
 ## Destination
 
-Build a local macOS experience where a user asks Codex to create one CPU/RAM widget, the widget appears directly on the desktop, and the user can remix it conversationally without manually editing code.
+Build a local macOS experience where a user asks an agent to create any useful native widget, the widget appears directly on the desktop, and the user can remix it conversationally without manually editing code.
+
+### North-star use case
+
+The CPU/RAM monitor is the first vertical proof of the platform, not the destination. The product goal is that a user can ask:
+
+> I need a mini 4x4 widget that plays my Spotify music.
+
+Render should enable the agent to understand that request, choose canonical SDK primitives, declare the required network and account capabilities, ask for permission only when needed, connect to an authenticated provider/action integration, generate the declarative widget, launch it on the desktop, and keep it live. The resulting widget must support interaction, placement, remixing, persistence, and rollback.
+
+Spotify should be one provider integration—not a special-case widget. The agent boundary, SDK, capability model, native renderer, provider/action contract, and lifecycle must remain general enough for other agent-generated widgets.
 
 The first proof is:
 
@@ -37,6 +47,7 @@ The first proof is:
 
 - Native macOS rendering.
 - One CPU/RAM widget.
+- CPU/RAM is the first reference fixture; the platform must not be hard-coded around system metrics.
 - Local CPU/RAM providers only.
 - TypeScript/TSX authoring.
 - A canonical `@render/sdk`.
@@ -54,7 +65,7 @@ The first proof is:
 - Separate widget worker processes in the first prototype.
 - Sharing, publishing, galleries, and marketplace workflows.
 - iPhone and iPad support.
-- Third-party APIs and network integrations in the first CPU/RAM proof.
+- Spotify and other third-party APIs or network integrations in the first CPU/RAM proof; the platform boundaries must leave room for them.
 - Editing unrelated user projects.
 - Developer ID notarization, installer, updater, and App Store distribution.
 
@@ -366,7 +377,10 @@ The first prototype may be ad-hoc signed for local development. Developer ID sig
 
 - Add the Render agent skill with SDK catalog guidance.
 - Teach the skill to edit `widget.tsx` rather than inventing primitives.
+- Make arbitrary agent-requested widget compositions the target, using CPU/RAM as the first fixture and a mini Spotify player as the north-star validation case.
+- Add capability, account, provider, and action guidance for integrations that require network access or user authentication.
 - Verify create, remix-in-place, move, check, hot reload, and rollback through Codex.
+- Verify that an eventual request for a mini Spotify player can follow the same create, check, run, remix, and rollback workflow.
 - Verify that the skill does not modify unrelated projects.
 
 ### Phase 7 - First-prototype verification

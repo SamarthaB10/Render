@@ -66,7 +66,7 @@ Build the smallest vertical slice that can grow into Render's first local macOS 
 ### Phase 5: Agent workflow
 
 - [x] Task 11: Add the canonical SDK catalog and deterministic `render sdk list` / `render sdk describe` discovery commands.
-- [ ] Task 12: Add catalog-guided Render agent workflow for create, remix, move, check, watch, and rollback.
+- [ ] Task 12: Add catalog-guided Render agent workflow for arbitrary widgets, starting with CPU/RAM and leading to integrations such as a mini Spotify player.
 
 ## Risks and mitigations
 
