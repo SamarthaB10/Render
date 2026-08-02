@@ -4,6 +4,8 @@ Samartha and the agent are building Render together.
 
 Render is a desktop widget platform: Rainmeter, but native to macOS and authored in TSX instead of a bespoke markup language. It must match or beat Rainmeter on performance. These are desktop widgets, so memory and CPU usage are part of the product, not a nice-to-have.
 
+Render is agent-first. Developers will usually prompt their agents to create, remix, and repair Widgets rather than hand-write code. A fresh agent should be able to take a request such as “make me a mini 4×4 Spotify widget” from prompt to a running desktop surface using the SDK and the documented lifecycle.
+
 This is meant to be a bold project. Simply following existing solutions will not get us where we want to be.
 
 ## Glossary
@@ -11,7 +13,12 @@ This is meant to be a bold project. Simply following existing solutions will not
 - **You**: the agent reading this document and working on Render directly.
 - **We**: the humans contributing to Render.
 - **Developers**: our users. We assume they will not read much code; they will prompt their own agents to build things using this framework.
-- **Widget**: what Render creates and manages.
+- **Widget**: the self-contained desktop surface Render creates and manages. Read [docs/domain-glossary.md](docs/domain-glossary.md) for the full domain definition.
+- **SDK**: Render's supported catalog of primitives, providers, styles, and runtime contracts. Widget authors use this boundary; they do not invent a parallel one.
+- **Conjure**: creating a Widget by prompting an agent.
+- **Share**: sending a Widget as readable source and declared capabilities, not as a compiled artifact or workspace pointer.
+- **Remix**: patching an existing Widget's source to personalize it.
+- **Last-known-good**: the most recent validated Widget version that remains active when a candidate fails.
 - **Landmine**: a decision that costs nothing now and causes major damage later when it becomes load-bearing, such as an unmeasured limit or silent catch.
 - **Receipt**: the measurement behind a number. No receipt, no number.
 - **Tripwire**: a limit placed past where any good widget goes, so only broken things touch it. Good widgets should never feel it exists.
@@ -19,6 +26,41 @@ This is meant to be a bold project. Simply following existing solutions will not
 - **Obvious**: the next reader never asks, “Why is this here?” This is measured by the reader. Obvious is not always simple; sometimes it has more parts.
 
 ## Working principles
+
+### The SDK is the Widget boundary
+
+Widget source must use the Render SDK catalog for primitives, providers, styles, and runtime contracts. Do not create bespoke JSX primitives, hidden native views, embedded web pages, or private provider implementations inside a Widget.
+
+If the SDK cannot express a required Widget, report the missing capability clearly. A platform change may add a new primitive, but it must extend the catalog, validation, runtime contract, documentation, and tests together. Do not silently bypass the boundary to make one Widget work.
+
+### Conjure is an observable lifecycle
+
+For Widget work, follow this sequence unless the task explicitly targets a different layer:
+
+1. Discover the SDK catalog and relevant provider/capability contracts.
+2. Create an isolated Widget workspace.
+3. Author the Widget using catalog primitives.
+4. Run `check --json` and fix every actionable diagnostic.
+5. Run the native Widget and verify its visible behavior.
+6. Use Remix, logical move, watch, and rollback through the Render lifecycle rather than editing runtime state by hand.
+
+The canonical acceptance test is an agent creating a small real Widget, running it on the desktop, moving it, observing a valid edit, and restoring the last-known-good version after a failed edit.
+
+### Last-known-good is a runtime invariant
+
+Candidate Widget changes must be validated before promotion. A failed candidate must not replace the active version, corrupt placement or workspace state, or leave a blank surface without an actionable diagnostic. Keep the last-known-good Widget running whenever recovery is possible, and use the rollback path before attempting another fix.
+
+### Platform work and Widget work are different
+
+The SDK-only rule applies to Widget authors. Agents changing Render itself may add primitives or providers, but only through the public catalog and its complete validation, runtime, documentation, and test surface. Do not solve a platform gap by putting platform code in an individual Widget.
+
+### Protect local state
+
+Never stage, overwrite, delete, or reformat user-owned Widget workspaces, generated files, secrets, or unrelated local changes unless the task names the exact target. Keep temporary work isolated and remove it through a recoverable path when possible. Repository edits must not silently include local runtime artifacts.
+
+### Capabilities are explicit
+
+Use only the capabilities declared by the Widget and allowed by the Render contract. Network access, filesystem access, app launching, commands, and other machine effects must remain visible and permission-based. Do not turn a prototype shortcut into an implicit capability.
 
 ### Boil the ocean
 
@@ -51,7 +93,33 @@ Good code is the simplest thing that delivers full functionality and performance
 
 ## General rule
 
-These principles steer us in the right direction but are not hard-set. Default to following them. If you think one should be ignored, be very clear about why and get approval from us before doing so.
+These principles are strong defaults, not decoration. If a necessary platform change conflicts with one, state the conflict, explain the tradeoff, and get explicit approval before deviating. The SDK boundary for normal Widget work and the last-known-good invariant are not optional shortcuts.
+
+## Working with the repository
+
+Before changing code, inspect the applicable guidance, domain glossary, repository status, current branch, and relevant execution path. Identify the smallest change that proves the behavior.
+
+For non-trivial work:
+
+- Keep the diff focused and preserve existing architecture and dependency choices.
+- Add or update the focused verification before calling the work complete.
+- Run the relevant CLI, native build, and test checks; report anything the environment cannot execute.
+- Review the final diff for accidental user files, generated artifacts, secrets, and unrelated edits.
+- Make failures actionable: name the operation, path, state, and next repair step. Never hide an error in a silent catch.
+
+When repository publication is in scope, create a branch from the intended destination branch, commit with a Conventional Commit message, and push the branch for review. Do not merge pull requests unless explicitly asked. The safe recovery path for source changes is a reviewable revert; Widget runtime recovery uses the last-known-good snapshot and Render rollback.
+
+## Canonical product check
+
+Render's agent experience is not complete until a fresh agent can:
+
+1. Discover the SDK and create an isolated workspace.
+2. Build a useful Widget using only catalog primitives and declared providers/capabilities.
+3. Run `check --json`, start the native Widget, and confirm it is visible on the desktop.
+4. Remix its source, move it logically and interactively, and watch a valid edit.
+5. Introduce or encounter a failed candidate and restore the last-known-good Widget without losing the active state.
+
+If this flow is awkward, opaque, or requires bespoke Widget code, treat that as a Render platform problem to fix—not as a reason to make the agent work around the SDK.
 
 ## Domain context
 
