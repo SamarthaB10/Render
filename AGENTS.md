@@ -52,3 +52,7 @@ Good code is the simplest thing that delivers full functionality and performance
 ## General rule
 
 These principles steer us in the right direction but are not hard-set. Default to following them. If you think one should be ignored, be very clear about why and get approval from us before doing so.
+
+## Domain context
+
+Read [docs/domain-glossary.md](docs/domain-glossary.md) before making product or runtime decisions. It defines Render's shared language for Widgets, Providers, the Renderer, Conjure/Share/Remix, portable Widget files, and system capabilities.
