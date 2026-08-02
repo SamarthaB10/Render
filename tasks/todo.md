@@ -26,4 +26,5 @@
 ## Phase 5 - Agent discovery
 
 - [x] Add the canonical SDK catalog and `render sdk list` / `render sdk describe` commands.
-- [ ] Add the Render agent skill with catalog-guided arbitrary widget authoring; CPU/RAM is the first fixture and Spotify-style integrations are the north-star validation.
+- [x] Add the Render agent skill with catalog-guided arbitrary widget authoring; CPU/RAM is the first fixture and Spotify-style integrations are the north-star validation.
+- [ ] Verify the agent skill through the complete create, remix, move, check, watch, and rollback workflow.
