@@ -6,6 +6,7 @@ import SwiftUI
 private final class RenderHostDelegate: NSObject, NSApplicationDelegate {
     private var panel: DesktopWidgetPanel?
     private var providers: ProviderStore?
+    private var worker: WorkerSession?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let policy = DesktopWindowPolicy()
@@ -13,6 +14,7 @@ private final class RenderHostDelegate: NSObject, NSApplicationDelegate {
         let manifest = loadManifest(workspace: workspace)
         let providers = ProviderStore(subscriptions: Set(manifest.subscribe))
         providers.start()
+        let contentModel = WidgetContentModel(tree: loadTree(workspace: workspace))
         let panel = DesktopWidgetPanel(
             contentRect: NSRect(
                 x: 0,
@@ -24,7 +26,7 @@ private final class RenderHostDelegate: NSObject, NSApplicationDelegate {
         )
         let contentView = DraggableHostingView(
             rootView: AnyView(
-                WidgetTreeView(tree: loadTree(workspace: workspace), providers: providers)
+                WidgetTreeContainer(model: contentModel, providers: providers)
             )
         )
         contentView.onDrag = { [weak panel] origin in
@@ -35,6 +37,26 @@ private final class RenderHostDelegate: NSObject, NSApplicationDelegate {
             self.savePlacement(workspace: workspace, origin: panel.frame.origin, panel: panel)
         }
         panel.contentView = contentView
+        var pendingWorker: WorkerSession?
+        if let workspace {
+            let worker = WorkerSession(
+                workspace: workspace,
+                workerScript: workerScriptArgument(),
+                sourcePath: workerSourcePath(),
+                statePath: workerStatePath(),
+                treePath: workerTreePath()
+            )
+            worker.onTree = { [weak contentModel] tree in
+                DispatchQueue.main.async {
+                    contentModel?.tree = tree
+                }
+            }
+            worker.onFailure = { diagnostics in
+                NSLog("Render worker failure: %@", diagnostics.map(\.message).joined(separator: "; "))
+            }
+            pendingWorker = worker
+            self.worker = worker
+        }
         if let placement = loadPlacement(workspace: workspace),
            let screen = screen(for: placement, panel: panel) {
             panel.place(placement, on: screen)
@@ -49,6 +71,24 @@ private final class RenderHostDelegate: NSObject, NSApplicationDelegate {
         panel.orderFrontRegardless()
         self.panel = panel
         self.providers = providers
+
+        if let pendingWorker {
+            DispatchQueue.global(qos: .userInitiated).async {
+                do {
+                    let tree = try pendingWorker.start()
+                    DispatchQueue.main.async {
+                        contentModel.tree = tree
+                    }
+                } catch {
+                    pendingWorker.recordInitialFailure(error)
+                    NSLog("Render worker failed to start: %@", error.localizedDescription)
+                }
+            }
+        }
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        worker?.stop()
     }
 
     private func loadTree(workspace: String?) -> WidgetTree {
@@ -126,6 +166,50 @@ private final class RenderHostDelegate: NSObject, NSApplicationDelegate {
         guard let index = CommandLine.arguments.firstIndex(of: "--workspace") else { return nil }
         let next = CommandLine.arguments.index(after: index)
         return next < CommandLine.arguments.endIndex ? CommandLine.arguments[next] : nil
+    }
+
+    private func workerScriptArgument() -> String {
+        if let index = CommandLine.arguments.firstIndex(of: "--worker-script") {
+            let next = CommandLine.arguments.index(after: index)
+            if next < CommandLine.arguments.endIndex {
+                return CommandLine.arguments[next]
+            }
+        }
+        if let configured = ProcessInfo.processInfo.environment["RENDER_WORKER_SCRIPT"] {
+            return configured
+        }
+        return URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+            .appendingPathComponent("src/worker.mjs").path
+    }
+
+    private func workerSourcePath() -> String? {
+        argumentValue(named: "--worker-source-path")
+            ?? ProcessInfo.processInfo.environment["RENDER_WORKER_SOURCE_PATH"]
+    }
+
+    private func workerStatePath() -> String? {
+        argumentValue(named: "--worker-state-path")
+            ?? ProcessInfo.processInfo.environment["RENDER_WORKER_STATE_PATH"]
+    }
+
+    private func workerTreePath() -> String? {
+        argumentValue(named: "--worker-tree-path")
+            ?? ProcessInfo.processInfo.environment["RENDER_WORKER_TREE_PATH"]
+    }
+
+    private func argumentValue(named name: String) -> String? {
+        guard let index = CommandLine.arguments.firstIndex(of: name) else { return nil }
+        let next = CommandLine.arguments.index(after: index)
+        return next < CommandLine.arguments.endIndex ? CommandLine.arguments[next] : nil
+    }
+}
+
+private struct WidgetTreeContainer: View {
+    @ObservedObject var model: WidgetContentModel
+    @ObservedObject var providers: ProviderStore
+
+    var body: some View {
+        WidgetTreeView(tree: model.tree, providers: providers)
     }
 }
 

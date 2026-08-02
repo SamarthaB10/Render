@@ -68,6 +68,54 @@ final class DesktopWindowPolicyTests: XCTestCase {
         )
     }
 
+    func testWorkerHelloRequiresSupportedVersions() {
+        let message = WorkerMessage(kind: .hello, messageID: "hello-1", workerID: "worker-1")
+
+        XCTAssertEqual(
+            message.validationIssues(),
+            [.init(path: "supportedVersions", message: "hello messages require at least one supported protocol version")]
+        )
+    }
+
+    func testWorkerHelloAckRejectsUnsupportedSelection() {
+        let message = WorkerMessage(
+            kind: .helloAck,
+            messageID: "ack-1",
+            workerID: "supervisor",
+            selectedVersion: 99
+        )
+
+        XCTAssertEqual(
+            message.validationIssues(),
+            [.init(path: "selectedVersion", message: "helloAck must select the current worker protocol version")]
+        )
+    }
+
+    func testWorkerFailureRequiresActionableDiagnostics() {
+        let message = WorkerMessage(
+            kind: .failure,
+            messageID: "failure-1",
+            workerID: "worker-1",
+            diagnostics: []
+        )
+
+        XCTAssertEqual(
+            message.validationIssues(),
+            [.init(path: "diagnostics", message: "failure messages require diagnostics")]
+        )
+    }
+
+    func testWorkerRenderRequestAcceptsASourcePath() {
+        let message = WorkerMessage(
+            kind: .render,
+            messageID: "render-1",
+            workerID: "supervisor",
+            sourcePath: "/tmp/widget.tsx"
+        )
+
+        XCTAssertTrue(message.validationIssues().isEmpty)
+    }
+
     func testTreeDecodesLeafWithoutChildrenField() throws {
         let data = Data(#"{"kind":"text","text":"CPU"}"#.utf8)
 

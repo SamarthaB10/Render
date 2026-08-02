@@ -34,6 +34,13 @@ test("SDK exposes a versioned runtime protocol contract", async () => {
   assert.deepEqual(protocol.RENDER_PROTOCOL_VERSION, 1);
 });
 
+test("SDK exposes a negotiated worker protocol contract", async () => {
+  const protocol = await import("../packages/sdk/src/worker-protocol.ts");
+
+  assert.equal(protocol.RENDER_WORKER_PROTOCOL_VERSION, 1);
+  assert.deepEqual(protocol.RENDER_WORKER_PROTOCOL_VERSION, 1);
+});
+
 test("SDK catalog exposes canonical primitives, providers, styles, and capabilities", async () => {
   const catalog = await import("../packages/sdk/src/catalog.ts");
   const names = catalog.listSdkCatalog().map((item) => item.name);

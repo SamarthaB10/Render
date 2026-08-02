@@ -13,6 +13,9 @@ import {
 } from "./workspace.mjs";
 import { extractManifest, updateManifest, validateManifest } from "./manifest.mjs";
 
+// Receipt: perf/receipts/phase8-worker.json
+const SUPERVISOR_STARTUP_TIMEOUT_MS = 5000;
+
 export function buildRuntimeTree(source, filename = "widget.tsx") {
   const transformed = source
     .replace(
@@ -90,14 +93,18 @@ export function prepareRun(workspace, requestId = randomUUID()) {
 }
 
 export function runWorkspace(workspace, requestId = randomUUID(), options = {}) {
+  const root = path.resolve(workspace);
+  const hostPath = options.hostPath === undefined ? findHostPath() : options.hostPath;
+  if (isNativeHost(hostPath) && options.supervised !== false) {
+    return runSupervisedWorkspace(root, requestId, hostPath);
+  }
+
   const prepared = prepareRun(workspace, requestId);
   if (!prepared.ok) {
     recordFailure(workspace, prepared.diagnostics);
     return prepared;
   }
 
-  const root = path.resolve(workspace);
-  const hostPath = options.hostPath === undefined ? findHostPath() : options.hostPath;
   if (!hostPath || !existsSync(hostPath)) {
     const result = {
       ...prepared,
@@ -133,6 +140,154 @@ export function runWorkspace(workspace, requestId = randomUUID(), options = {}) 
     activeVersion: promotion.version,
     lastKnownGoodVersion: promotion.version
   };
+}
+
+function runSupervisedWorkspace(root, requestId, hostPath) {
+  const check = checkWorkspace(root, requestId);
+  if (!check.ok) {
+    recordFailure(root, check.diagnostics);
+    return { ...check, operation: "run" };
+  }
+
+  const source = readFileSync(path.join(root, "widget.tsx"), "utf8");
+  const manifest = extractManifest(source);
+  const runtimeRoot = path.join(root, ".render/runtime");
+  if (!existsSync(runtimeRoot)) {
+    const result = {
+      requestId,
+      operation: "run",
+      workspace: root,
+      ok: false,
+      diagnostics: [{
+        code: "missing-runtime-directory",
+        path: ".render/runtime",
+        message: "run render init before running a widget"
+      }]
+    };
+    recordFailure(root, result.diagnostics);
+    return result;
+  }
+
+  writeAtomically(
+    path.join(runtimeRoot, "manifest.json"),
+    `${JSON.stringify(manifest, null, 2)}\n`
+  );
+  const launched = launchNativeSupervisor(root, hostPath);
+  if (!launched.ok) {
+    recordFailure(root, launched.diagnostics);
+    return {
+      requestId,
+      operation: "run",
+      workspace: root,
+      ok: false,
+      diagnostics: launched.diagnostics
+    };
+  }
+
+  stopPreviousHost(root);
+  const promotion = promoteSnapshot(root, requestId);
+  const state = {
+    ...promotion.state,
+    running: true,
+    processId: launched.processId,
+    workerStatePath: launched.workerStatePath
+  };
+  updateState(root, state);
+  return {
+    requestId,
+    operation: "run",
+    workspace: root,
+    ok: true,
+    running: true,
+    processId: launched.processId,
+    activeVersion: promotion.version,
+    lastKnownGoodVersion: promotion.version,
+    worker: launched.worker,
+    workerStatePath: launched.workerStatePath
+  };
+}
+
+function launchNativeSupervisor(root, hostPath) {
+  const supervisorID = randomUUID();
+  const workerSourcePath = path.join(root, `.render/runtime/source-${supervisorID}.tsx`);
+  const workerStatePath = path.join(root, `.render/runtime/worker-state-${supervisorID}.json`);
+  const workerTreePath = path.join(root, `.render/runtime/tree-${supervisorID}.json`);
+  writeAtomically(workerSourcePath, readFileSync(path.join(root, "widget.tsx")));
+  try {
+    unlinkSync(workerStatePath);
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
+
+  const workerScript = process.env.RENDER_WORKER_SCRIPT ?? path.resolve("src/worker.mjs");
+  const child = spawn(hostPath, [
+    "--workspace", root,
+    "--worker-script", workerScript,
+    "--worker-source-path", workerSourcePath,
+    "--worker-state-path", workerStatePath,
+    "--worker-tree-path", workerTreePath
+  ], {
+    detached: true,
+    stdio: "ignore",
+    env: { ...process.env, RENDER_WORKER_SCRIPT: workerScript }
+  });
+  child.unref();
+
+  const worker = waitForWorkerState(workerStatePath, SUPERVISOR_STARTUP_TIMEOUT_MS);
+  if (!worker || worker.status !== "ready") {
+    try {
+      process.kill(child.pid);
+    } catch (error) {
+      if (error.code !== "ESRCH") throw error;
+    }
+    return {
+      ok: false,
+      diagnostics: worker?.diagnostics ?? [{
+        code: "worker-start-timeout",
+        path: workerStatePath,
+        message: `native supervisor did not report a ready worker within ${SUPERVISOR_STARTUP_TIMEOUT_MS}ms`
+      }]
+    };
+  }
+  if (!existsSync(workerTreePath)) {
+    try {
+      process.kill(child.pid);
+    } catch (error) {
+      if (error.code !== "ESRCH") throw error;
+    }
+    return {
+      ok: false,
+      diagnostics: [{
+        code: "worker-tree-missing",
+        path: workerTreePath,
+        message: "native supervisor reported ready without publishing a runtime tree"
+      }]
+    };
+  }
+  writeAtomically(
+    path.join(root, ".render/runtime/tree.json"),
+    readFileSync(workerTreePath)
+  );
+  return { ok: true, processId: child.pid, worker, workerSourcePath, workerStatePath, workerTreePath };
+}
+
+function waitForWorkerState(workerStatePath, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (existsSync(workerStatePath)) {
+      try {
+        return JSON.parse(readFileSync(workerStatePath, "utf8"));
+      } catch {
+        // The native supervisor writes the state atomically; try again if a partial file is observed.
+      }
+    }
+    sleepSynchronously(25);
+  }
+  return null;
+}
+
+function sleepSynchronously(milliseconds) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, milliseconds);
 }
 
 export function moveWorkspace(
@@ -256,6 +411,31 @@ export function rollbackWorkspace(workspace, version, requestId = randomUUID(), 
 
   const restored = restoreSnapshot(root, target, requestId);
   if (!restored.ok) return restored;
+  if (isNativeHost(hostPath) && options.supervised !== false) {
+    const launched = launchNativeSupervisor(root, hostPath);
+    if (!launched.ok) {
+      recordFailure(root, launched.diagnostics);
+      return {
+        ...launched,
+        operation: "rollback",
+        workspace: root
+      };
+    }
+    stopPreviousHost(root);
+    updateState(root, {
+      ...restored.state,
+      running: true,
+      processId: launched.processId,
+      workerStatePath: launched.workerStatePath
+    });
+    return {
+      ...restored,
+      running: true,
+      processId: launched.processId,
+      worker: launched.worker,
+      workerStatePath: launched.workerStatePath
+    };
+  }
   stopPreviousHost(root);
   const child = spawn(hostPath, ["--workspace", root], {
     detached: true,
@@ -327,6 +507,10 @@ function findHostPath() {
     path.resolve(".build/arm64-apple-macosx/debug/RenderHost")
   ].filter(Boolean);
   return candidates.find((candidate) => existsSync(candidate)) ?? null;
+}
+
+function isNativeHost(hostPath) {
+  return typeof hostPath === "string" && existsSync(hostPath) && path.basename(hostPath) === "RenderHost";
 }
 
 function previousVersion(state) {

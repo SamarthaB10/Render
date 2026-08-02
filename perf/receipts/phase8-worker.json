@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "measuredAt": "2026-08-02T23:30:00Z",
+  "measurement": {
+    "platform": "darwin",
+    "worker": "src/worker.mjs",
+    "sampleIntervalMs": 1000,
+    "sampleCount": 5,
+    "cpuPercent": {
+      "samples": [0, 0, 0, 0, 0],
+      "p95": 0
+    },
+    "residentMemoryKB": {
+      "samples": [70384, 61424, 57568, 55184, 41760],
+      "p95": 70384
+    },
+    "renderRunStartupMs": {
+      "samples": [944, 346, 358],
+      "p95": 944
+    }
+  },
+  "tripwires": {
+    "maxCpuPercent": 200,
+    "maxResidentMemoryKB": 131072,
+    "supervisorStartupTimeoutMs": 5000,
+    "rationale": "The worker measured 41,760-70,384 KB resident memory across five one-second samples. Three native render runs reached supervisor readiness in 346-944ms, so the 131,072KB memory limit and 5,000ms startup deadline are above observed healthy behavior and intended to catch runaway or hung workers, not constrain a healthy widget."
+  }
+}

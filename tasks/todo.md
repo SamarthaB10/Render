@@ -30,3 +30,14 @@
 - [x] Add logical `render move` with atomic anchor updates and lifecycle reruns.
 - [x] Verify the agent skill through the complete create, remix, move, check, watch, and rollback workflow using the deterministic host boundary.
 - [x] Make SDK discovery agent-complete with exact contracts, canonical examples, and a scaffold command.
+
+## Phase 6 - Crash isolation
+
+- [x] Define the versioned supervisor/worker message contract and compatibility negotiation.
+- [x] Execute widget TypeScript in a disposable Node worker owned by RenderHost.
+- [x] Keep the last-known-good native tree active while a worker restarts.
+- [x] Add bounded restart backoff and actionable worker diagnostics.
+- [x] Add session-scoped worker state/tree files for safe candidate handoff.
+- [x] Add measured CPU and resident-memory telemetry with explicit tripwires.
+- [x] Route native run, watch, move, and rollback through the supervisor path.
+- [x] Verify worker crash recovery on the target macOS runtime.
