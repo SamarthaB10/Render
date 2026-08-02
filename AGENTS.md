@@ -41,7 +41,7 @@ If either answer is no, the work is not done.
 
 ### A limit developers can hit is a limit they must see
 
-Every budget failure names the budget, the limit, and the ask: at `weaver check`, if knowable there, and loudly at runtime if not. A silent budget is worse than no budget.
+Every budget failure names the budget, the limit, and the ask: at `render check`, if knowable there, and loudly at runtime if not. A silent budget is worse than no budget.
 
 ### Fight for the obvious solution
 
