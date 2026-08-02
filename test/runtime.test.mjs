@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { buildRuntimeTree, prepareRun, runWorkspace } from "../src/runtime.mjs";
-import { initWorkspace } from "../src/workspace.mjs";
+import { initWorkspace, promoteSnapshot, restoreSnapshot, statusWorkspace } from "../src/workspace.mjs";
 
 test("builds a serializable runtime tree from the SDK boundary", () => {
   const source = `
@@ -68,6 +68,48 @@ test("run reports a missing native host instead of claiming the widget is runnin
     const result = runWorkspace(workspace, "request-run", { hostPath: "/nonexistent/RenderHost" });
     assert.equal(result.ok, false);
     assert.equal(result.diagnostics[0].code, "host-not-built");
+  } finally {
+    rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
+test("promotes immutable snapshots and restores an earlier version", () => {
+  const workspace = mkdtempSync(path.join(os.tmpdir(), "render-snapshot-"));
+  try {
+    initWorkspace(workspace, "request-init");
+    prepareRun(workspace, "request-first");
+    const first = promoteSnapshot(workspace, "request-first");
+
+    const widgetPath = path.join(workspace, "widget.tsx");
+    writeFileSync(widgetPath, readFileSync(widgetPath, "utf8").replace('Text("CPU")', 'Text("Load")'));
+    prepareRun(workspace, "request-second");
+    const second = promoteSnapshot(workspace, "request-second");
+
+    assert.notEqual(first.version, second.version);
+    assert.deepEqual(statusWorkspace(workspace).state.successfulVersions, [first.version, second.version]);
+    const restored = restoreSnapshot(workspace, first.version, "request-rollback");
+    assert.equal(restored.ok, true);
+    assert.equal(statusWorkspace(workspace).state.activeVersion, first.version);
+    assert.match(readFileSync(path.join(workspace, ".render/runtime/tree.json"), "utf8"), /CPU/);
+  } finally {
+    rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
+test("failed candidates preserve the active version and record diagnostics", () => {
+  const workspace = mkdtempSync(path.join(os.tmpdir(), "render-snapshot-"));
+  try {
+    initWorkspace(workspace, "request-init");
+    prepareRun(workspace, "request-first");
+    const first = promoteSnapshot(workspace, "request-first");
+    writeFileSync(path.join(workspace, "widget.tsx"), "export default widget(");
+
+    const result = runWorkspace(workspace, "request-failed", { hostPath: "/nonexistent/RenderHost" });
+    const status = statusWorkspace(workspace);
+    assert.equal(result.ok, false);
+    assert.equal(status.state.activeVersion, first.version);
+    assert.equal(status.state.lastKnownGoodVersion, first.version);
+    assert.equal(status.state.lastFailure.diagnostics[0].code, "invalid-widget-source");
   } finally {
     rmSync(workspace, { recursive: true, force: true });
   }

@@ -16,7 +16,7 @@
 
 - [x] Render the initial primitive tree natively.
 - [x] Add CPU/RAM providers and one-second host updates.
-- [ ] Add watch reload, snapshots, persistence, and rollback.
+- [x] Add watch reload, snapshots, persistence, and rollback.
 
 ## Phase 4 - Future isolation preparation
 

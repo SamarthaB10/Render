@@ -3,6 +3,7 @@ import {
   existsSync,
   mkdirSync,
   readFileSync,
+  renameSync,
   writeFileSync
 } from "node:fs";
 import path from "node:path";
@@ -47,7 +48,10 @@ export function initWorkspace(workspace, requestId = randomUUID()) {
     workspace: root,
     running: false,
     activeVersion: null,
-    lastKnownGoodVersion: null
+    lastKnownGoodVersion: null,
+    successfulVersions: [],
+    processId: null,
+    lastFailure: null
   };
   writeFileSync(
     path.join(renderRoot, "metadata.json"),
@@ -56,6 +60,75 @@ export function initWorkspace(workspace, requestId = randomUUID()) {
   );
 
   return { requestId, operation: "init", workspace: root, ok: true, state, diagnostics: [] };
+}
+
+export function promoteSnapshot(workspace, requestId = randomUUID()) {
+  const root = path.resolve(workspace);
+  const renderRoot = path.join(root, ".render");
+  const version = `snapshot-${randomUUID()}`;
+  const snapshotPath = path.join(renderRoot, "snapshots", version);
+  mkdirSync(snapshotPath, { recursive: true });
+
+  writeFileSync(path.join(snapshotPath, "widget.tsx"), readFileSync(path.join(root, "widget.tsx")), "utf8");
+  writeFileSync(
+    path.join(snapshotPath, "tree.json"),
+    readFileSync(path.join(renderRoot, "runtime", "tree.json")),
+    "utf8"
+  );
+  writeFileSync(
+    path.join(snapshotPath, "manifest.json"),
+    readFileSync(path.join(renderRoot, "runtime", "manifest.json")),
+    "utf8"
+  );
+
+  const state = readState(root);
+  const nextState = {
+    ...state,
+    activeVersion: version,
+    lastKnownGoodVersion: version,
+    successfulVersions: [...state.successfulVersions, version],
+    lastFailure: null
+  };
+  writeState(root, nextState);
+  return { requestId, operation: "promote", workspace: root, ok: true, version, snapshotPath, state: nextState, diagnostics: [] };
+}
+
+export function restoreSnapshot(workspace, version, requestId = randomUUID()) {
+  const root = path.resolve(workspace);
+  const snapshotPath = path.join(root, ".render", "snapshots", version);
+  if (!existsSync(snapshotPath)) {
+    return result(requestId, "rollback", root, false, [{
+      code: "missing-snapshot",
+      path: `.render/snapshots/${version}`,
+      message: "snapshot version does not exist"
+    }]);
+  }
+
+  const runtimeRoot = path.join(root, ".render", "runtime");
+  writeAtomically(path.join(runtimeRoot, "tree.json"), readFileSync(path.join(snapshotPath, "tree.json")));
+  writeAtomically(path.join(runtimeRoot, "manifest.json"), readFileSync(path.join(snapshotPath, "manifest.json")));
+
+  const state = readState(root);
+  const nextState = {
+    ...state,
+    activeVersion: version,
+    lastKnownGoodVersion: version,
+    lastFailure: null
+  };
+  writeState(root, nextState);
+  return { requestId, operation: "rollback", workspace: root, ok: true, version, state: nextState, diagnostics: [] };
+}
+
+export function recordFailure(workspace, diagnostics) {
+  const root = path.resolve(workspace);
+  if (!existsSync(path.join(root, ".render", "metadata.json"))) return null;
+  const state = readState(root);
+  const nextState = {
+    ...state,
+    lastFailure: { at: new Date().toISOString(), diagnostics }
+  };
+  writeState(root, nextState);
+  return nextState;
 }
 
 export function checkWorkspace(workspace, requestId = randomUUID()) {
@@ -108,7 +181,7 @@ export function statusWorkspace(workspace, requestId = randomUUID()) {
   }
 
   try {
-    const state = JSON.parse(readFileSync(metadataPath, "utf8"));
+    const state = readState(root);
     return { requestId, operation: "status", workspace: root, ok: true, state, diagnostics: [] };
   } catch {
     return result(requestId, "status", root, false, [{
@@ -143,4 +216,28 @@ function lineNumber(source, index) {
 
 function result(requestId, operation, workspace, ok, diagnostics) {
   return { requestId, operation, workspace, ok, diagnostics };
+}
+
+function readState(root) {
+  const state = JSON.parse(readFileSync(path.join(root, ".render", "metadata.json"), "utf8"));
+  return {
+    successfulVersions: [],
+    processId: null,
+    lastFailure: null,
+    ...state,
+    successfulVersions: Array.isArray(state.successfulVersions) ? state.successfulVersions : []
+  };
+}
+
+function writeState(root, state) {
+  writeAtomically(
+    path.join(root, ".render", "metadata.json"),
+    `${JSON.stringify(state, null, 2)}\n`
+  );
+}
+
+function writeAtomically(filePath, data) {
+  const temporaryPath = `${filePath}.${randomUUID()}.tmp`;
+  writeFileSync(temporaryPath, data);
+  renameSync(temporaryPath, filePath);
 }

@@ -1,10 +1,16 @@
 import { randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
-import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, renameSync, watch, writeFileSync } from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
 import * as sdk from "../packages/sdk/src/index.ts";
-import { checkWorkspace } from "./workspace.mjs";
+import {
+  checkWorkspace,
+  promoteSnapshot,
+  recordFailure,
+  restoreSnapshot,
+  statusWorkspace
+} from "./workspace.mjs";
 import { extractManifest } from "./manifest.mjs";
 
 export function buildRuntimeTree(source, filename = "widget.tsx") {
@@ -85,12 +91,15 @@ export function prepareRun(workspace, requestId = randomUUID()) {
 
 export function runWorkspace(workspace, requestId = randomUUID(), options = {}) {
   const prepared = prepareRun(workspace, requestId);
-  if (!prepared.ok) return prepared;
+  if (!prepared.ok) {
+    recordFailure(workspace, prepared.diagnostics);
+    return prepared;
+  }
 
   const root = path.resolve(workspace);
   const hostPath = options.hostPath === undefined ? findHostPath() : options.hostPath;
   if (!hostPath || !existsSync(hostPath)) {
-    return {
+    const result = {
       ...prepared,
       ok: false,
       diagnostics: [{
@@ -99,15 +108,100 @@ export function runWorkspace(workspace, requestId = randomUUID(), options = {}) 
         message: "build the RenderHost executable before running a widget"
       }]
     };
+    recordFailure(root, result.diagnostics);
+    return result;
   }
 
+  const promotion = promoteSnapshot(root, requestId);
+  stopPreviousHost(root);
   const child = spawn(hostPath, ["--workspace", root], {
     detached: true,
     stdio: "ignore",
     env: { ...process.env, RENDER_WORKSPACE: root }
   });
   child.unref();
-  return { ...prepared, running: true, processId: child.pid };
+  const state = {
+    ...promotion.state,
+    running: true,
+    processId: child.pid
+  };
+  updateState(root, state);
+  return {
+    ...prepared,
+    running: true,
+    processId: child.pid,
+    activeVersion: promotion.version,
+    lastKnownGoodVersion: promotion.version
+  };
+}
+
+export function rollbackWorkspace(workspace, version, requestId = randomUUID(), options = {}) {
+  const root = path.resolve(workspace);
+  const status = statusWorkspace(root, requestId);
+  if (!status.ok) return { ...status, operation: "rollback" };
+  const target = version ?? previousVersion(status.state);
+  if (!target) {
+    return {
+      requestId,
+      operation: "rollback",
+      workspace: root,
+      ok: false,
+      diagnostics: [{
+        code: "no-rollback-target",
+        path: ".render/snapshots",
+        message: "no earlier successful snapshot is available"
+      }]
+    };
+  }
+
+  const hostPath = options.hostPath === undefined ? findHostPath() : options.hostPath;
+  if (!hostPath || !existsSync(hostPath)) {
+    return {
+      requestId,
+      operation: "rollback",
+      workspace: root,
+      ok: false,
+      diagnostics: [{
+        code: "host-not-built",
+        path: ".build/debug/RenderHost",
+        message: "build the RenderHost executable before rolling back"
+      }]
+    };
+  }
+
+  const restored = restoreSnapshot(root, target, requestId);
+  if (!restored.ok) return restored;
+  stopPreviousHost(root);
+  const child = spawn(hostPath, ["--workspace", root], {
+    detached: true,
+    stdio: "ignore",
+    env: { ...process.env, RENDER_WORKSPACE: root }
+  });
+  child.unref();
+  updateState(root, { ...restored.state, running: true, processId: child.pid });
+  return { ...restored, running: true, processId: child.pid };
+}
+
+export function watchWorkspace(workspace, requestId = randomUUID(), onResult = () => {}) {
+  const root = path.resolve(workspace);
+  const initial = runWorkspace(root, requestId);
+  if (!initial.ok) return { initial, close: () => {} };
+
+  let debounceTimer;
+  const watcher = watch(path.join(root, "widget.tsx"), { persistent: true }, () => {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      onResult(runWorkspace(root));
+    }, 50);
+  });
+  return {
+    initial,
+    close: () => {
+      clearTimeout(debounceTimer);
+      watcher.close();
+      stopPreviousHost(root);
+    }
+  };
 }
 
 function validateRuntimeTree(node, pathName, subscriptions) {
@@ -147,4 +241,30 @@ function findHostPath() {
     path.resolve(".build/arm64-apple-macosx/debug/RenderHost")
   ].filter(Boolean);
   return candidates.find((candidate) => existsSync(candidate)) ?? null;
+}
+
+function previousVersion(state) {
+  const versions = state.successfulVersions ?? [];
+  for (let index = versions.length - 1; index >= 0; index -= 1) {
+    if (versions[index] !== state.activeVersion) return versions[index];
+  }
+  return null;
+}
+
+function stopPreviousHost(root) {
+  const status = statusWorkspace(root);
+  const processId = status.ok ? status.state.processId : null;
+  if (!processId || processId === process.pid) return;
+  try {
+    process.kill(processId);
+  } catch (error) {
+    if (error.code !== "ESRCH") throw error;
+  }
+}
+
+function updateState(root, state) {
+  const metadataPath = path.join(root, ".render", "metadata.json");
+  const temporaryPath = `${metadataPath}.${randomUUID()}.tmp`;
+  writeFileSync(temporaryPath, `${JSON.stringify(state, null, 2)}\n`, "utf8");
+  renameSync(temporaryPath, metadataPath);
 }
