@@ -105,6 +105,7 @@ export function restoreSnapshot(workspace, version, requestId = randomUUID()) {
   }
 
   const runtimeRoot = path.join(root, ".render", "runtime");
+  writeAtomically(path.join(root, "widget.tsx"), readFileSync(path.join(snapshotPath, "widget.tsx")));
   writeAtomically(path.join(runtimeRoot, "tree.json"), readFileSync(path.join(snapshotPath, "tree.json")));
   writeAtomically(path.join(runtimeRoot, "manifest.json"), readFileSync(path.join(snapshotPath, "manifest.json")));
 
