@@ -2,11 +2,6 @@ import AppKit
 import RenderHostCore
 
 final class DesktopWidgetPanel: NSPanel {
-    var onDragEnded: ((NSPoint) -> Void)?
-
-    private var dragStartMouseLocation: NSPoint?
-    private var dragStartOrigin: NSPoint?
-
     init(contentRect: NSRect, policy: DesktopWindowPolicy) {
         super.init(
             contentRect: contentRect,
@@ -27,31 +22,12 @@ final class DesktopWidgetPanel: NSPanel {
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
 
-    override func mouseDown(with event: NSEvent) {
-        dragStartMouseLocation = NSEvent.mouseLocation
-        dragStartOrigin = frame.origin
-    }
-
-    override func mouseDragged(with event: NSEvent) {
-        guard let dragStartMouseLocation, let dragStartOrigin else { return }
-
-        let mouseLocation = NSEvent.mouseLocation
-        let candidateOrigin = NSPoint(
-            x: dragStartOrigin.x + mouseLocation.x - dragStartMouseLocation.x,
-            y: dragStartOrigin.y + mouseLocation.y - dragStartMouseLocation.y
-        )
+    func move(to candidateOrigin: NSPoint) {
         if let screen = screen(containing: candidateOrigin) {
             setFrameOrigin(clampedOrigin(candidateOrigin, to: screen.visibleFrame))
         } else {
             setFrameOrigin(candidateOrigin)
         }
-    }
-
-    override func mouseUp(with event: NSEvent) {
-        guard dragStartOrigin != nil else { return }
-        dragStartMouseLocation = nil
-        dragStartOrigin = nil
-        onDragEnded?(frame.origin)
     }
 
     func placeOnPrimaryDisplay(

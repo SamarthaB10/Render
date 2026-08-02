@@ -22,9 +22,19 @@ private final class RenderHostDelegate: NSObject, NSApplicationDelegate {
             ),
             policy: policy
         )
-        panel.contentView = NSHostingView(
-            rootView: WidgetTreeView(tree: loadTree(workspace: workspace), providers: providers)
+        let contentView = DraggableHostingView(
+            rootView: AnyView(
+                WidgetTreeView(tree: loadTree(workspace: workspace), providers: providers)
+            )
         )
+        contentView.onDrag = { [weak panel] origin in
+            panel?.move(to: origin)
+        }
+        contentView.onDragEnded = { [weak self, weak panel] in
+            guard let self, let panel else { return }
+            self.savePlacement(workspace: workspace, origin: panel.frame.origin, panel: panel)
+        }
+        panel.contentView = contentView
         if let placement = loadPlacement(workspace: workspace),
            let screen = screen(for: placement, panel: panel) {
             panel.place(placement, on: screen)
@@ -35,10 +45,6 @@ private final class RenderHostDelegate: NSObject, NSApplicationDelegate {
                 offsetX: manifest.anchor.offset.x,
                 offsetY: manifest.anchor.offset.y
             )
-        }
-        panel.onDragEnded = { [weak self, weak panel] origin in
-            guard let self, let panel else { return }
-            self.savePlacement(workspace: workspace, origin: origin, panel: panel)
         }
         panel.orderFrontRegardless()
         self.panel = panel
