@@ -1,4 +1,5 @@
 #if canImport(XCTest)
+import Foundation
 import XCTest
 @testable import RenderHostCore
 
@@ -53,6 +54,15 @@ final class DesktopWindowPolicyTests: XCTestCase {
             message.validationIssues(),
             [.init(path: "tree", message: "render messages require a tree")]
         )
+    }
+
+    func testTreeDecodesLeafWithoutChildrenField() throws {
+        let data = Data(#"{"kind":"text","text":"CPU"}"#.utf8)
+
+        let tree = try JSONDecoder().decode(WidgetTree.self, from: data)
+
+        XCTAssertEqual(tree.children, [])
+        XCTAssertEqual(tree.text, "CPU")
     }
 }
 #endif
