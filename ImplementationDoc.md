@@ -30,6 +30,7 @@ The first proof is:
 - Generated code runs automatically after the agent updates the workspace.
 - The first prototype supports one active widget.
 - Remixing updates that widget in place rather than creating a second widget.
+- The user can drag the generated first-prototype widget, and its screen placement persists.
 - The widget is a true desktop-layer surface, not a browser or ordinary floating app window.
 
 ### First prototype scope
@@ -295,8 +296,8 @@ The first prototype retains every successful snapshot. Pruning is deferred until
 - Use a native non-activating window between wallpaper and normal application windows.
 - Use true per-pixel alpha with no opaque backing rectangle.
 - Render rounded corners, shadows, glass, and other effects from the widget tree.
-- Default to click-through.
-- Declare `interactive` explicitly when a widget needs interaction.
+- The first prototype runs the generated widget in draggable interaction mode so users can place it.
+- Keep click-through as an explicit passive mode when interaction configuration is added.
 - Use logical anchors and offsets instead of raw screen coordinates.
 - Default to the top-left of the primary display.
 - Support conversational movement to another logical anchor, including top-right.
@@ -396,7 +397,7 @@ The first prototype may be ad-hoc signed for local development. Developer ID sig
 - [ ] The widget renders natively on the macOS desktop layer.
 - [ ] The widget starts at the top-left of the primary display.
 - [ ] The widget is visible across macOS Spaces.
-- [ ] The widget is click-through by default.
+- [ ] The widget interaction mode is explicit: the first prototype is draggable; passive widgets remain click-through.
 - [ ] CPU and RAM values update once per second.
 - [ ] No elevated permission prompt is shown for the CPU/RAM widget.
 - [ ] `render check` produces actionable diagnostics.
@@ -407,7 +408,7 @@ The first prototype may be ad-hoc signed for local development. Developer ID sig
 - [ ] Failed edits leave the last-known-good widget running.
 - [ ] `render rollback` can restore an earlier successful snapshot.
 - [ ] `--json` output is sufficient for an agent to act without reading source code.
-- [ ] Performance receipts exist before any enforced resource limits are added.
+- [x] Performance receipts exist before any enforced resource limits are added (`perf/receipts/first-prototype.json`).
 
 ## Deferred questions discovered during implementation
 
@@ -416,6 +417,7 @@ These are implementation details, not unresolved product direction:
 - Exact native macOS target structure and build tooling.
 - Exact embedded JavaScript engine and local TypeScript transpilation path.
 - Exact SwiftUI/AppKit bridge implementation.
+- Native widget render-pass cadence instrumentation beyond display-link cadence.
 - Exact workspace metadata filenames.
 - Exact SDK catalog generation tool.
 - Exact macOS login-item mechanism.

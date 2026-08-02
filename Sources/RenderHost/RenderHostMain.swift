@@ -175,6 +175,15 @@ struct RenderHostMain {
             }
             return
         }
+        if CommandLine.arguments.contains("--performance-self-check") {
+            let result = [
+                "frameCadence": FrameCadenceProbe().measure()
+            ]
+            if let data = try? JSONEncoder().encode(result) {
+                print(String(decoding: data, as: UTF8.self))
+            }
+            return
+        }
 
         let application = NSApplication.shared
         application.setActivationPolicy(.accessory)

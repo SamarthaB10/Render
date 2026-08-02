@@ -21,4 +21,9 @@
 ## Phase 4 - Future isolation preparation
 
 - [x] Add versioned supervisor/worker protocol boundaries.
-- [ ] Measure runtime and snapshot performance before setting tripwires.
+- [x] Measure runtime and snapshot performance before setting tripwires; receipt: `perf/receipts/first-prototype.json`.
+
+## Phase 5 - Agent discovery
+
+- [x] Add the canonical SDK catalog and `render sdk list` / `render sdk describe` commands.
+- [ ] Add the Render agent skill with catalog-guided widget authoring.

@@ -61,7 +61,12 @@ Build the smallest vertical slice that can grow into Render's first local macOS 
 ### Phase 4: Future isolation preparation
 
 - [x] Task 9: Add versioned supervisor/worker protocol boundaries without moving execution out of process yet.
-- [ ] Task 10: Measure CPU, memory, wakeups, frame cadence, and snapshot disk use before adding tripwires.
+- [x] Task 10: Measure CPU, memory, wakeups, frame cadence, and snapshot disk use before adding tripwires.
+
+### Phase 5: Agent workflow
+
+- [x] Task 11: Add the canonical SDK catalog and deterministic `render sdk list` / `render sdk describe` discovery commands.
+- [ ] Task 12: Add catalog-guided Render agent workflow for create, remix, move, check, watch, and rollback.
 
 ## Risks and mitigations
 
