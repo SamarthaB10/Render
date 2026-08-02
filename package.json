@@ -6,6 +6,7 @@
     "render": "bin/render.mjs"
   },
   "scripts": {
-    "test": "node --test"
+    "test": "node --test",
+    "measure:performance": "node scripts/measure-performance.mjs"
   }
 }
