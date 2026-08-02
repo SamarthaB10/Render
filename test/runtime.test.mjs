@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { buildRuntimeTree, prepareRun, runWorkspace } from "../src/runtime.mjs";
+import { buildRuntimeTree, prepareRun, runWorkspace, watchWorkspace } from "../src/runtime.mjs";
 import { initWorkspace, promoteSnapshot, restoreSnapshot, statusWorkspace } from "../src/workspace.mjs";
 
 test("builds a serializable runtime tree from the SDK boundary", () => {
@@ -111,6 +111,41 @@ test("failed candidates preserve the active version and record diagnostics", () 
     assert.equal(status.state.lastKnownGoodVersion, first.version);
     assert.equal(status.state.lastFailure.diagnostics[0].code, "invalid-widget-source");
   } finally {
+    rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
+test("watch reloads a valid edit through the lifecycle boundary", async () => {
+  const workspace = mkdtempSync(path.join(os.tmpdir(), "render-watch-"));
+  let session;
+  try {
+    initWorkspace(workspace, "request-init");
+    const results = [];
+    session = watchWorkspace(
+      workspace,
+      "request-watch",
+      (result) => results.push(result),
+      { hostPath: "/bin/echo" }
+    );
+    assert.equal(session.initial.ok, true);
+
+    writeFileSync(
+      path.join(workspace, "widget.tsx"),
+      readFileSync(path.join(workspace, "widget.tsx"), "utf8").replace('Text("CPU")', 'Text("Load")')
+    );
+    await new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => reject(new Error("watch reload timed out")), 1000);
+      const poll = setInterval(() => {
+        if (results.length > 0) {
+          clearTimeout(timeout);
+          clearInterval(poll);
+          resolve();
+        }
+      }, 25);
+    });
+    assert.equal(results[0].ok, true);
+  } finally {
+    session?.close();
     rmSync(workspace, { recursive: true, force: true });
   }
 });

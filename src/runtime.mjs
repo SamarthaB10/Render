@@ -182,16 +182,17 @@ export function rollbackWorkspace(workspace, version, requestId = randomUUID(), 
   return { ...restored, running: true, processId: child.pid };
 }
 
-export function watchWorkspace(workspace, requestId = randomUUID(), onResult = () => {}) {
+export function watchWorkspace(workspace, requestId = randomUUID(), onResult = () => {}, options = {}) {
   const root = path.resolve(workspace);
-  const initial = runWorkspace(root, requestId);
+  const initial = runWorkspace(root, requestId, options);
   if (!initial.ok) return { initial, close: () => {} };
 
   let debounceTimer;
-  const watcher = watch(path.join(root, "widget.tsx"), { persistent: true }, () => {
+  const watcher = watch(root, { persistent: true }, (_event, filename) => {
+    if (filename && String(filename) !== "widget.tsx") return;
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(() => {
-      onResult(runWorkspace(root));
+      onResult(runWorkspace(root, undefined, options));
     }, 50);
   });
   return {
