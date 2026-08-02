@@ -383,6 +383,9 @@ The first prototype may be ad-hoc signed for local development. Developer ID sig
 - Verify that an eventual request for a mini Spotify player can follow the same create, check, run, remix, and rollback workflow.
 - Verify that the skill does not modify unrelated projects.
 
+The CLI lifecycle is covered by the deterministic end-to-end fixture in
+[`test/agent-workflow.test.mjs`](test/agent-workflow.test.mjs). That fixture proves the agent boundary without claiming native GUI, Spaces, permission, or login verification; those remain manual macOS checks.
+
 ### Phase 7 - First-prototype verification
 
 - Run the complete CPU/RAM acceptance flow from a clean workspace.
