@@ -29,4 +29,4 @@
 - [x] Add the Render agent skill with catalog-guided arbitrary widget authoring; CPU/RAM is the first fixture and Spotify-style integrations are the north-star validation.
 - [x] Add logical `render move` with atomic anchor updates and lifecycle reruns.
 - [x] Verify the agent skill through the complete create, remix, move, check, watch, and rollback workflow using the deterministic host boundary.
-- [ ] Make SDK discovery agent-complete with exact contracts, canonical examples, and a scaffold command.
+- [x] Make SDK discovery agent-complete with exact contracts, canonical examples, and a scaffold command.

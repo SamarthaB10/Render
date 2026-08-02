@@ -8,28 +8,17 @@ import {
 } from "node:fs";
 import path from "node:path";
 import { extractManifest, validateManifest } from "./manifest.mjs";
-
-const WIDGET_SOURCE = [
-  'import { Column, Gauge, Text, useProvider, widget } from "@render/sdk";',
-  "",
-  "export default widget({",
-  '  "schemaVersion": 1,',
-  '  "name": "System Monitor",',
-  '  "sdkVersion": "0.1.0",',
-  '  "size": { "width": 320, "height": 180 },',
-  '  "anchor": { "corner": "top-left", "offset": { "x": 24, "y": 24 } },',
-  '  "capabilities": [],',
-  '  "subscribe": ["system.cpu", "system.memory"]',
-  "}, () => Column([",
-  '  Text("CPU"),',
-  '  Gauge(useProvider("system.cpu"), 100),',
-  '  Text("Memory"),',
-  '  Gauge(useProvider("system.memory"), 100)',
-  "]));",
-  ""
-].join("\n");
+import { CANONICAL_WIDGET_SOURCE } from "../packages/sdk/src/catalog.ts";
 
 export function initWorkspace(workspace, requestId = randomUUID()) {
+  return createWorkspace(workspace, requestId, "init");
+}
+
+export function scaffoldWorkspace(workspace, requestId = randomUUID()) {
+  return createWorkspace(workspace, requestId, "scaffold");
+}
+
+function createWorkspace(workspace, requestId, operation) {
   const root = path.resolve(workspace);
   const widgetPath = path.join(root, "widget.tsx");
   if (existsSync(widgetPath)) {
@@ -40,7 +29,7 @@ export function initWorkspace(workspace, requestId = randomUUID()) {
   mkdirSync(path.join(renderRoot, "snapshots"), { recursive: true });
   mkdirSync(path.join(renderRoot, "logs"), { recursive: true });
   mkdirSync(path.join(renderRoot, "runtime"), { recursive: true });
-  writeFileSync(widgetPath, WIDGET_SOURCE, "utf8");
+  writeFileSync(widgetPath, CANONICAL_WIDGET_SOURCE, "utf8");
 
   const state = {
     schemaVersion: 1,
@@ -59,7 +48,7 @@ export function initWorkspace(workspace, requestId = randomUUID()) {
     "utf8"
   );
 
-  return { requestId, operation: "init", workspace: root, ok: true, state, diagnostics: [] };
+  return { requestId, operation, workspace: root, ok: true, state, diagnostics: [] };
 }
 
 export function promoteSnapshot(workspace, requestId = randomUUID()) {

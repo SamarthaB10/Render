@@ -23,24 +23,24 @@ Use the installed `render` command when available. When working directly from th
 
 ### 1. Discover the available contract
 
-Before authoring, inspect the SDK catalog:
+The catalog is the authoritative, agent-readable SDK contract. Do not infer an API from a summary or invent a missing primitive. Inspect the full JSON contract before authoring:
 
 ```bash
-render sdk list
-render sdk describe <primitive-or-provider>
+render sdk list --json
+render sdk describe <primitive-or-provider-or-type> --json
 ```
 
-Select only cataloged primitives, styles, providers, and capabilities. If the request needs something missing—such as Spotify playback, an image provider, or an interactive button—explain that the integration is not yet available and do not substitute fake data or an invented API.
+Each described item includes its exact `importPath`, TypeScript `signature`, canonical `example`, and any `notes` or required declarations. Select only cataloged primitives, styles, types, providers, and capabilities. If the request needs something missing—such as Spotify playback, an image provider, or an interactive button—explain that the integration is not yet available and do not substitute fake data or an invented API.
 
 ### 2. Create or identify an isolated workspace
 
-Use a dedicated workspace for the widget:
+For a new widget, use the canonical scaffold. It creates an isolated workspace and a valid SDK-only `widget.tsx`:
 
 ```bash
-render init --workspace "$WORKSPACE"
+render scaffold --workspace "$WORKSPACE"
 ```
 
-If the workspace already contains `widget.tsx`, preserve its identity and remix it in place. Never create a second active widget for a remix request.
+`render init` remains available as the compatibility spelling for creating the same default workspace. If the workspace already contains `widget.tsx`, preserve its identity and remix it in place. Never create a second active widget for a remix request.
 
 ### 3. Author `widget.tsx`
 
@@ -64,6 +64,8 @@ export default widget({
   Gauge(useProvider("system.memory"), 100)
 ]));
 ```
+
+The scaffold above is the canonical CPU/RAM example. It is also the canonical example for the first provider-backed widget path. For another composition, inspect every primitive with `render sdk describe <name> --json` and copy its documented signature and example. The current runtime supports `Column`, `Row`, `Stack`, `Text`, `Shape`, `Gauge`, `useProvider`, and the manifest contract. `useTimer` is cataloged for the future runtime contract but is not yet rendered by the native host. The catalog also calls out partial behavior, such as `WidgetStyle.color` not yet being applied by the native renderer.
 
 For network or filesystem access, declare the narrowest required capability and ask the user for permission before proceeding. Never place credentials or tokens in `widget.tsx`.
 

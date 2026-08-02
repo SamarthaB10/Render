@@ -2,8 +2,8 @@
 
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { describeSdkCatalog, listSdkCatalog } from "../packages/sdk/src/catalog.ts";
-import { checkWorkspace, initWorkspace, statusWorkspace } from "../src/workspace.mjs";
+import { describeSdkCatalog, listSdkCatalog, SDK_PACKAGE, SDK_VERSION } from "../packages/sdk/src/catalog.ts";
+import { checkWorkspace, initWorkspace, scaffoldWorkspace, statusWorkspace } from "../src/workspace.mjs";
 import { moveWorkspace, rollbackWorkspace, runWorkspace, watchWorkspace } from "../src/runtime.mjs";
 
 export function execute(argv, cwd = process.cwd()) {
@@ -13,6 +13,7 @@ export function execute(argv, cwd = process.cwd()) {
 
   if (command === "sdk") return executeSdk(argv[1], argv[2]);
   if (command === "init") return initWorkspace(workspace);
+  if (command === "scaffold") return scaffoldWorkspace(workspace);
   if (command === "check") return checkWorkspace(workspace);
   if (command === "status") return statusWorkspace(workspace);
   if (command === "run") return runWorkspace(workspace);
@@ -32,14 +33,21 @@ export function execute(argv, cwd = process.cwd()) {
     diagnostics: [{
       code: "unknown-command",
       path: "command",
-      message: "use render init, render check, render run, render status, render move, render rollback, or render sdk list/describe"
+      message: "use render init, render scaffold, render check, render run, render status, render move, render rollback, or render sdk list/describe"
     }]
   };
 }
 
 function executeSdk(action, name) {
   if (action === "list") {
-    return { requestId: "unassigned", operation: "sdk.list", ok: true, items: listSdkCatalog() };
+    return {
+      requestId: "unassigned",
+      operation: "sdk.list",
+      ok: true,
+      package: SDK_PACKAGE,
+      sdkVersion: SDK_VERSION,
+      items: listSdkCatalog()
+    };
   }
   if (action === "describe" && name) {
     const item = describeSdkCatalog(name);
@@ -114,9 +122,13 @@ function printResult(result, json) {
     if (result.operation === "sdk.describe") {
       console.log(`${result.item.name} (${result.item.kind})`);
       console.log(result.item.summary);
+      if (result.item.importPath) console.log(`import: ${result.item.importPath}`);
+      if (result.item.signature) console.log(`signature: ${result.item.signature}`);
       if (result.item.inputs) console.log(`inputs: ${result.item.inputs.join(", ")}`);
       if (result.item.fields) console.log(`fields: ${result.item.fields.join(", ")}`);
       if (result.item.value) console.log(`value: ${result.item.value}`);
+      if (result.item.example) console.log(`example: ${result.item.example}`);
+      if (result.item.notes) console.log(`notes: ${result.item.notes.join(" ")}`);
       return;
     }
     console.log(`${result.operation} ok: ${result.workspace}`);

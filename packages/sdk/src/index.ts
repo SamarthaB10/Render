@@ -1,6 +1,6 @@
 export type WidgetNodeKind = "column" | "row" | "stack" | "text" | "shape" | "gauge";
 
-export { describeSdkCatalog, listSdkCatalog } from "./catalog.ts";
+export { describeSdkCatalog, listSdkCatalog, SDK_PACKAGE, SDK_VERSION } from "./catalog.ts";
 export type { SdkCatalogItem, SdkCatalogKind } from "./catalog.ts";
 
 export interface WidgetStyle {
