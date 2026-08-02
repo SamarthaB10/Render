@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describeSdkCatalog, listSdkCatalog } from "../packages/sdk/src/catalog.ts";
 import { checkWorkspace, initWorkspace, statusWorkspace } from "../src/workspace.mjs";
-import { rollbackWorkspace, runWorkspace, watchWorkspace } from "../src/runtime.mjs";
+import { moveWorkspace, rollbackWorkspace, runWorkspace, watchWorkspace } from "../src/runtime.mjs";
 
 export function execute(argv, cwd = process.cwd()) {
   const command = argv[0];
@@ -16,6 +16,13 @@ export function execute(argv, cwd = process.cwd()) {
   if (command === "check") return checkWorkspace(workspace);
   if (command === "status") return statusWorkspace(workspace);
   if (command === "run") return runWorkspace(workspace);
+  if (command === "move") {
+    return moveWorkspace(workspace, {
+      corner: options.corner,
+      offsetX: options.offsetX,
+      offsetY: options.offsetY
+    });
+  }
   if (command === "rollback") return rollbackWorkspace(workspace, options.version);
   return {
     requestId: "unassigned",
@@ -25,7 +32,7 @@ export function execute(argv, cwd = process.cwd()) {
     diagnostics: [{
       code: "unknown-command",
       path: "command",
-      message: "use render init, render check, render run, render status, render rollback, or render sdk list/describe"
+      message: "use render init, render check, render run, render status, render move, render rollback, or render sdk list/describe"
     }]
   };
 }
@@ -65,6 +72,9 @@ export function parseOptions(args, cwd = process.cwd()) {
   let json = false;
   let watch = false;
   let version = null;
+  let corner = null;
+  let offsetX = null;
+  let offsetY = null;
   for (let index = 0; index < args.length; index += 1) {
     if (args[index] === "--json") {
       json = true;
@@ -73,12 +83,21 @@ export function parseOptions(args, cwd = process.cwd()) {
     } else if (args[index] === "--version" && args[index + 1]) {
       version = args[index + 1];
       index += 1;
+    } else if (args[index] === "--corner" && args[index + 1]) {
+      corner = args[index + 1];
+      index += 1;
+    } else if (args[index] === "--offset-x" && args[index + 1]) {
+      offsetX = Number(args[index + 1]);
+      index += 1;
+    } else if (args[index] === "--offset-y" && args[index + 1]) {
+      offsetY = Number(args[index + 1]);
+      index += 1;
     } else if (args[index] === "--workspace" && args[index + 1]) {
       workspace = path.resolve(cwd, args[index + 1]);
       index += 1;
     }
   }
-  return { workspace, json, watch, version };
+  return { workspace, json, watch, version, corner, offsetX, offsetY };
 }
 
 function printResult(result, json) {

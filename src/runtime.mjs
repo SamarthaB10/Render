@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
-import { existsSync, readFileSync, renameSync, watch, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, renameSync, unlinkSync, watch, writeFileSync } from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
 import * as sdk from "../packages/sdk/src/index.ts";
@@ -11,7 +11,7 @@ import {
   restoreSnapshot,
   statusWorkspace
 } from "./workspace.mjs";
-import { extractManifest } from "./manifest.mjs";
+import { extractManifest, updateManifest, validateManifest } from "./manifest.mjs";
 
 export function buildRuntimeTree(source, filename = "widget.tsx") {
   const transformed = source
@@ -133,6 +133,91 @@ export function runWorkspace(workspace, requestId = randomUUID(), options = {}) 
     activeVersion: promotion.version,
     lastKnownGoodVersion: promotion.version
   };
+}
+
+export function moveWorkspace(
+  workspace,
+  { corner, offsetX, offsetY } = {},
+  requestId = randomUUID(),
+  options = {}
+) {
+  const root = path.resolve(workspace);
+  const check = checkWorkspace(root, requestId);
+  if (!check.ok) return { ...check, operation: "move" };
+
+  const sourcePath = path.join(root, "widget.tsx");
+  const runtimeManifestPath = path.join(root, ".render/runtime/manifest.json");
+  const sourceBefore = readFileSync(sourcePath, "utf8");
+  const runtimeManifestBefore = existsSync(runtimeManifestPath)
+    ? readFileSync(runtimeManifestPath, "utf8")
+    : null;
+  const current = extractManifest(sourceBefore);
+  const nextAnchor = {
+    corner: corner ?? current.anchor.corner,
+    offset: {
+      x: offsetX ?? current.anchor.offset.x,
+      y: offsetY ?? current.anchor.offset.y
+    }
+  };
+  const issues = validateManifest({ ...current, anchor: nextAnchor });
+  const anchorIssues = issues.filter((issue) => issue.path.startsWith("anchor."));
+  if (anchorIssues.length > 0) {
+    return {
+      requestId,
+      operation: "move",
+      workspace: root,
+      ok: false,
+      diagnostics: anchorIssues.map((issue) => ({
+        code: "invalid-move",
+        path: issue.path,
+        message: issue.message
+      }))
+    };
+  }
+
+  const sourceAfter = updateManifest(sourceBefore, (manifest) => ({
+    ...manifest,
+    anchor: nextAnchor
+  }));
+  writeAtomically(sourcePath, sourceAfter);
+
+  const restoreMoveCandidate = () => {
+    writeAtomically(sourcePath, sourceBefore);
+    if (runtimeManifestBefore === null) {
+      try {
+        unlinkSync(runtimeManifestPath);
+      } catch {
+        // The runtime manifest was not present before the move.
+      }
+    } else {
+      writeAtomically(runtimeManifestPath, runtimeManifestBefore);
+    }
+  };
+
+  let result;
+  try {
+    result = runWorkspace(root, requestId, options);
+  } catch (error) {
+    restoreMoveCandidate();
+    return {
+      requestId,
+      operation: "move",
+      workspace: root,
+      ok: false,
+      diagnostics: [{
+        code: "move-failed",
+        path: ".render",
+        message: `move could not be applied: ${error.message}`
+      }]
+    };
+  }
+
+  if (!result.ok) {
+    restoreMoveCandidate();
+    return { ...result, operation: "move" };
+  }
+
+  return { ...result, operation: "move", anchor: nextAnchor };
 }
 
 export function rollbackWorkspace(workspace, version, requestId = randomUUID(), options = {}) {
@@ -268,4 +353,10 @@ function updateState(root, state) {
   const temporaryPath = `${metadataPath}.${randomUUID()}.tmp`;
   writeFileSync(temporaryPath, `${JSON.stringify(state, null, 2)}\n`, "utf8");
   renameSync(temporaryPath, metadataPath);
+}
+
+function writeAtomically(filePath, data) {
+  const temporaryPath = `${filePath}.${randomUUID()}.tmp`;
+  writeFileSync(temporaryPath, data, "utf8");
+  renameSync(temporaryPath, filePath);
 }

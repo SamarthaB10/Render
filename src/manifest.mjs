@@ -11,25 +11,17 @@ const CAPABILITIES = new Set(["network", "filesystem.read", "filesystem.write"])
 const CORNERS = new Set(["top-left", "top-right", "bottom-left", "bottom-right"]);
 
 export function extractManifest(source) {
-  const callStart = source.indexOf("widget(");
-  if (callStart < 0) {
-    throw new Error("widget.tsx must export a default widget({...}, render) call");
-  }
+  return readManifest(source).manifest;
+}
 
-  const objectStart = source.indexOf("{", callStart);
-  if (objectStart < 0) {
-    throw new Error("widget() must start with a manifest object");
-  }
-  const objectEnd = findObjectEnd(source, objectStart);
-  const rawManifest = source.slice(objectStart, objectEnd + 1);
-
-  try {
-    return JSON.parse(rawManifest);
-  } catch {
-    throw new Error(
-      "the widget manifest must be a JSON-compatible object with quoted keys and values"
-    );
-  }
+export function updateManifest(source, update) {
+  const { manifest, objectStart, objectEnd } = readManifest(source);
+  const nextManifest = update(manifest);
+  return [
+    source.slice(0, objectStart),
+    JSON.stringify(nextManifest, null, 2),
+    source.slice(objectEnd + 1)
+  ].join("");
 }
 
 export function validateManifest(manifest) {
@@ -111,6 +103,28 @@ function findObjectEnd(source, start) {
     if (character === "}" && --depth === 0) return index;
   }
   throw new Error("widget manifest has an unterminated object");
+}
+
+function readManifest(source) {
+  const callStart = source.indexOf("widget(");
+  if (callStart < 0) {
+    throw new Error("widget.tsx must export a default widget({...}, render) call");
+  }
+
+  const objectStart = source.indexOf("{", callStart);
+  if (objectStart < 0) {
+    throw new Error("widget() must start with a manifest object");
+  }
+  const objectEnd = findObjectEnd(source, objectStart);
+  const rawManifest = source.slice(objectStart, objectEnd + 1);
+
+  try {
+    return { manifest: JSON.parse(rawManifest), objectStart, objectEnd };
+  } catch {
+    throw new Error(
+      "the widget manifest must be a JSON-compatible object with quoted keys and values"
+    );
+  }
 }
 
 function requireString(object, field, issues) {
