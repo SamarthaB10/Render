@@ -7,6 +7,8 @@ description: Create, run, remix, and recover native macOS widgets through Render
 
 Use this skill when a user asks for a desktop widget. Render widgets are native macOS desktop surfaces authored through the canonical `@render/sdk` contract. The widget source of truth is `widget.tsx` inside a dedicated Render workspace.
 
+Use the installed `render` command when available. When working directly from this repository, replace `render` in the examples with `node bin/render.mjs`.
+
 ## Operating contract
 
 - Work only inside the requested or newly created Render workspace.
