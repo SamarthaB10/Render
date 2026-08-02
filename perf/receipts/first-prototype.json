@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "measuredAt": "2026-08-02T18:13:45.600Z",
-  "commit": "1ea70cd22261599061133f9cd2a33cf88390ced0",
+  "measuredAt": "2026-08-02T18:15:27.791Z",
+  "commit": "76c05234ec0fded6000157e71d8f189b096c9447",
   "system": {
     "platform": "darwin",
     "arch": "arm64",
@@ -19,11 +19,11 @@
     "iterations": 100,
     "durationMs": {
       "count": 100,
-      "min": 0.45895799999999554,
-      "p50": 0.48525000000000773,
-      "p95": 0.7344590000000153,
-      "max": 1.6391249999999786,
-      "mean": 0.5358612499999993
+      "min": 0.5355839999999716,
+      "p50": 0.5892910000000029,
+      "p95": 1.0219590000000096,
+      "max": 1.8291250000000048,
+      "mean": 0.6623417200000006
     }
   },
   "hostProcess": {
@@ -32,18 +32,18 @@
     "cpuPercent": {
       "count": 5,
       "min": 0,
-      "p50": 0,
-      "p95": 0.7,
-      "max": 0.7,
-      "mean": 0.15999999999999998
+      "p50": 0.1,
+      "p95": 0.6,
+      "max": 0.6,
+      "mean": 0.16
     },
     "residentMemoryKB": {
       "count": 5,
-      "min": 37024,
-      "p50": 38640,
-      "p95": 40912,
-      "max": 40912,
-      "mean": 38720
+      "min": 39152,
+      "p50": 39760,
+      "p95": 39792,
+      "max": 39792,
+      "mean": 39545.6
     }
   },
   "wakeups": {
@@ -51,10 +51,10 @@
     "message": "powermetrics requires superuser privileges on this Mac"
   },
   "frameCadence": {
-    "durationMs": 1003.247917,
-    "frameCount": 120,
-    "state": "available",
     "message": "display-link callback cadence; widget render-pass cadence is not instrumented",
-    "hertz": 119.61151173763166
+    "state": "available",
+    "durationMs": 1002.639708,
+    "frameCount": 120,
+    "hertz": 119.68406900557343
   }
 }

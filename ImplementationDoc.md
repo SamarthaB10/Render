@@ -296,8 +296,8 @@ The first prototype retains every successful snapshot. Pruning is deferred until
 - Use a native non-activating window between wallpaper and normal application windows.
 - Use true per-pixel alpha with no opaque backing rectangle.
 - Render rounded corners, shadows, glass, and other effects from the widget tree.
-- Default to click-through.
-- Declare `interactive` explicitly when a widget needs interaction.
+- The first prototype runs the generated widget in draggable interaction mode so users can place it.
+- Keep click-through as an explicit passive mode when interaction configuration is added.
 - Use logical anchors and offsets instead of raw screen coordinates.
 - Default to the top-left of the primary display.
 - Support conversational movement to another logical anchor, including top-right.
