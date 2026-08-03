@@ -420,6 +420,16 @@ public enum WidgetJSONValue: Codable, Equatable, Sendable {
     }
 }
 
+public struct WidgetStateReference: Codable, Equatable, Sendable {
+    public let key: String
+    public let initial: WidgetJSONValue
+
+    public init(key: String, initial: WidgetJSONValue) {
+        self.key = key
+        self.initial = initial
+    }
+}
+
 public enum WidgetAction: Codable, Equatable, Sendable {
     case invoke(name: String, payload: WidgetJSONValue?)
     case set(name: String, value: WidgetJSONValue)
@@ -529,6 +539,7 @@ public struct WidgetTree: Codable, Equatable, Sendable {
     public let tint: String?
     public let segments: Int?
     public let values: [Double]?
+    public let state: WidgetStateReference?
 
     public init(
         kind: WidgetNodeKind,
@@ -555,7 +566,8 @@ public struct WidgetTree: Codable, Equatable, Sendable {
         imagePosition: String? = nil,
         tint: String? = nil,
         segments: Int? = nil,
-        values: [Double]? = nil
+        values: [Double]? = nil,
+        state: WidgetStateReference? = nil
     ) {
         self.kind = kind
         self.key = key
@@ -582,12 +594,13 @@ public struct WidgetTree: Codable, Equatable, Sendable {
         self.tint = tint
         self.segments = segments
         self.values = values
+        self.state = state
     }
 
     private enum CodingKeys: String, CodingKey {
         case kind, key, children, text, provider, style, value, maximum, orientation, name, source, options, action, columns
         case stops, direction, textureSource, legacyGradientStops = "gradientStops", transform, animation
-        case imageFit, imageRepeat, imagePosition, tint, segments, values
+        case imageFit, imageRepeat, imagePosition, tint, segments, values, state
     }
 
     public init(from decoder: Decoder) throws {
@@ -628,6 +641,7 @@ public struct WidgetTree: Codable, Equatable, Sendable {
         tint = try container.decodeIfPresent(String.self, forKey: .tint)
         segments = try container.decodeIfPresent(Int.self, forKey: .segments)
         values = try container.decodeIfPresent([Double].self, forKey: .values)
+        state = try container.decodeIfPresent(WidgetStateReference.self, forKey: .state)
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -660,6 +674,7 @@ public struct WidgetTree: Codable, Equatable, Sendable {
         try container.encodeIfPresent(tint, forKey: .tint)
         try container.encodeIfPresent(segments, forKey: .segments)
         try container.encodeIfPresent(values, forKey: .values)
+        try container.encodeIfPresent(state, forKey: .state)
     }
 
     public func validationIssues(path: String = "root") -> [WidgetTreeValidationIssue] {
@@ -673,7 +688,7 @@ public struct WidgetTree: Codable, Equatable, Sendable {
             issues.append(.init(path: path, message: "leaf nodes cannot define children"))
         }
         if kind == .text || kind == .textField {
-            if (text == nil || text?.isEmpty == true) && provider == nil {
+            if (text == nil || text?.isEmpty == true) && provider == nil && state == nil {
                 issues.append(.init(path: path, message: "\(kind.rawValue) nodes require non-empty text"))
             }
             if kind == .textField && provider != nil {
@@ -685,6 +700,15 @@ public struct WidgetTree: Codable, Equatable, Sendable {
         }
         if let provider, provider.isEmpty {
             issues.append(.init(path: "\(path).provider", message: "provider name must be non-empty"))
+        }
+        if let state, state.key.isEmpty {
+            issues.append(.init(path: "\(path).state.key", message: "state key must be non-empty"))
+        }
+        if state != nil && ![.text, .textField, .toggle, .gauge, .progress, .segmentedProgress].contains(kind) {
+            issues.append(.init(path: "\(path).state", message: "state bindings are supported only by text, textField, toggle, gauge, progress, and segmentedProgress nodes"))
+        }
+        if let state {
+            validateStateValue(state.initial, for: kind, maximum: maximum, path: "\(path).state.initial", issues: &issues)
         }
         if kind == .gauge || kind == .progress || kind == .segmentedProgress {
             if (value == nil && provider == nil) || maximum == nil {
@@ -868,6 +892,46 @@ public struct WidgetTree: Codable, Equatable, Sendable {
                 issues.append(.init(path: "\(path).\(name)", message: "spacing must be zero or greater"))
             }
         default: break
+        }
+    }
+
+    private func validateStateValue(
+        _ value: WidgetJSONValue,
+        for kind: WidgetNodeKind,
+        maximum: Double?,
+        path: String,
+        issues: inout [WidgetTreeValidationIssue]
+    ) {
+        switch kind {
+        case .text:
+            switch value {
+            case .string, .boolean: break
+            case .number(let number) where number.isFinite: break
+            default:
+                issues.append(.init(path: path, message: "text state must be a string, number, or boolean"))
+            }
+        case .textField:
+            if case .string = value {} else {
+                issues.append(.init(path: path, message: "textField state must start as a string"))
+            }
+        case .toggle:
+            if case .boolean = value {} else {
+                issues.append(.init(path: path, message: "toggle state must start as a boolean"))
+            }
+        case .gauge, .progress, .segmentedProgress:
+            guard case .number(let number) = value, number.isFinite else {
+                issues.append(.init(path: path, message: "\(kind.rawValue) state must start as a finite number"))
+                return
+            }
+            guard let maximum else {
+                issues.append(.init(path: path, message: "\(kind.rawValue) state must be between zero and maximum"))
+                return
+            }
+            if !maximum.isFinite || maximum <= 0 || number < 0 || number > maximum {
+                issues.append(.init(path: path, message: "\(kind.rawValue) state must be between zero and maximum"))
+            }
+        default:
+            break
         }
     }
 }

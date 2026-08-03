@@ -36,13 +36,13 @@ const SUPPORTED_PROVIDERS = new Set([
   "spotify.playback.volume"
 ]);
 
-export function buildRuntimeTree(source, filename = "widget.tsx") {
+export function buildRuntimeTree(source, filename = "widget.tsx", options = {}) {
   const tree = buildTsxRuntimeTree(source, { sdk, filename });
   const manifest = extractManifest(source);
   const subscriptions = new Set(manifest.subscribe);
   const accounts = new Set((manifest.accounts ?? []).map((account) => account.connector));
   validateRuntimeTree(tree, "root", subscriptions, new Set(manifest.capabilities), accounts);
-  return JSON.parse(JSON.stringify(tree));
+  return JSON.parse(JSON.stringify(materializeWidgetState(tree, options.state ?? {}, "root")));
 }
 
 export function prepareRun(workspace, requestId = randomUUID()) {
@@ -515,7 +515,7 @@ function validateRuntimeTree(node, pathName, subscriptions, capabilities, accoun
   if (node.provider?.startsWith("spotify.") && !accounts.has("spotify")) {
     throw new Error(`${pathName}.provider: ${node.provider} requires a spotify account requirement; add manifest.accounts and ask the user for permission`);
   }
-  if ((node.kind === "text" || node.kind === "textField") && (typeof node.text !== "string" || node.text.length === 0) && node.provider === undefined) {
+  if ((node.kind === "text" || node.kind === "textField") && (typeof node.text !== "string" || node.text.length === 0) && node.provider === undefined && node.state === undefined) {
     throw new Error(`${pathName}.text: text nodes require text or a provider`);
   }
   if (node.kind === "toggle" && node.value !== 0 && node.value !== 1) {
@@ -555,12 +555,97 @@ function validateRuntimeTree(node, pathName, subscriptions, capabilities, accoun
   }
   if (node.kind === "segmentedProgress") validateSegmentedProgress(node, pathName, subscriptions, capabilities, accounts);
   if (node.kind === "spectrum") validateSpectrum(node, pathName);
+  if (node.state !== undefined) validateStateReference(node, pathName);
   if (node.action !== undefined) {
     if (node.kind !== "button") throw new Error(`${pathName}.action: only button nodes may define an action`);
     validateAction(node.action, `${pathName}.action`, accounts);
   }
   if (node.animation !== undefined) validateAnimation(node.animation, `${pathName}.animation`);
   validateStyle(node.style, `${pathName}.style`);
+}
+
+function validateStateReference(node, pathName) {
+  const statePath = `${pathName}.state`;
+  if (!node.state || typeof node.state !== "object" || Array.isArray(node.state)) {
+    throw new Error(`${statePath}: state reference must be an object`);
+  }
+  validateKeys(node.state, ["key", "initial"], statePath);
+  if (typeof node.state.key !== "string" || node.state.key.length === 0) {
+    throw new Error(`${statePath}.key: state keys must be non-empty strings`);
+  }
+  if (!isJsonValue(node.state.initial)) {
+    throw new Error(`${statePath}.initial: state defaults must be JSON-compatible`);
+  }
+  if (!["text", "textField", "toggle", "gauge", "progress", "segmentedProgress"].includes(node.kind)) {
+    throw new Error(`${statePath}: state bindings are not supported by ${node.kind} nodes`);
+  }
+  if (node.kind === "textField" && typeof node.state.initial !== "string") {
+    throw new Error(`${statePath}.initial: textField state must start as a string`);
+  }
+  if (node.kind === "toggle" && typeof node.state.initial !== "boolean") {
+    throw new Error(`${statePath}.initial: toggle state must start as a boolean`);
+  }
+  if (["gauge", "progress", "segmentedProgress"].includes(node.kind)
+      && (typeof node.state.initial !== "number" || !Number.isFinite(node.state.initial))) {
+    throw new Error(`${statePath}.initial: ${node.kind} state must start as a finite number`);
+  }
+  if (["gauge", "progress", "segmentedProgress"].includes(node.kind)
+      && (typeof node.maximum !== "number" || !Number.isFinite(node.maximum) || node.maximum <= 0
+        || node.state.initial < 0 || node.state.initial > node.maximum)) {
+    throw new Error(`${statePath}.initial: ${node.kind} state must be between zero and maximum`);
+  }
+  if (node.kind === "text" && !["string", "number", "boolean"].includes(typeof node.state.initial)) {
+    throw new Error(`${statePath}.initial: text state must start as a string, number, or boolean`);
+  }
+}
+
+function materializeWidgetState(node, persisted, pathName) {
+  const next = {
+    ...node,
+    children: node.children?.map((child, index) => materializeWidgetState(child, persisted, `${pathName}.children[${index}]`))
+  };
+  if (node.state === undefined) return next;
+
+  const persistedValue = Object.prototype.hasOwnProperty.call(persisted, node.state.key)
+    ? persisted[node.state.key]
+    : undefined;
+  const value = persistedValue !== undefined && isValidStateValue(node, persistedValue)
+    ? persistedValue
+    : node.state.initial;
+  if (node.kind === "text") {
+    next.text = String(value);
+  } else if (node.kind === "textField") {
+    next.text = value;
+  } else if (node.kind === "toggle") {
+    next.value = value ? 1 : 0;
+  } else {
+    next.value = value;
+  }
+  return next;
+}
+
+function isValidStateValue(node, value) {
+  if (node.kind === "text") {
+    return ["string", "number", "boolean"].includes(typeof value)
+      && (typeof value !== "number" || Number.isFinite(value));
+  }
+  if (node.kind === "textField") return typeof value === "string";
+  if (node.kind === "toggle") return typeof value === "boolean";
+  return typeof value === "number"
+    && Number.isFinite(value)
+    && typeof node.maximum === "number"
+    && Number.isFinite(node.maximum)
+    && node.maximum > 0
+    && value >= 0
+    && value <= node.maximum;
+}
+
+function isJsonValue(value) {
+  if (value === null || typeof value === "string" || typeof value === "boolean") return true;
+  if (typeof value === "number") return Number.isFinite(value);
+  if (Array.isArray(value)) return value.every(isJsonValue);
+  return value !== null && typeof value === "object"
+    && Object.values(value).every(isJsonValue);
 }
 
 function validateGradient(node, pathName) {

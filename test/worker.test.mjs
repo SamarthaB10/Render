@@ -71,6 +71,48 @@ test("worker returns actionable diagnostics without replacing the active tree", 
   }
 });
 
+test("worker hydrates persisted widget state before publishing the tree", async () => {
+  const workspace = mkdtempSync(path.join(os.tmpdir(), "render-worker-state-"));
+  const worker = spawn(process.execPath, [workerPath], { stdio: ["pipe", "pipe", "pipe"] });
+  const lines = createInterface({ input: worker.stdout, crlfDelay: Infinity });
+  const messages = readMessages(lines);
+
+  try {
+    initWorkspace(workspace, "request-init");
+    writeFileSync(path.join(workspace, "widget.tsx"), `
+      import { Text, useWidgetState, widget } from "@render/sdk";
+      export default widget({
+        "schemaVersion": 1,
+        "name": "State",
+        "sdkVersion": "0.1.0",
+        "size": { "width": 240, "height": 120 },
+        "anchor": { "corner": "top-left", "offset": { "x": 0, "y": 0 } },
+        "capabilities": [],
+        "subscribe": []
+      }, () => Text(useWidgetState("status", "Ready")));
+    `);
+    await messages.nextMessage();
+    send(worker, { kind: "helloAck", selectedVersion: 1 });
+    await messages.nextMessage();
+    send(worker, {
+      kind: "render",
+      messageID: "render-state",
+      sourcePath: path.join(workspace, "widget.tsx"),
+      state: { status: "Saved" }
+    });
+    const rendered = await messages.nextMessage();
+    assert.equal(rendered.kind, "render");
+    assert.equal(rendered.messageID, "render-state");
+    assert.equal(rendered.tree.text, "Saved");
+    assert.deepEqual(rendered.tree.state, { key: "status", initial: "Ready" });
+  } finally {
+    send(worker, { kind: "shutdown" });
+    await waitForExit(worker);
+    lines.close();
+    rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
 test("worker rejects an incompatible negotiated protocol version", async () => {
   const worker = spawn(process.execPath, [workerPath], { stdio: ["pipe", "pipe", "pipe"] });
   const lines = createInterface({ input: worker.stdout, crlfDelay: Infinity });

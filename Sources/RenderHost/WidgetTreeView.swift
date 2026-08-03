@@ -8,6 +8,7 @@ struct WidgetTreeView: View {
     let workspace: String?
     let declaredAssets: Set<String>?
     var onAction: ((WidgetAction) -> Void)?
+    var onStateChange: ((String, WidgetJSONValue) -> Void)?
     @State private var animationStartDate: Date
 
     private static let timeFormatter: DateFormatter = {
@@ -22,13 +23,15 @@ struct WidgetTreeView: View {
         providers: ProviderStore,
         workspace: String? = nil,
         declaredAssets: Set<String>? = nil,
-        onAction: ((WidgetAction) -> Void)? = nil
+        onAction: ((WidgetAction) -> Void)? = nil,
+        onStateChange: ((String, WidgetJSONValue) -> Void)? = nil
     ) {
         self.tree = tree
         self.providers = providers
         self.workspace = workspace
         self.declaredAssets = declaredAssets
         self.onAction = onAction
+        self.onStateChange = onStateChange
         _animationStartDate = State(initialValue: Date())
     }
 
@@ -146,9 +149,16 @@ struct WidgetTreeView: View {
         case "text":
             return AnyView(Text(displayedText))
         case "textField":
-            return AnyView(EditableTextField(initialText: tree.text ?? "", style: tree.style))
+            return AnyView(EditableTextField(
+                initialText: tree.text ?? "",
+                style: tree.style,
+                onChange: stateChange.map { change in { value in change(.string(value)) } }
+            ))
         case "toggle":
-            return AnyView(EditableToggle(initialValue: (tree.value ?? 0) == 1))
+            return AnyView(EditableToggle(
+                initialValue: (tree.value ?? 0) == 1,
+                onChange: stateChange.map { change in { value in change(.boolean(value)) } }
+            ))
         case "shape":
             return AnyView(RoundedRectangle(cornerRadius: CGFloat(tree.style?.radius ?? 12)).fill(foregroundColor ?? Color.secondary))
         case "icon":
@@ -193,8 +203,14 @@ struct WidgetTreeView: View {
             providers: providers,
             workspace: workspace,
             declaredAssets: declaredAssets,
-            onAction: onAction
+            onAction: onAction,
+            onStateChange: onStateChange
         )
+    }
+
+    private var stateChange: ((WidgetJSONValue) -> Void)? {
+        guard let key = tree.state?.key, let onStateChange else { return nil }
+        return { value in onStateChange(key, value) }
     }
 
     private var childStack: AnyView {
@@ -534,11 +550,13 @@ struct WidgetTreeView: View {
 private struct EditableTextField: View {
     let initialText: String
     let style: WidgetStyle?
+    let onChange: ((String) -> Void)?
     @State private var value: String
 
-    init(initialText: String, style: WidgetStyle?) {
+    init(initialText: String, style: WidgetStyle?, onChange: ((String) -> Void)? = nil) {
         self.initialText = initialText
         self.style = style
+        self.onChange = onChange
         _value = State(initialValue: initialText)
     }
 
@@ -548,13 +566,18 @@ private struct EditableTextField: View {
             .padding(8)
             .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: CGFloat(style?.radius ?? 8)))
             .foregroundColor(.primary)
+            .onChange(of: value) { newValue in
+                onChange?(newValue)
+            }
     }
 }
 
 private struct EditableToggle: View {
+    let onChange: ((Bool) -> Void)?
     @State private var value: Bool
 
-    init(initialValue: Bool) {
+    init(initialValue: Bool, onChange: ((Bool) -> Void)? = nil) {
+        self.onChange = onChange
         _value = State(initialValue: initialValue)
     }
 
@@ -563,5 +586,8 @@ private struct EditableToggle: View {
             .labelsHidden()
             .toggleStyle(.checkbox)
             .controlSize(.small)
+            .onChange(of: value) { newValue in
+                onChange?(newValue)
+            }
     }
 }

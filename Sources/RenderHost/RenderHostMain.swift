@@ -7,6 +7,7 @@ private final class RenderHostDelegate: NSObject, NSApplicationDelegate {
     private var panel: DesktopWidgetPanel?
     private var providers: ProviderStore?
     private var worker: WorkerSession?
+    private var stateController: WidgetStateController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let policy = DesktopWindowPolicy()
@@ -25,6 +26,8 @@ private final class RenderHostDelegate: NSObject, NSApplicationDelegate {
             hasSpotifyAccount: manifest.accounts.contains(where: { $0.connector == SpotifyConnector.connectorID })
         )
         let contentModel = WidgetContentModel(tree: loadTree(workspace: workspace))
+        let stateController = workspace.map(WidgetStateController.init)
+        self.stateController = stateController
         let panel = DesktopWidgetPanel(
             contentRect: NSRect(
                 x: 0,
@@ -43,6 +46,9 @@ private final class RenderHostDelegate: NSObject, NSApplicationDelegate {
                     workspace: workspace,
                     declaredAssets: manifest.assets.map(Set.init),
                     onAction: actionDispatcher.dispatch,
+                    onStateChange: { [weak stateController] key, value in
+                        stateController?.set(key, value: value)
+                    },
                     onAuthorize: {
                         guard let requirement = manifest.accounts.first(where: { $0.connector == SpotifyConnector.connectorID }) else { return }
                         providers.setAuthorizationMessage("Opening Spotify authorization…")
@@ -80,7 +86,8 @@ private final class RenderHostDelegate: NSObject, NSApplicationDelegate {
                 workerScript: workerScriptArgument(),
                 sourcePath: workerSourcePath(),
                 statePath: workerStatePath(),
-                treePath: workerTreePath()
+                treePath: workerTreePath(),
+                widgetStatePath: stateController?.url.path
             )
             worker.onTree = { [weak contentModel] tree in
                 DispatchQueue.main.async {
@@ -247,6 +254,7 @@ private struct WidgetTreeContainer: View {
     let workspace: String?
     let declaredAssets: Set<String>?
     let onAction: (WidgetAction) -> Void
+    let onStateChange: (String, WidgetJSONValue) -> Void
     let onAuthorize: () -> Void
     let onStop: () -> Void
 
@@ -257,7 +265,8 @@ private struct WidgetTreeContainer: View {
                 providers: providers,
                 workspace: workspace,
                 declaredAssets: declaredAssets,
-                onAction: onAction
+                onAction: onAction,
+                onStateChange: onStateChange
             )
             WidgetSettingsOverlay(
                 widgetName: widgetName,

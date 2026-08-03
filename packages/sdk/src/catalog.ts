@@ -116,24 +116,25 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     kind: "primitive",
     summary: "Text label or provider value",
     importPath: SDK_PACKAGE,
-    signature: "Text(text: string | ProviderBinding, style?: WidgetStyle): WidgetNode",
+    signature: "Text(text: string | ProviderBinding | WidgetStateBinding<string | number | boolean>, style?: WidgetStyle): WidgetNode",
     inputs: ["text", "style"],
     example: 'Text("CPU")',
     status: "implemented",
-    notes: ["Pass useProvider(name) to render a provider value."]
+    notes: ["The native renderer displays provider and persisted values as text.", "Pass useProvider(name) to render a provider value or useWidgetState(key, initial) to render a persisted value."]
   },
   {
     name: "TextField",
     kind: "primitive",
     summary: "Native editable single-line text control",
     importPath: SDK_PACKAGE,
-    signature: "TextField(text: string, style?: WidgetStyle): WidgetNode",
+    signature: "TextField(text: string | WidgetStateBinding<string>, style?: WidgetStyle): WidgetNode",
     inputs: ["text", "style"],
     example: 'TextField("Write a task", { backgroundColor: "#172126" })',
     status: "implemented",
     notes: [
-      "The native renderer keeps the edited value interactive for the current widget session.",
-      "Persistent widget-owned state is a separate storage contract; do not put filesystem writes in widget source."
+      "The native renderer provides an editable text control.",
+      "Pass useWidgetState(key, initial) to persist edits in the widget workspace across relaunches.",
+      "The host owns persistence; widget source must not write state files."
     ]
   },
   {
@@ -141,13 +142,14 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     kind: "primitive",
     summary: "Native interactive checkbox control",
     importPath: SDK_PACKAGE,
-    signature: "Toggle(checked: boolean, style?: WidgetStyle): WidgetNode",
+    signature: "Toggle(checked: boolean | WidgetStateBinding<boolean>, style?: WidgetStyle): WidgetNode",
     inputs: ["checked", "style"],
     example: "Toggle(false, { color: \"#8be9a8\" })",
     status: "implemented",
     notes: [
-      "The native renderer keeps the checked value interactive for the current widget session.",
-      "Shared state between controls and persistent widget-owned state are separate planned contracts."
+      "The native renderer provides a checkbox control.",
+      "Pass useWidgetState(key, initial) to persist the checked value in the widget workspace across relaunches.",
+      "The host owns persistence and restores the last saved value before rendering."
     ]
   },
   {
@@ -231,7 +233,7 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     kind: "primitive",
     summary: "Serializable determinate progress indicator divided into segments",
     importPath: SDK_PACKAGE,
-    signature: "SegmentedProgress(value: number | ProviderBinding, segments: number, maximum?: number, style?: WidgetStyle): WidgetNode",
+    signature: "SegmentedProgress(value: number | ProviderBinding | WidgetStateBinding<number>, segments: number, maximum?: number, style?: WidgetStyle): WidgetNode",
     inputs: ["value", "segments", "maximum", "style"],
     example: 'SegmentedProgress(68, 10, 100, { color: "#22c55e" })',
     status: "implemented",
@@ -275,7 +277,7 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     kind: "primitive",
     summary: "Progress gauge with a maximum",
     importPath: SDK_PACKAGE,
-    signature: "Gauge(value: number | ProviderBinding, maximum: number, style?: WidgetStyle): WidgetNode",
+    signature: "Gauge(value: number | ProviderBinding | WidgetStateBinding<number>, maximum: number, style?: WidgetStyle): WidgetNode",
     inputs: ["value", "maximum", "style"],
     example: 'Gauge(useProvider("system.cpu"), 100)',
     status: "implemented",
@@ -286,7 +288,7 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     kind: "primitive",
     summary: "Native determinate progress indicator",
     importPath: SDK_PACKAGE,
-    signature: "Progress(value: number | ProviderBinding, maximum?: number, style?: WidgetStyle): WidgetNode",
+    signature: "Progress(value: number | ProviderBinding | WidgetStateBinding<number>, maximum?: number, style?: WidgetStyle): WidgetNode",
     inputs: ["value", "maximum", "style"],
     example: 'Progress(useProvider("system.cpu"), 100)',
     status: "implemented",
@@ -312,6 +314,20 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     inputs: ["name"],
     example: 'useProvider("system.cpu")',
     notes: ["The provider name must be present in manifest.subscribe."]
+  },
+  {
+    name: "useWidgetState",
+    kind: "function",
+    summary: "Binds a widget node to host-owned persistent scalar state",
+    importPath: SDK_PACKAGE,
+    signature: "useWidgetState<T extends string | number | boolean>(key: string, initial: T): WidgetStateBinding<T>",
+    inputs: ["key", "initial"],
+    example: 'const completed = useWidgetState("completed", false)',
+    status: "implemented",
+    notes: [
+      "State is scoped to the installed widget workspace and survives relaunches; initial values are strings, numbers, or booleans.",
+      "Use the binding with Text, TextField, Toggle, Gauge, Progress, or SegmentedProgress; the host owns persistence and widget source never writes files."
+    ]
   },
   {
     name: "useTimer",
@@ -553,7 +569,8 @@ const SDK_CATALOG: SdkCatalogItem[] = [
       "values?: number[]",
       "animation?: WidgetAnimation",
       "action?: WidgetAction",
-      "columns?: number"
+      "columns?: number",
+      "state?: WidgetStateReference"
     ],
     example: 'Column([Text("CPU")])',
     status: "implemented",
@@ -671,6 +688,27 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     example: 'const state: ProviderState = "loading"',
     status: "implemented",
     notes: ["Widgets must render loading and unavailable states explicitly; the host never substitutes fake data."]
+  },
+  {
+    name: "WidgetStateBinding",
+    kind: "type",
+    summary: "Serializable reference to persistent widget-owned state",
+    importPath: SDK_PACKAGE,
+    signature: 'interface WidgetStateBinding<T extends string | number | boolean = string | number | boolean> { kind: "state"; key: string; initial: T }',
+    fields: ['kind: "state"', "key: string", "initial: WidgetJsonValue"],
+    example: 'const theme = useWidgetState("theme", "dark")',
+    status: "implemented",
+    notes: ["Bindings are declarative references; they do not expose filesystem access or host objects."]
+  },
+  {
+    name: "WidgetStateReference",
+    kind: "type",
+    summary: "Native tree metadata identifying a persistent state key",
+    importPath: SDK_PACKAGE,
+    signature: "interface WidgetStateReference { key: string; initial: string | number | boolean }",
+    fields: ["key: string", "initial: WidgetJsonValue"],
+    example: 'const reference: WidgetStateReference = { key: "completed", initial: false }',
+    status: "implemented"
   },
   {
     name: "ProviderValue",

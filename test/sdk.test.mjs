@@ -71,6 +71,7 @@ test("SDK catalog exposes canonical primitives, providers, styles, and capabilit
     "Progress",
     "Grid",
     "useProvider",
+    "useWidgetState",
     "useTimer",
     "jsx",
     "jsxs",
@@ -102,6 +103,8 @@ test("SDK catalog exposes canonical primitives, providers, styles, and capabilit
     "WidgetDefinition",
     "ProviderBinding",
     "ProviderState",
+    "WidgetStateBinding",
+    "WidgetStateReference",
     "ProviderValue",
     "WidgetCapability",
     "TimerBinding",
@@ -132,7 +135,7 @@ test("SDK catalog gives agents exact contracts and canonical examples", async ()
 
   assert.equal(catalog.SDK_VERSION, "0.1.0");
   assert.equal(text.importPath, "@render/sdk");
-  assert.equal(text.signature, "Text(text: string | ProviderBinding, style?: WidgetStyle): WidgetNode");
+  assert.equal(text.signature, "Text(text: string | ProviderBinding | WidgetStateBinding<string | number | boolean>, style?: WidgetStyle): WidgetNode");
   assert.match(text.example, /Text\("CPU"\)/);
   assert.deepEqual(manifest.fields, [
     "schemaVersion: 1",
@@ -175,7 +178,7 @@ test("CLI exposes SDK catalog list and describe operations", () => {
 
   assert.equal(listed.ok, true);
   assert.equal(listed.operation, "sdk.list");
-  assert.equal(listed.items.length, 71);
+  assert.equal(listed.items.length, 74);
   assert.equal(listed.sdkVersion, "0.1.0");
   assert.deepEqual(described.item, {
     name: "system.cpu",

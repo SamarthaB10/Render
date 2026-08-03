@@ -35,7 +35,7 @@ Each described item includes its exact `importPath`, TypeScript `signature`, can
 
 If the request needs something missing—such as a provider, action, or connector whose catalog status is `planned` or `contract-only`—report the exact catalog item and status, explain what host contract is absent, and stop that part of the widget. Do not substitute fake data, a browser fallback, a private native API, or an invented Render API. If the supported design needs network, filesystem, app, account, or other machine access, declare the narrowest capability and ask the user for permission before proceeding.
 
-For the Phase 9 surface, the roadmap families are layout, typography/content, visuals, controls/actions, collections/data, and providers/integrations. The shipped first slice is `Box`, `Spacer`, `Divider`, `Icon`, `Image`, `Button`, `TextField`, `Toggle`, `Progress`, `Grid`, `Gradient`, `Texture`, `Clip`, `Transform`, `SegmentedProgress`, `Spectrum`, `Animate`, typed actions/provider states, and the JSX runtime. `TextField` and `Toggle` provide current-session native editing and completion controls; persistent widget-owned state and add/remove collection controls are not yet part of the contract. Treat any item as unavailable until `render sdk list --json` and `render sdk describe ... --json` expose its exact contract and support status.
+For the Phase 9 surface, the roadmap families are layout, typography/content, visuals, controls/actions, collections/data, and providers/integrations. The shipped first slice is `Box`, `Spacer`, `Divider`, `Icon`, `Image`, `Button`, `TextField`, `Toggle`, `Progress`, `Grid`, `Gradient`, `Texture`, `Clip`, `Transform`, `SegmentedProgress`, `Spectrum`, `Animate`, typed actions/provider states, persistent `useWidgetState`, and the JSX runtime. `TextField` and `Toggle` can write host-owned state when passed a state binding; add/remove collection controls and arbitrary state mutation actions are not yet part of the contract. Treat any item as unavailable until `render sdk list --json` and `render sdk describe ... --json` expose its exact contract and support status.
 
 ### Visual widgets
 
@@ -49,6 +49,25 @@ The visual-shell fixture is a native visual reference, not a Spotify player. Age
 - `Animate` for a serializable property transition with explicit duration, easing, and repeat policy; no callbacks or timers.
 
 Use [`examples/visual-shell/widget.tsx`](../../examples/visual-shell/widget.tsx) as the reference composition and [`examples/visual-shell/NOTICE.md`](../../examples/visual-shell/NOTICE.md) as the licensing reminder. Verify the exact signatures with `render sdk describe <name> --json`.
+
+### Persistent widget-owned state
+
+Use `useWidgetState` for small JSON-safe scalar values (text, numbers, and booleans) that belong to one widget workspace and must survive relaunches:
+
+```tsx
+import { Column, Text, TextField, Toggle, useWidgetState } from "@render/sdk";
+
+const title = useWidgetState("title", "Untitled");
+const completed = useWidgetState("completed", false);
+
+Column([
+  Text(useWidgetState("status", "Ready")),
+  TextField(title),
+  Toggle(completed)
+]);
+```
+
+The native host restores saved values before rendering and persists edits from bound `TextField` and `Toggle` controls. State is scoped to the widget workspace, accepts only JSON-safe scalar values, and does not require a filesystem capability. If a saved value no longer matches its binding, the host uses the declared initial value so a stale preference cannot prevent relaunch. Use distinct keys for independent values; arbitrary state writes and collection mutation are not yet exposed.
 
 ### 2. Create or identify an isolated workspace
 

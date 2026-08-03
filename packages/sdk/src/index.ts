@@ -131,6 +131,19 @@ export type WidgetJsonValue =
   | WidgetJsonValue[]
   | { [key: string]: WidgetJsonValue };
 
+type WidgetStateValue = string | number | boolean;
+
+export interface WidgetStateBinding<T extends WidgetStateValue = WidgetStateValue> {
+  kind: "state";
+  key: string;
+  initial: T;
+}
+
+export interface WidgetStateReference {
+  key: string;
+  initial: WidgetStateValue;
+}
+
 export type WidgetActionName =
   | "widget.refresh"
   | "widget.reload"
@@ -208,6 +221,7 @@ export interface WidgetNode {
   animation?: WidgetAnimation;
   action?: WidgetAction;
   columns?: number;
+  state?: WidgetStateReference;
 }
 
 export type WidgetChild = WidgetNode | string | number | null | boolean | undefined;
@@ -221,21 +235,21 @@ export interface WidgetComponentProps {
 export interface ContainerProps extends WidgetComponentProps {}
 
 export interface TextProps extends WidgetComponentProps {
-  text?: string | ProviderBinding;
+  text?: string | ProviderBinding | WidgetStateBinding<string | number | boolean>;
 }
 
 export interface TextFieldProps extends WidgetComponentProps {
-  text?: string;
+  text?: string | WidgetStateBinding<string>;
 }
 
 export interface ToggleProps extends WidgetComponentProps {
-  checked?: boolean;
+  checked?: boolean | WidgetStateBinding<boolean>;
 }
 
 export interface ShapeProps extends WidgetComponentProps {}
 
 export interface GaugeProps extends WidgetComponentProps {
-  value: number | ProviderBinding;
+  value: number | ProviderBinding | WidgetStateBinding<number>;
   maximum: number;
 }
 
@@ -266,7 +280,7 @@ export interface ButtonProps extends WidgetComponentProps {
 }
 
 export interface ProgressProps extends WidgetComponentProps {
-  value: number | ProviderBinding;
+  value: number | ProviderBinding | WidgetStateBinding<number>;
   maximum?: number;
 }
 
@@ -289,7 +303,7 @@ export interface TransformProps extends WidgetComponentProps {
 }
 
 export interface SegmentedProgressProps extends WidgetComponentProps {
-  value: number | ProviderBinding;
+  value: number | ProviderBinding | WidgetStateBinding<number>;
   segments: number;
   maximum?: number;
 }
@@ -327,6 +341,10 @@ export interface WidgetDefinition {
 export interface ProviderBinding {
   kind: "provider";
   name: string;
+}
+
+export function useWidgetState<T extends WidgetStateValue>(key: string, initial: T): WidgetStateBinding<T> {
+  return { kind: "state", key, initial };
 }
 
 export function useAccount(connector: string): WidgetAccountBinding {
@@ -396,11 +414,14 @@ export function Divider(input: "horizontal" | "vertical" | DividerProps = "horiz
   return nodeWithOptionalStyle({ kind: "divider", orientation: input }, style);
 }
 
-export function Text(text: string | ProviderBinding, style?: WidgetStyle): WidgetNode;
+export function Text(text: string | ProviderBinding | WidgetStateBinding<string | number | boolean>, style?: WidgetStyle): WidgetNode;
 export function Text(props: TextProps): WidgetNode;
-export function Text(input: string | ProviderBinding | TextProps, style?: WidgetStyle): WidgetNode {
+export function Text(input: string | ProviderBinding | WidgetStateBinding<string | number | boolean> | TextProps, style?: WidgetStyle): WidgetNode {
   if (isProviderBinding(input)) {
     return nodeWithOptionalStyle(textNode(input), style);
+  }
+  if (isStateBinding(input)) {
+    return nodeWithOptionalStyle(stateTextNode(input), style);
   }
   if (isProps(input)) {
     const props = input as TextProps;
@@ -410,21 +431,33 @@ export function Text(input: string | ProviderBinding | TextProps, style?: Widget
   return nodeWithOptionalStyle(textNode(input as string), style);
 }
 
-export function TextField(text: string, style?: WidgetStyle): WidgetNode;
+export function TextField(text: string | WidgetStateBinding<string>, style?: WidgetStyle): WidgetNode;
 export function TextField(props: TextFieldProps): WidgetNode;
-export function TextField(input: string | TextFieldProps, style?: WidgetStyle): WidgetNode {
+export function TextField(input: string | WidgetStateBinding<string> | TextFieldProps, style?: WidgetStyle): WidgetNode {
+  if (isStateBinding(input)) {
+    return nodeWithOptionalStyle({ kind: "textField", text: "", state: stateReference(input) }, style);
+  }
   if (isProps(input)) {
     const props = input as TextFieldProps;
+    if (isStateBinding(props.text)) {
+      return nodeWithOptionalStyle({ kind: "textField", text: "", state: stateReference(props.text) }, props.style);
+    }
     return nodeWithOptionalStyle({ kind: "textField", text: String(props.text ?? firstChild(props.children) ?? "") }, props.style);
   }
   return nodeWithOptionalStyle({ kind: "textField", text: input as string }, style);
 }
 
-export function Toggle(checked: boolean, style?: WidgetStyle): WidgetNode;
+export function Toggle(checked: boolean | WidgetStateBinding<boolean>, style?: WidgetStyle): WidgetNode;
 export function Toggle(props: ToggleProps): WidgetNode;
-export function Toggle(input: boolean | ToggleProps, style?: WidgetStyle): WidgetNode {
+export function Toggle(input: boolean | WidgetStateBinding<boolean> | ToggleProps, style?: WidgetStyle): WidgetNode {
+  if (isStateBinding(input)) {
+    return nodeWithOptionalStyle({ kind: "toggle", value: 0, state: stateReference(input) }, style);
+  }
   if (isProps(input)) {
     const props = input as ToggleProps;
+    if (isStateBinding(props.checked)) {
+      return nodeWithOptionalStyle({ kind: "toggle", value: 0, state: stateReference(props.checked) }, props.style);
+    }
     return nodeWithOptionalStyle({ kind: "toggle", value: props.checked === true ? 1 : 0 }, props.style);
   }
   return nodeWithOptionalStyle({ kind: "toggle", value: input ? 1 : 0 }, style);
@@ -482,9 +515,9 @@ export function Button(input: string | WidgetNode | ButtonProps, action?: Widget
   return nodeWithOptionalStyle({ kind: "button", children: childrenFrom(input as string), action }, style);
 }
 
-export function Gauge(value: number | ProviderBinding, maximum: number, style?: WidgetStyle): WidgetNode;
+export function Gauge(value: number | ProviderBinding | WidgetStateBinding<number>, maximum: number, style?: WidgetStyle): WidgetNode;
 export function Gauge(props: GaugeProps): WidgetNode;
-export function Gauge(input: number | ProviderBinding | GaugeProps, maximum?: number, style?: WidgetStyle): WidgetNode {
+export function Gauge(input: number | ProviderBinding | WidgetStateBinding<number> | GaugeProps, maximum?: number, style?: WidgetStyle): WidgetNode {
   if (isProviderBinding(input)) {
     return valueNode("gauge", input, maximum as number, style);
   }
@@ -495,9 +528,9 @@ export function Gauge(input: number | ProviderBinding | GaugeProps, maximum?: nu
   return valueNode("gauge", input as number, maximum as number, style);
 }
 
-export function Progress(value: number | ProviderBinding, maximum?: number, style?: WidgetStyle): WidgetNode;
+export function Progress(value: number | ProviderBinding | WidgetStateBinding<number>, maximum?: number, style?: WidgetStyle): WidgetNode;
 export function Progress(props: ProgressProps): WidgetNode;
-export function Progress(input: number | ProviderBinding | ProgressProps, maximum = 100, style?: WidgetStyle): WidgetNode {
+export function Progress(input: number | ProviderBinding | WidgetStateBinding<number> | ProgressProps, maximum = 100, style?: WidgetStyle): WidgetNode {
   if (typeof input === "object" && "value" in input) {
     const props = input as ProgressProps;
     return valueNode("progress", props.value, props.maximum ?? 100, props.style);
@@ -554,10 +587,10 @@ export function Transform(input: WidgetChildren | TransformProps, transform?: Wi
   return nodeWithOptionalStyle({ kind: "transform", children: childrenFrom(input as WidgetChildren), transform: transform as WidgetTransform }, style);
 }
 
-export function SegmentedProgress(value: number | ProviderBinding, segments: number, maximum?: number, style?: WidgetStyle): WidgetNode;
+export function SegmentedProgress(value: number | ProviderBinding | WidgetStateBinding<number>, segments: number, maximum?: number, style?: WidgetStyle): WidgetNode;
 export function SegmentedProgress(props: SegmentedProgressProps): WidgetNode;
 export function SegmentedProgress(
-  input: number | ProviderBinding | SegmentedProgressProps,
+  input: number | ProviderBinding | WidgetStateBinding<number> | SegmentedProgressProps,
   segments?: number,
   maximum = 100,
   style?: WidgetStyle
@@ -604,18 +637,27 @@ function containerNode(kind: "column" | "row" | "stack", input: WidgetNode[] | C
   return nodeWithOptionalStyle({ kind, children: input as WidgetNode[] }, style);
 }
 
-function valueNode(kind: "gauge" | "progress", value: number | ProviderBinding, maximum: number, style?: WidgetStyle): WidgetNode {
+function valueNode(kind: "gauge" | "progress", value: number | ProviderBinding | WidgetStateBinding<number>, maximum: number, style?: WidgetStyle): WidgetNode {
   const node: WidgetNode = typeof value === "number"
     ? { kind, value, maximum }
-    : { kind, provider: value.name, maximum };
+    : isStateBinding(value)
+      ? { kind, value: 0, maximum, state: stateReference(value) }
+      : { kind, provider: value.name, maximum };
   return nodeWithOptionalStyle(node, style);
 }
 
-function textNode(value: string | ProviderBinding | WidgetChild | undefined): WidgetNode {
+function textNode(value: string | ProviderBinding | WidgetStateBinding<string | number | boolean> | WidgetChild | undefined): WidgetNode {
   if (isProviderBinding(value)) {
     return { kind: "text", provider: value.name };
   }
+  if (isStateBinding(value)) {
+    return stateTextNode(value);
+  }
   return { kind: "text", text: value === undefined || value === null ? "" : String(value) };
+}
+
+function stateTextNode(value: WidgetStateBinding<string | number | boolean>): WidgetNode {
+  return { kind: "text", state: stateReference(value) };
 }
 
 function imageSource(source: string | ImageSource): ImageSource {
@@ -627,11 +669,21 @@ function imageNode(source: string | ImageSource, style?: WidgetStyle, options?: 
   return options === undefined ? node : { ...node, options };
 }
 
-function segmentedProgressNode(value: number | ProviderBinding, segments: number, maximum: number, style?: WidgetStyle): WidgetNode {
+function segmentedProgressNode(value: number | ProviderBinding | WidgetStateBinding<number>, segments: number, maximum: number, style?: WidgetStyle): WidgetNode {
   const node: WidgetNode = typeof value === "number"
     ? { kind: "segmentedProgress", value, segments, maximum }
-    : { kind: "segmentedProgress", provider: value.name, segments, maximum };
+    : isStateBinding(value)
+      ? { kind: "segmentedProgress", value: 0, segments, maximum, state: stateReference(value) }
+      : { kind: "segmentedProgress", provider: value.name, segments, maximum };
   return nodeWithOptionalStyle(node, style);
+}
+
+function stateReference<T extends WidgetStateValue>(binding: WidgetStateBinding<T>): WidgetStateReference {
+  return { key: binding.key, initial: binding.initial };
+}
+
+function isStateBinding(value: unknown): value is WidgetStateBinding {
+  return isObject(value) && value.kind === "state" && typeof value.key === "string" && "initial" in value;
 }
 
 function imageOptionsFrom(props: ImageProps): WidgetImageOptions | undefined {

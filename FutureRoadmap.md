@@ -84,7 +84,7 @@ Implementation steps:
 - Stage a candidate in an isolated worker before swapping it into the visible widget.
 - Update in place only after the candidate is ready; keep the prior version visible during compilation or failure.
 - Add structured diff and preview information so an agent can explain what changed and why.
-- Persist settings separately from generated source so a user preference such as color or position can be changed without rewriting unrelated code.
+- Persist widget-owned JSON state separately from generated source so controls can restore user preferences without rewriting unrelated code. The first `useWidgetState` slice is implemented; settings editing and collection mutation remain follow-up work.
 - Make watch mode debounce edits, coalesce safe changes, and expose its current state in status output.
 - Make rollback and recovery work after a host restart, not only during one terminal session.
 

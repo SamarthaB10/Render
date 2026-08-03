@@ -67,7 +67,7 @@ function render(message) {
 
   try {
     const source = readFileSync(sourcePath, "utf8");
-    const tree = buildRuntimeTree(source, sourcePath);
+    const tree = buildRuntimeTree(source, sourcePath, { state: message.state });
     const manifest = extractManifest(source);
     send({ kind: "render", messageID: message.messageID, tree, manifest });
   } catch (error) {

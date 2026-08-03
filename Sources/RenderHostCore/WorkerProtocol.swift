@@ -30,6 +30,7 @@ public struct WorkerMessage: Codable, Equatable, Sendable {
     public let selectedVersion: Int?
     public let workspace: String?
     public let sourcePath: String?
+    public let state: [String: WidgetJSONValue]?
     public let tree: WidgetTree?
     public let diagnostics: [WorkerDiagnostic]?
 
@@ -41,6 +42,7 @@ public struct WorkerMessage: Codable, Equatable, Sendable {
         selectedVersion: Int? = nil,
         workspace: String? = nil,
         sourcePath: String? = nil,
+        state: [String: WidgetJSONValue]? = nil,
         tree: WidgetTree? = nil,
         diagnostics: [WorkerDiagnostic]? = nil,
         protocolVersion: Int = WorkerMessage.currentProtocolVersion
@@ -53,6 +55,7 @@ public struct WorkerMessage: Codable, Equatable, Sendable {
         self.selectedVersion = selectedVersion
         self.workspace = workspace
         self.sourcePath = sourcePath
+        self.state = state
         self.tree = tree
         self.diagnostics = diagnostics
     }
