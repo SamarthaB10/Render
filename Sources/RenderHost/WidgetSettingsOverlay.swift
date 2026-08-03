@@ -9,6 +9,8 @@ struct WidgetSettingsOverlay: View {
     let preferences: WidgetPreferences
     let onPreferencesChange: (WidgetPreferences) -> Void
     let onModeChange: (String) -> Void
+    let youtube: YouTubePlayerSettings?
+    @ObservedObject var interactionStore: WidgetInteractionStore
     let accountStatus: AccountStatus?
     let authorizationMessage: String?
     let onAuthorize: () -> Void
@@ -20,6 +22,8 @@ struct WidgetSettingsOverlay: View {
     @State private var showPermissionPrompt: Bool
     @State private var widthText: String
     @State private var heightText: String
+    @State private var youtubeLinkInputEnabled: Bool
+    @State private var youtubeLinkText: String
 
     init(
         widgetName: String,
@@ -29,6 +33,8 @@ struct WidgetSettingsOverlay: View {
         preferences: WidgetPreferences,
         onPreferencesChange: @escaping (WidgetPreferences) -> Void,
         onModeChange: @escaping (String) -> Void,
+        youtube: YouTubePlayerSettings?,
+        interactionStore: WidgetInteractionStore,
         accountStatus: AccountStatus?,
         authorizationMessage: String?,
         onAuthorize: @escaping () -> Void,
@@ -41,6 +47,8 @@ struct WidgetSettingsOverlay: View {
         self.preferences = preferences
         self.onPreferencesChange = onPreferencesChange
         self.onModeChange = onModeChange
+        self.youtube = youtube
+        self.interactionStore = interactionStore
         self.accountStatus = accountStatus
         self.authorizationMessage = authorizationMessage
         self.onAuthorize = onAuthorize
@@ -48,6 +56,12 @@ struct WidgetSettingsOverlay: View {
         _showPermissionPrompt = State(initialValue: accountStatus?.state == .needsAuthorization)
         _widthText = State(initialValue: preferences.width.map(Self.format) ?? Self.format(defaultSize.width))
         _heightText = State(initialValue: preferences.height.map(Self.format) ?? Self.format(defaultSize.height))
+        _youtubeLinkInputEnabled = State(initialValue: youtube.map {
+            $0.allowLinkInput && interactionStore.youtubeLinkInputIsEnabled(path: $0.path, defaultValue: $0.initialVideoID == nil)
+        } ?? false)
+        _youtubeLinkText = State(initialValue: youtube.flatMap {
+            interactionStore.youtubeURL(path: $0.path, defaultValue: nil)
+        } ?? "")
     }
 
     var body: some View {
@@ -157,6 +171,11 @@ struct WidgetSettingsOverlay: View {
                 }
             }
 
+            if let youtube, youtube.allowLinkInput {
+                Divider().opacity(0.35)
+                youtubeControls(for: youtube)
+            }
+
             if adjustable?.enabled == true {
                 Divider().opacity(0.35)
                 adjustableControls
@@ -213,6 +232,39 @@ struct WidgetSettingsOverlay: View {
         .liquidGlassSurface()
         .padding(12)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+    }
+
+    private func youtubeControls(for youtube: YouTubePlayerSettings) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("YouTube")
+                .font(.subheadline.weight(.semibold))
+            Toggle("Edit video link", isOn: Binding(
+                get: { youtubeLinkInputEnabled },
+                set: { enabled in
+                    youtubeLinkInputEnabled = enabled
+                    interactionStore.saveYouTubeLinkInput(path: youtube.path, enabled: enabled)
+                }
+            ))
+            .toggleStyle(.switch)
+            .controlSize(.small)
+
+            if youtubeLinkInputEnabled {
+                TextField("https://youtube.com/watch?v=…", text: $youtubeLinkText)
+                    .textFieldStyle(.roundedBorder)
+                    .onSubmit { loadYouTubeLink(youtube) }
+                Button("Load video") {
+                    loadYouTubeLink(youtube)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+                .disabled(YouTubeLinkParser.extractVideoID(from: youtubeLinkText) == nil)
+            }
+        }
+    }
+
+    private func loadYouTubeLink(_ youtube: YouTubePlayerSettings) {
+        guard YouTubeLinkParser.extractVideoID(from: youtubeLinkText) != nil else { return }
+        interactionStore.saveYouTubeURL(path: youtube.path, value: youtubeLinkText)
     }
 
     private func metadataRow(_ label: String, _ value: String) -> some View {

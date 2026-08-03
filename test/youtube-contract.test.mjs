@@ -22,7 +22,15 @@ test("YouTubePlayer creates a validated native player node", async () => {
     videoId: "M7lc1UVf-VE",
     allowLinkInput: false,
     autoplay: false,
-    controls: true
+    controls: true,
+    style: {
+      width: 480,
+      height: 270,
+      radius: 16,
+      border: { color: "#cbd5e1", width: 1, radius: 16 },
+      shadow: { color: "#ffffff", radius: 14, opacity: 0.12 },
+      tokens: ["surface"]
+    }
   });
 });
 

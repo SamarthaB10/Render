@@ -2,74 +2,14 @@ import AppKit
 import SwiftUI
 import WebKit
 
-struct YouTubePlayerView: View {
+struct YouTubePlayerSettings: Equatable {
     let path: String
     let initialVideoID: String?
     let allowLinkInput: Bool
-    let controls: Bool
-    let autoplay: Bool
-    let startSeconds: Double?
-    @ObservedObject var store: WidgetInteractionStore
+}
 
-    @State private var linkInputEnabled: Bool
-    @State private var linkText: String
-    @State private var activeVideoID: String?
-
-    init(path: String, initialVideoID: String?, allowLinkInput: Bool, controls: Bool, autoplay: Bool, startSeconds: Double?, store: WidgetInteractionStore) {
-        self.path = path
-        self.initialVideoID = initialVideoID
-        self.allowLinkInput = allowLinkInput
-        self.controls = controls
-        self.autoplay = autoplay
-        self.startSeconds = startSeconds
-        self.store = store
-        let storedValue = store.youtubeURL(path: path, defaultValue: nil)
-        let storedVideoID = Self.extractVideoID(from: storedValue ?? "")
-        _linkInputEnabled = State(initialValue: allowLinkInput && store.youtubeLinkInputIsEnabled(path: path, defaultValue: initialVideoID == nil))
-        _linkText = State(initialValue: storedVideoID == nil ? "" : storedValue ?? "")
-        _activeVideoID = State(initialValue: storedVideoID ?? initialVideoID)
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if allowLinkInput {
-                Toggle("Paste YouTube link", isOn: $linkInputEnabled)
-                    .toggleStyle(.switch)
-                    .controlSize(.small)
-                    .onChange(of: linkInputEnabled) { enabled in
-                        store.saveYouTubeLinkInput(path: path, enabled: enabled)
-                    }
-                if linkInputEnabled {
-                    HStack(spacing: 6) {
-                        TextField("https://youtube.com/watch?v=…", text: $linkText)
-                            .textFieldStyle(.roundedBorder)
-                            .onSubmit(loadLink)
-                        Button("Load", action: loadLink)
-                            .buttonStyle(.bordered)
-                            .disabled(Self.extractVideoID(from: linkText) == nil)
-                    }
-                }
-            }
-            if let activeVideoID {
-                YouTubePlayerSurface(videoID: activeVideoID, controls: controls, autoplay: autoplay, startSeconds: startSeconds)
-            } else {
-                Text("Paste a YouTube link to begin")
-                    .foregroundColor(.secondary)
-                    .frame(maxWidth: .infinity, minHeight: 120)
-            }
-        }
-        .onDisappear {
-            store.saveYouTubeURL(path: path, value: Self.extractVideoID(from: linkText) == nil ? "" : linkText)
-        }
-    }
-
-    private func loadLink() {
-        guard let videoID = Self.extractVideoID(from: linkText) else { return }
-        activeVideoID = videoID
-        store.saveYouTubeURL(path: path, value: linkText)
-    }
-
-    private static func extractVideoID(from input: String) -> String? {
+enum YouTubeLinkParser {
+    static func extractVideoID(from input: String) -> String? {
         let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let url = URL(string: trimmed), url.scheme?.lowercased() == "https", let host = url.host?.lowercased() else { return nil }
         let allowedHost = host == "youtu.be" || host == "youtube.com" || host.hasSuffix(".youtube.com")
@@ -89,6 +29,40 @@ struct YouTubePlayerView: View {
 
     private static func validVideoID(_ value: String) -> String? {
         value.range(of: "^[A-Za-z0-9_-]{11}$", options: .regularExpression) == nil ? nil : value
+    }
+}
+
+struct YouTubePlayerView: View {
+    let path: String
+    let initialVideoID: String?
+    let controls: Bool
+    let autoplay: Bool
+    let startSeconds: Double?
+    @ObservedObject var store: WidgetInteractionStore
+
+    init(path: String, initialVideoID: String?, controls: Bool, autoplay: Bool, startSeconds: Double?, store: WidgetInteractionStore) {
+        self.path = path
+        self.initialVideoID = initialVideoID
+        self.controls = controls
+        self.autoplay = autoplay
+        self.startSeconds = startSeconds
+        self.store = store
+    }
+
+    var body: some View {
+        Group {
+            if let activeVideoID {
+                YouTubePlayerSurface(videoID: activeVideoID, controls: controls, autoplay: autoplay, startSeconds: startSeconds)
+            } else {
+                Text("Open widget settings to add a YouTube link")
+                    .foregroundColor(.secondary)
+                    .frame(maxWidth: .infinity, minHeight: 120)
+            }
+        }
+    }
+
+    private var activeVideoID: String? {
+        YouTubeLinkParser.extractVideoID(from: store.youtubeURL(path: path, defaultValue: "") ?? "") ?? initialVideoID
     }
 }
 
