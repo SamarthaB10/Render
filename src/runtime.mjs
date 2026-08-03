@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
-import { closeSync, existsSync, openSync, readFileSync, renameSync, unlinkSync, watch, writeFileSync } from "node:fs";
+import { closeSync, existsSync, openSync, readFileSync, renameSync, statSync, unlinkSync, watch, writeFileSync } from "node:fs";
 import path from "node:path";
 import * as sdk from "../packages/sdk/src/index.ts";
 import { buildTsxRuntimeTree } from "./tsx-runtime.mjs";
@@ -964,14 +964,28 @@ function validateSpacing(value, pathName) {
 }
 
 function findHostPath() {
-  const candidates = [
-    process.env.RENDER_HOST_PATH,
+  const configured = process.env.RENDER_HOST_PATH;
+  if (configured && existsSync(configured)) return configured;
+
+  const packaged = [
     path.resolve(".build/debug/RenderHost.app/Contents/MacOS/RenderHost"),
-    path.resolve(".build/arm64-apple-macosx/debug/RenderHost.app/Contents/MacOS/RenderHost"),
+    path.resolve(".build/arm64-apple-macosx/debug/RenderHost.app/Contents/MacOS/RenderHost")
+  ].find((candidate) => existsSync(candidate)) ?? null;
+  const raw = [
     path.resolve(".build/debug/RenderHost"),
     path.resolve(".build/arm64-apple-macosx/debug/RenderHost")
-  ].filter(Boolean);
-  return candidates.find((candidate) => existsSync(candidate)) ?? null;
+  ].find((candidate) => existsSync(candidate)) ?? null;
+
+  return selectHostPath(packaged, raw);
+}
+
+export function selectHostPath(packaged, raw) {
+  if (!packaged || !raw) return packaged ?? raw;
+  try {
+    return statSync(packaged).mtimeMs >= statSync(raw).mtimeMs ? packaged : raw;
+  } catch {
+    return packaged;
+  }
 }
 
 function isNativeHost(hostPath) {
