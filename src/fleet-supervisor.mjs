@@ -90,7 +90,7 @@ function monitor(options) {
     recovered,
     updatedAt: new Date().toISOString()
   });
-  setTimeout(() => monitor(options), options.monitorIntervalMs).unref();
+  setTimeout(() => monitor(options), options.monitorIntervalMs);
 }
 
 function parseOptions(args) {
