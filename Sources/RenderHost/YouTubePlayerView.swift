@@ -23,10 +23,11 @@ struct YouTubePlayerView: View {
         self.autoplay = autoplay
         self.startSeconds = startSeconds
         self.store = store
-        let storedValue = store.youtubeURL(path: path, defaultValue: initialVideoID)
+        let storedValue = store.youtubeURL(path: path, defaultValue: nil)
+        let storedVideoID = Self.extractVideoID(from: storedValue ?? "")
         _linkInputEnabled = State(initialValue: allowLinkInput && store.youtubeLinkInputIsEnabled(path: path, defaultValue: initialVideoID == nil))
-        _linkText = State(initialValue: storedValue ?? "")
-        _activeVideoID = State(initialValue: Self.extractVideoID(from: storedValue ?? "") ?? initialVideoID)
+        _linkText = State(initialValue: storedVideoID == nil ? "" : storedValue ?? "")
+        _activeVideoID = State(initialValue: storedVideoID ?? initialVideoID)
     }
 
     var body: some View {
@@ -57,7 +58,9 @@ struct YouTubePlayerView: View {
                     .frame(maxWidth: .infinity, minHeight: 120)
             }
         }
-        .onDisappear { store.saveYouTubeURL(path: path, value: linkText) }
+        .onDisappear {
+            store.saveYouTubeURL(path: path, value: Self.extractVideoID(from: linkText) == nil ? "" : linkText)
+        }
     }
 
     private func loadLink() {
