@@ -1,3 +1,5 @@
+import { validateAccountRequirements } from "./integrations.mjs";
+
 const ROOT_FIELDS = new Set([
   "schemaVersion",
   "name",
@@ -5,7 +7,8 @@ const ROOT_FIELDS = new Set([
   "size",
   "anchor",
   "capabilities",
-  "subscribe"
+  "subscribe",
+  "accounts"
 ]);
 const CAPABILITIES = new Set(["network", "filesystem.read", "filesystem.write"]);
 const CORNERS = new Set(["top-left", "top-right", "bottom-left", "bottom-right"]);
@@ -72,6 +75,10 @@ export function validateManifest(manifest) {
 
   if (!Array.isArray(manifest.subscribe) || manifest.subscribe.some((item) => typeof item !== "string")) {
     issues.push({ path: "subscribe", message: "must be an array of strings" });
+  }
+
+  if (manifest.accounts !== undefined) {
+    issues.push(...validateAccountRequirements(manifest.accounts));
   }
 
   for (const field of Object.keys(manifest)) {

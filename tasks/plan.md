@@ -106,6 +106,40 @@ gaps rather than hidden fallbacks.
 - [x] An unsupported request produces a named capability gap; no invented primitive, provider, action, DOM, webview, or fake data path is used.
 - [x] The existing last-known-good, capability, provider, supervisor, and receipt invariants remain intact.
 
+### Phase 10: Host-owned authenticated integrations
+
+Phase 10 starts the generic integration boundary with Spotify as the first
+trusted connector. The widget author declares an account requirement and the
+host owns authorization, secure token storage, refresh, provider polling, and
+action dispatch. Widget code never receives raw credentials or gets an
+arbitrary network primitive.
+
+The first Spotify slice is deliberately limited to account identity and
+playback: current track, playback state, progress, volume, play/pause,
+previous, next, and volume changes. Playlist, library, history, search, and
+arbitrary third-party OAuth remain separate catalog entries until their host
+contracts are designed and tested.
+
+- [ ] Task 26: Add a generic account/connector contract to the SDK, manifest validator, catalog, and agent-readable docs.
+- [ ] Task 27: Add a host-owned auth state machine and secure credential boundary with deterministic tests and no credentials in widget trees or logs.
+- [ ] Task 28: Add Render-owned authorization prompt and connected/denied/unavailable states to the native widget surface.
+- [ ] Task 29: Add the trusted Spotify connector using Authorization Code with PKCE, token refresh, allowlisted API calls, playback providers, and explicit playback actions.
+- [ ] Task 30: Add the liquid-glass hover settings control, confirmed stop flow, process metadata/kill command, and placement-safe interaction handling.
+- [ ] Task 31: Add a canonical Spotify widget example, update SDK discovery/agent guidance, and verify the complete check → authorize → run → control → remix → rollback workflow.
+
+### Checkpoint: Phase 10 foundation
+
+- [ ] SDK and native host agree on one versioned, serializable account contract.
+- [ ] Missing permission leaves the widget alive with an explicit connect state.
+- [ ] Raw access/refresh tokens never cross the worker boundary, enter a tree,
+  or appear in diagnostics.
+- [ ] Spotify actions are host-owned, scope-checked, allowlisted, and expose
+  loading/success/error/unavailable state.
+- [ ] Settings controls are keyboard reachable, confirmation-protected, and do
+  not steal drag behavior from the widget surface.
+- [ ] Official Spotify authorization, scope, playback, and volume behavior is
+  recorded in the implementation docs.
+
 ## Risks and mitigations
 
 | Risk | Impact | Mitigation |
@@ -116,12 +150,19 @@ gaps rather than hidden fallbacks.
 | Resource limits are guessed | Good widgets may be rejected or performance claims become untrustworthy | Measure real workloads before setting limits, per `AGENTS.md`. |
 | Catalog and native renderer drift | Agents generate Widgets that validate but cannot render | Ship each SDK item as one contract boundary and gate promotion on catalog, renderer, validation, tests, and receipt evidence. |
 | Broad primitive roadmap becomes an unbounded rewrite | Phase 9 loses its vertical proof | Implement only the first slice first; keep advanced families explicitly deferred. |
+| Credentials cross the widget boundary | A compromised widget could exfiltrate a user's account | Keep connectors and token storage in RenderHost; expose typed account/provider state and opaque action results only. |
+| Provider polling overloads a third-party API | Playback becomes stale or rate-limited | Host-owned cadence, response validation, bounded retries, and explicit unavailable states. |
+| Native drag handling swallows controls | Settings and playback buttons appear but cannot be used | Keep interaction hit-testing in the host and add focused manual/native verification. |
+| Spotify app configuration is missing | OAuth cannot complete on a fresh machine | Keep client identifiers out of source, document the required Render-managed configuration boundary, and make the unauthenticated path usable. |
 
 ## Open implementation questions
 
 - Which embedded JavaScript engine and TypeScript transpilation path fit the available native toolchain; verify before committing to one.
 - Whether SwiftUI is needed in the first host slice or AppKit can carry the initial proof more simply.
 - Exact workspace metadata filenames and CLI packaging approach.
+- Spotify's current Authorization Code with PKCE, scope, playback, and volume
+  contracts are the source of truth for the connector implementation; see the
+  official links in `ImplementationDoc.md`.
 
 ## Verification commands
 

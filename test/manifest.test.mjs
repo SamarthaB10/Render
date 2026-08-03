@@ -38,3 +38,41 @@ test("reports unknown fields and invalid dimensions", () => {
     { path: "unexpected", message: "unknown manifest field" }
   ]);
 });
+
+test("accepts a declarative connector account requirement", () => {
+  const manifest = {
+    schemaVersion: 1,
+    name: "Spotify Mini Player",
+    sdkVersion: "0.1.0",
+    size: { width: 320, height: 180 },
+    anchor: { corner: "top-left", offset: { x: 0, y: 0 } },
+    capabilities: [],
+    subscribe: ["spotify.playback"],
+    accounts: [{
+      connector: "spotify",
+      scopes: ["user-read-playback-state", "user-modify-playback-state"]
+    }]
+  };
+
+  assert.deepEqual(validateManifest(manifest), []);
+});
+
+test("reports unsupported connector and scope requirements", () => {
+  const issues = validateManifest({
+    schemaVersion: 1,
+    name: "Broken Integration",
+    sdkVersion: "0.1.0",
+    size: { width: 320, height: 180 },
+    anchor: { corner: "top-left", offset: { x: 0, y: 0 } },
+    capabilities: [],
+    subscribe: [],
+    accounts: [{ connector: "not-supported", scopes: ["read-anything"] }]
+  });
+
+  assert.deepEqual(issues, [
+    {
+      path: "accounts[0].connector",
+      message: "unsupported connector 'not-supported'; use render sdk list to choose a supported connector"
+    }
+  ]);
+});

@@ -65,7 +65,7 @@ The first proof is:
 - Separate widget worker processes in the first prototype.
 - Sharing, publishing, galleries, and marketplace workflows.
 - iPhone and iPad support.
-- Spotify and other third-party APIs or network integrations in the first CPU/RAM proof; the platform boundaries must leave room for them.
+- Third-party API execution in the first CPU/RAM proof. The generic account requirement and Spotify connector contract are now discoverable, but host authorization and playback execution remain Phase 10 work.
 - Editing unrelated user projects.
 - Developer ID notarization, installer, updater, and App Store distribution.
 
@@ -191,6 +191,41 @@ export default widget(
   },
 );
 ```
+
+Authenticated widgets extend the JSON-compatible manifest with an explicit
+connector requirement. This is a declaration, not a token container:
+
+```tsx
+"accounts": [{
+  "connector": "spotify",
+  "scopes": [
+    "user-read-playback-state",
+    "user-read-currently-playing",
+    "user-modify-playback-state"
+  ]
+}]
+```
+
+The current branch validates this contract and exposes it through the SDK
+catalog. Spotify authorization and playback execution are intentionally not
+called implemented until the native host owns the full lifecycle.
+
+### Phase 10 source contract
+
+The supplied Spotify OpenAPI document is used to cross-check endpoint paths,
+operation IDs, request parameters, response status codes, and required scopes.
+The authoritative provider documentation is:
+
+- [Authorization Code with PKCE](https://developer.spotify.com/documentation/web-api/tutorials/code-pkce-flow)
+- [Spotify scopes](https://developer.spotify.com/documentation/web-api/concepts/scopes)
+- [Get Playback State](https://developer.spotify.com/documentation/web-api/reference/get-information-about-the-users-current-playback)
+- [Start/Resume Playback](https://developer.spotify.com/documentation/web-api/reference/start-a-users-playback)
+- [Pause Playback](https://developer.spotify.com/documentation/web-api/reference/pause-a-users-playback)
+- [Set Playback Volume](https://developer.spotify.com/documentation/web-api/reference/set-volume-for-users-playback)
+
+The first connector slice is limited to current playback, current track,
+play/pause, previous/next, and volume. RenderHost must keep access and refresh
+tokens out of widget workers, trees, logs, and agent-visible diagnostics.
 
 The exact public API is finalized by the SDK implementation, but these rules are fixed:
 

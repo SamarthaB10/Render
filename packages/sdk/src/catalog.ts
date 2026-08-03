@@ -1,4 +1,4 @@
-export type SdkCatalogKind = "primitive" | "style" | "provider" | "capability" | "action" | "function" | "type";
+export type SdkCatalogKind = "primitive" | "style" | "provider" | "connector" | "capability" | "action" | "function" | "type";
 
 export const SDK_PACKAGE = "@render/sdk" as const;
 export const SDK_VERSION = "0.1.0" as const;
@@ -365,10 +365,66 @@ const SDK_CATALOG: SdkCatalogItem[] = [
       "size: { width: number; height: number }",
       'anchor: { corner: "top-left" | "top-right" | "bottom-left" | "bottom-right"; offset: { x: number; y: number } }',
       'capabilities: Array<"network" | "filesystem.read" | "filesystem.write">',
-      "subscribe: string[]"
+      "subscribe: string[]",
+      "accounts?: WidgetAccountRequirement[]"
     ],
-    example: 'widget({ "schemaVersion": 1, "name": "Example", "sdkVersion": "0.1.0", "size": { "width": 320, "height": 180 }, "anchor": { "corner": "top-left", "offset": { "x": 24, "y": 24 } }, "capabilities": [], "subscribe": [] }, render)',
+    example: 'widget({ "schemaVersion": 1, "name": "Example", "sdkVersion": "0.1.0", "size": { "width": 320, "height": 180 }, "anchor": { "corner": "top-left", "offset": { "x": 24, "y": 24 } }, "capabilities": [], "subscribe": [], "accounts": [] }, render)',
     notes: ["Keep manifest keys quoted so render check can provide source-oriented diagnostics."]
+  },
+  {
+    name: "WidgetAccountRequirement",
+    kind: "type",
+    summary: "Declarative request for a host-managed connector account and exact scopes",
+    importPath: SDK_PACKAGE,
+    signature: "interface WidgetAccountRequirement { connector: string; scopes: string[] }",
+    fields: ["connector", "scopes"],
+    example: 'const account: WidgetAccountRequirement = { connector: "spotify", scopes: ["user-read-playback-state"] }',
+    status: "contract-only",
+    notes: ["The host owns authorization and token storage; widget code never receives raw credentials."]
+  },
+  {
+    name: "WidgetAccountState",
+    kind: "type",
+    summary: "Explicit host-owned account lifecycle state",
+    importPath: SDK_PACKAGE,
+    signature: 'type WidgetAccountState = "connected" | "needs-authorization" | "denied" | "expired" | "revoked" | "unavailable"',
+    fields: ["connected", "needs-authorization", "denied", "expired", "revoked", "unavailable"],
+    example: 'const state: WidgetAccountState = "needs-authorization"',
+    status: "contract-only",
+    notes: ["A missing account must leave the widget alive with a clear host-owned connect state."]
+  },
+  {
+    name: "WidgetAccountBinding",
+    kind: "type",
+    summary: "Opaque reference to a host-managed connector account",
+    importPath: SDK_PACKAGE,
+    signature: 'interface WidgetAccountBinding { kind: "account"; connector: string }',
+    fields: ['kind: "account"', "connector"],
+    example: 'const spotify = useAccount("spotify")',
+    status: "contract-only",
+    notes: ["Bindings identify a connector but never contain access or refresh tokens."]
+  },
+  {
+    name: "useAccount",
+    kind: "function",
+    summary: "Creates an opaque binding to a host-managed connector account",
+    importPath: SDK_PACKAGE,
+    signature: "useAccount(connector: string): WidgetAccountBinding",
+    inputs: ["connector"],
+    example: 'useAccount("spotify")',
+    status: "contract-only",
+    notes: ["The connector must also be declared in manifest.accounts with its exact scopes."]
+  },
+  {
+    name: "spotify",
+    kind: "connector",
+    summary: "Trusted Spotify Web API connector for account identity and playback control",
+    importPath: SDK_PACKAGE,
+    signature: 'accounts: [{ connector: "spotify", scopes: string[] }]',
+    inputs: ["user-read-playback-state", "user-read-currently-playing", "user-modify-playback-state"],
+    example: '"accounts": [{ "connector": "spotify", "scopes": ["user-read-playback-state", "user-read-currently-playing", "user-modify-playback-state"] }]',
+    status: "contract-only",
+    notes: ["Render owns OAuth, secure credential storage, refresh, and API calls.", "Raw tokens never enter widget.tsx, the worker, the declarative tree, or logs.", "Playback controls require Spotify Premium according to the provider API; unavailable states are explicit."]
   },
   {
     name: "WidgetDefinition",

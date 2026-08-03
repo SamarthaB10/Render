@@ -44,6 +44,23 @@ export type WidgetStyleToken =
 
 export type WidgetCapability = "network" | "filesystem.read" | "filesystem.write";
 export type ProviderState = "loading" | "available" | "unavailable";
+export type WidgetAccountState =
+  | "connected"
+  | "needs-authorization"
+  | "denied"
+  | "expired"
+  | "revoked"
+  | "unavailable";
+
+export interface WidgetAccountRequirement {
+  connector: string;
+  scopes: string[];
+}
+
+export interface WidgetAccountBinding {
+  kind: "account";
+  connector: string;
+}
 
 export interface ProviderValue {
   name: string;
@@ -194,6 +211,7 @@ export interface WidgetManifest {
   };
   capabilities: WidgetCapability[];
   subscribe: string[];
+  accounts?: WidgetAccountRequirement[];
 }
 
 export interface WidgetDefinition {
@@ -204,6 +222,14 @@ export interface WidgetDefinition {
 export interface ProviderBinding {
   kind: "provider";
   name: string;
+}
+
+export function useAccount(connector: string): WidgetAccountBinding {
+  return { kind: "account", connector };
+}
+
+export function widgetAccountRequirement(connector: string, scopes: string[]): WidgetAccountRequirement {
+  return { connector, scopes: [...scopes] };
 }
 
 export interface TimerBinding {

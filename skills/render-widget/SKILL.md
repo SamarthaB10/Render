@@ -14,7 +14,7 @@ Use the installed `render` command when available. When working directly from th
 - Work only inside the requested or newly created Render workspace.
 - Do not edit unrelated projects, repository files, or global configuration.
 - Use primitives and providers from `@render/sdk`; do not invent DOM, HTML, CSS, browser APIs, webviews, or arbitrary native APIs.
-- Keep the manifest explicit: size, logical anchor, capabilities, and provider subscriptions must be declared.
+- Keep the manifest explicit: size, logical anchor, capabilities, provider subscriptions, and connector account requirements must be declared.
 - Treat CLI diagnostics as the source of truth. Fix the reported path and message before trying to run again.
 - A failed candidate must never replace the last-known-good widget.
 - Do not claim an integration works when its provider, action contract, or capability enforcement is not shipped.
@@ -33,7 +33,7 @@ render sdk describe <primitive-or-provider-or-type> --json
 
 Each described item includes its exact `importPath`, TypeScript `signature`, canonical `example`, and any `notes` or required declarations. Select only cataloged primitives, styles, types, providers, actions, and capabilities. A name in the roadmap is not an import: use it only when the catalog describes it as supported for the active SDK version.
 
-If the request needs something missing—such as Spotify playback, an image provider, or an interactive button—report the exact missing catalog item or capability, explain what platform contract is absent, and stop that part of the Widget. Do not substitute fake data, a browser fallback, a private native API, or an invented Render API. If the supported design needs network, filesystem, app, account, or other machine access, declare the narrowest capability and ask the user for permission before proceeding.
+If the request needs something missing—such as a provider, action, or connector whose catalog status is `planned` or `contract-only`—report the exact catalog item and status, explain what host contract is absent, and stop that part of the widget. Do not substitute fake data, a browser fallback, a private native API, or an invented Render API. If the supported design needs network, filesystem, app, account, or other machine access, declare the narrowest capability and ask the user for permission before proceeding.
 
 For the Phase 9 surface, the roadmap families are layout, typography/content, visuals, controls/actions, collections/data, and providers/integrations. The shipped first slice is `Box`, `Spacer`, `Divider`, `Icon`, `Image`, `Button`, `Progress`, `Grid`, typed actions/provider states, and the JSX runtime. Treat any item as unavailable until `render sdk list --json` and `render sdk describe ... --json` expose its exact contract and support status.
 
@@ -74,6 +74,21 @@ The scaffold above is the canonical CPU/RAM example. It is also the canonical ex
 
 For network or filesystem access, declare the narrowest required capability and ask the user for permission before proceeding. Never place credentials or tokens in `widget.tsx`.
 
+For an authenticated integration, declare the connector and exact scopes in the manifest. The current contract-only Spotify shape is:
+
+```tsx
+"accounts": [{
+  "connector": "spotify",
+  "scopes": [
+    "user-read-playback-state",
+    "user-read-currently-playing",
+    "user-modify-playback-state"
+  ]
+}]
+```
+
+`RenderHost` will own OAuth, secure credential storage, refresh, API calls, and permission state. Never put access tokens, refresh tokens, client secrets, or arbitrary OAuth URLs in the widget source. Do not claim Spotify playback is live until `render sdk describe spotify --json` reports `status: "implemented"`.
+
 ### 4. Validate before running
 
 ```bash
@@ -95,7 +110,7 @@ Wait for the status result to report the active widget as running and, when nati
 render run --workspace "$WORKSPACE" --watch
 ```
 
-Successful edits update the existing widget in place. The first prototype is draggable; placement is persisted by the native host. The implemented local providers are `system.cpu`, `system.memory`, and `system.time`; `system.time` is rendered as the host-local clock when bound to `Text`.
+Successful edits update the existing widget in place. The first prototype is draggable; placement is persisted by the native host. The implemented local providers are `system.cpu`, `system.memory`, and `system.time`; `system.time` is rendered as the host-local clock when bound to `Text`. The Spotify connector is currently contract-only: its account requirement is validated and discoverable, but host authorization and playback providers/actions are not yet shipped.
 
 ### 6. Remix, move, and recover
 
@@ -121,4 +136,4 @@ Report the resulting active and last-known-good versions to the user.
 
 ## North-star behavior
 
-The long-term goal is to handle requests such as “I need a mini 4x4 widget that plays my Spotify music.” The current CPU/RAM widget is only the first reference fixture. A future implementation must add cataloged image, icon, button, progress, provider, action, account, and permission contracts before claiming that request is supported.
+The long-term goal is to handle requests such as “I need a mini 4x4 widget that plays my Spotify music.” The current CPU/RAM widget is only the first reference fixture. The SDK now has the generic account requirement and Spotify connector contract; the next host slices add cataloged playback providers/actions, secure authorization, and Render-owned permission UI before claiming that request is supported.
