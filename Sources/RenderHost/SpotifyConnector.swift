@@ -7,12 +7,19 @@ import Security
 
 struct SpotifyConnectorConfiguration {
     let clientID: String
+    let redirectPort: UInt16
 
     static func fromEnvironment(_ environment: [String: String] = ProcessInfo.processInfo.environment) -> SpotifyConnectorConfiguration? {
         guard let clientID = environment["RENDER_SPOTIFY_CLIENT_ID"], !clientID.isEmpty else {
             return nil
         }
-        return SpotifyConnectorConfiguration(clientID: clientID)
+        let redirectPort: UInt16 = environment["RENDER_SPOTIFY_REDIRECT_PORT"]
+            .flatMap { (value: String) -> UInt16? in
+                guard let port = UInt16(value), port > 0 else { return nil }
+                return port
+            }
+            ?? UInt16(8080)
+        return SpotifyConnectorConfiguration(clientID: clientID, redirectPort: redirectPort)
     }
 }
 
@@ -123,7 +130,7 @@ final class SpotifyConnector {
     func authorize(scopes: [String]) async throws -> AccountStatus {
         guard let configuration else { throw SpotifyConnectorError.notConfigured }
         let challenge = try PKCEChallenge()
-        let callback = LoopbackCallbackServer()
+        let callback = LoopbackCallbackServer(port: configuration.redirectPort)
         let redirectURI = try await callback.start()
         defer { callback.stop() }
 
@@ -370,11 +377,16 @@ private struct PKCEChallenge {
 }
 
 private final class LoopbackCallbackServer {
+    private let port: UInt16
     private let queue = DispatchQueue(label: "com.samarthab.Render.spotify-oauth")
     private var listener: NWListener?
     private var readyContinuation: CheckedContinuation<URL, Error>?
     private var callbackContinuation: CheckedContinuation<URL, Error>?
     private var callbackError: Error?
+
+    init(port: UInt16) {
+        self.port = port
+    }
 
     func start() async throws -> URL {
         try await withCheckedThrowingContinuation { continuation in
@@ -382,7 +394,7 @@ private final class LoopbackCallbackServer {
             do {
                 let parameters = NWParameters.tcp
                 parameters.requiredInterfaceType = .loopback
-                let listener = try NWListener(using: parameters, on: .any)
+                let listener = try NWListener(using: parameters, on: NWEndpoint.Port(rawValue: port)!)
                 self.listener = listener
                 listener.stateUpdateHandler = { [weak self] state in
                     guard let self else { return }
@@ -427,7 +439,7 @@ private final class LoopbackCallbackServer {
         connection.receive(minimumIncompleteLength: 1, maximumLength: 16_384) { [weak self, weak connection] data, _, _, _ in
             guard let self, let connection, let data, let request = String(data: data, encoding: .utf8) else { return }
             let path = request.split(separator: "\n").first?.split(separator: " ").dropFirst().first.map(String.init)
-            guard let path, let url = URL(string: "http://127.0.0.1\(path)") else {
+            guard let path, let url = URL(string: "http://127.0.0.1:\(self.port)\(path)") else {
                 self.reply(to: connection, body: "Authorization failed")
                 self.resumeCallback(with: .failure(SpotifyConnectorError.invalidCallback))
                 return

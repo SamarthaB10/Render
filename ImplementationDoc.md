@@ -575,8 +575,10 @@ Phase 10's first vertical slice is implemented on
 - `RenderHostCore` carries redacted account status only; the worker boundary
   cannot receive access or refresh tokens.
 - `KeychainCredentialStore` persists OAuth credentials in the macOS Keychain.
-- Spotify uses Authorization Code with PKCE and a dynamic `127.0.0.1` loopback
-  callback, then refreshes access tokens before playback calls.
+- Spotify uses Authorization Code with PKCE and an explicit
+  `http://127.0.0.1:8080` loopback callback, then refreshes access
+  tokens before playback calls. The port can be overridden with
+  `RENDER_SPOTIFY_REDIRECT_PORT` when the default is occupied.
 - Spotify Web API requests are limited to the current playback, play, pause,
   previous, next, and volume endpoints, with explicit 401/403/429/unavailable
   errors.

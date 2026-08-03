@@ -143,15 +143,17 @@ A capability declaration is not user consent. If a widget needs network, filesys
 
 Spotify's desktop-safe Authorization Code with PKCE flow does not need a
 client secret. Create or use a Spotify developer app, add the loopback
-redirect URI `http://127.0.0.1` to its allowlist, then export its client ID
+redirect URI `http://127.0.0.1:8080` to its allowlist, then export its client ID
 before launching Render:
 
 ```bash
 export RENDER_SPOTIFY_CLIENT_ID="your-spotify-client-id"
 ```
 
-Render chooses a dynamic loopback port, opens the system browser, validates the
+Render listens on loopback port 8080, opens the system browser, validates the
 OAuth state and PKCE callback, and stores credentials in the macOS Keychain.
+If port 8080 is occupied, set `RENDER_SPOTIFY_REDIRECT_PORT` to another local
+port and register the matching `http://127.0.0.1:<port>` URI in Spotify.
 The widget never receives an access token. If this variable is absent, Spotify
 widgets remain visible but show an explicit unavailable/connect state.
 
