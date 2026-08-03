@@ -14,7 +14,9 @@ export type WidgetNodeKind =
   | "button"
   | "gauge"
   | "progress"
-  | "grid";
+  | "grid"
+  | "timer"
+  | "taskList";
 
 export { describeSdkCatalog, listSdkCatalog, SDK_PACKAGE, SDK_VERSION } from "./catalog.ts";
 export type { SdkCatalogItem, SdkCatalogKind } from "./catalog.ts";
@@ -183,6 +185,8 @@ export interface WidgetNode {
   source?: ImageSource;
   action?: WidgetAction;
   columns?: number;
+  durationSeconds?: number;
+  tasks?: WidgetTaskItem[];
 }
 
 export type WidgetChild = WidgetNode | string | number | null | boolean | undefined;
@@ -205,6 +209,20 @@ export interface TextFieldProps extends WidgetComponentProps {
 
 export interface ToggleProps extends WidgetComponentProps {
   checked?: boolean;
+}
+
+export interface TimerProps extends WidgetComponentProps {
+  durationSeconds: number;
+}
+
+export interface WidgetTaskItem {
+  id: string;
+  text: string;
+  completed?: boolean;
+}
+
+export interface TaskListProps extends WidgetComponentProps {
+  items: WidgetTaskItem[];
 }
 
 export interface ShapeProps extends WidgetComponentProps {}
@@ -370,6 +388,26 @@ export function Toggle(input: boolean | ToggleProps, style?: WidgetStyle): Widge
   return nodeWithOptionalStyle({ kind: "toggle", value: input ? 1 : 0 }, style);
 }
 
+export function Timer(durationSeconds: number, style?: WidgetStyle): WidgetNode;
+export function Timer(props: TimerProps): WidgetNode;
+export function Timer(input: number | TimerProps, style?: WidgetStyle): WidgetNode {
+  if (isProps(input)) {
+    const props = input as TimerProps;
+    return nodeWithOptionalStyle({ kind: "timer", durationSeconds: props.durationSeconds }, props.style);
+  }
+  return nodeWithOptionalStyle({ kind: "timer", durationSeconds: input as number }, style);
+}
+
+export function TaskList(items: WidgetTaskItem[], style?: WidgetStyle): WidgetNode;
+export function TaskList(props: TaskListProps): WidgetNode;
+export function TaskList(input: WidgetTaskItem[] | TaskListProps, style?: WidgetStyle): WidgetNode {
+  if (isProps(input)) {
+    const props = input as TaskListProps;
+    return nodeWithOptionalStyle({ kind: "taskList", tasks: props.items.map(normalizeTask) }, props.style);
+  }
+  return nodeWithOptionalStyle({ kind: "taskList", tasks: (input as WidgetTaskItem[]).map(normalizeTask) }, style);
+}
+
 export function Shape(style?: WidgetStyle): WidgetNode;
 export function Shape(props: ShapeProps): WidgetNode;
 export function Shape(input: WidgetStyle | ShapeProps = {}, style?: WidgetStyle): WidgetNode {
@@ -515,4 +553,8 @@ function isObject(value: unknown): value is Record<string, any> {
 
 function nodeWithOptionalStyle(node: WidgetNode, style?: WidgetStyle): WidgetNode {
   return style === undefined ? node : { ...node, style };
+}
+
+function normalizeTask(task: WidgetTaskItem): WidgetTaskItem {
+  return { id: task.id, text: task.text, completed: task.completed === true };
 }

@@ -54,6 +54,31 @@ test("accepts the host-owned current-time provider", () => {
   });
 });
 
+test("builds host-owned timer and task-list primitives", () => {
+  const source = `
+    import { Column, TaskList, Text, Timer, widget } from "@render/sdk";
+    export default widget({
+      "schemaVersion": 1, "name": "Study", "sdkVersion": "0.1.0",
+      "size": { "width": 320, "height": 420 },
+      "anchor": { "corner": "top-left", "offset": { "x": 24, "y": 24 } },
+      "capabilities": [], "subscribe": []
+    }, () => Column([
+      Timer(1500),
+      TaskList([{ id: "read", text: "Read chapter 3" }]),
+      Text("Notes")
+    ]));
+  `;
+
+  assert.deepEqual(buildRuntimeTree(source), {
+    kind: "column",
+    children: [
+      { kind: "timer", durationSeconds: 1500 },
+      { kind: "taskList", tasks: [{ id: "read", text: "Read chapter 3", completed: false }] },
+      { kind: "text", text: "Notes" }
+    ]
+  });
+});
+
 test("prepareRun atomically writes the candidate tree", () => {
   const workspace = mkdtempSync(path.join(os.tmpdir(), "render-runtime-"));
   try {

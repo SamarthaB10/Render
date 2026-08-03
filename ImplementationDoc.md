@@ -42,6 +42,7 @@ The first proof is:
 - Remixing updates that widget in place rather than creating a second widget.
 - The user can drag the generated first-prototype widget, and its screen placement persists.
 - A widget may declare host-owned adjustable sizing. Native resize handles, lock state, responsive mode selection, and size preferences persist separately from widget source.
+- Stateful surfaces use host-owned SDK primitives. `Timer` persists countdown state and provides start/pause/reset controls; `TaskList` persists editable task rows and provides completion, add, remove, and direct text editing.
 - The widget is a true desktop-layer surface, not a browser or ordinary floating app window.
 
 ### First prototype scope
@@ -257,6 +258,7 @@ The first native renderer implements:
 - `Shape`
 - `Gauge`
 - Host-owned adjustable sizing and responsive render context (`WidgetAdjustable`, `WidgetRenderContext`).
+- Host-owned stateful controls (`Timer`, `TaskList`, `WidgetTaskItem`) with persisted runtime interaction state.
 
 This is the first slice of a larger Render SDK. Agents compose from the SDK; they do not invent ad-hoc primitives or bypass the native renderer.
 

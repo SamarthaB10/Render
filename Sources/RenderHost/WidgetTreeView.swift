@@ -5,6 +5,9 @@ import RenderHostCore
 struct WidgetTreeView: View {
     let tree: WidgetTree
     @ObservedObject var providers: ProviderStore
+    @ObservedObject var interactionStore: WidgetInteractionStore
+    let nodePath: String
+    let fillsAvailableSpace: Bool
     var onAction: ((WidgetAction) -> Void)? = nil
 
     private static let timeFormatter: DateFormatter = {
@@ -17,7 +20,11 @@ struct WidgetTreeView: View {
     var body: some View {
         content
             .frame(width: fixedWidth, height: fixedHeight, alignment: frameAlignment)
-            .frame(maxWidth: expandsWidth ? .infinity : nil, maxHeight: expandsHeight ? .infinity : nil, alignment: frameAlignment)
+            .frame(
+                maxWidth: fillsAvailableSpace || expandsWidth ? .infinity : nil,
+                maxHeight: fillsAvailableSpace || expandsHeight ? .infinity : nil,
+                alignment: frameAlignment
+            )
             .padding(edgeInsets(tree.style?.padding))
             .padding(edgeInsets(tree.style?.margin))
             .opacity(tree.style?.opacity ?? 1)
@@ -38,7 +45,7 @@ struct WidgetTreeView: View {
         case .column:
             return AnyView(VStack(alignment: horizontalAlignment, spacing: gap) {
                 ForEach(tree.children.indices, id: \.self) { index in
-                    WidgetTreeView(tree: tree.children[index], providers: providers, onAction: onAction)
+                    WidgetTreeView(tree: tree.children[index], providers: providers, interactionStore: interactionStore, nodePath: childPath(index), fillsAvailableSpace: false, onAction: onAction)
                     if tree.style?.justifyContent == .spaceBetween && index < tree.children.count - 1 {
                         Spacer(minLength: 0)
                     }
@@ -47,7 +54,7 @@ struct WidgetTreeView: View {
         case .row:
             return AnyView(HStack(alignment: verticalAlignment, spacing: gap) {
                 ForEach(tree.children.indices, id: \.self) { index in
-                    WidgetTreeView(tree: tree.children[index], providers: providers, onAction: onAction)
+                    WidgetTreeView(tree: tree.children[index], providers: providers, interactionStore: interactionStore, nodePath: childPath(index), fillsAvailableSpace: false, onAction: onAction)
                     if tree.style?.justifyContent == .spaceBetween && index < tree.children.count - 1 {
                         Spacer(minLength: 0)
                     }
@@ -56,13 +63,13 @@ struct WidgetTreeView: View {
         case .stack:
             return AnyView(ZStack(alignment: frameAlignment) {
                 ForEach(tree.children.indices, id: \.self) { index in
-                    WidgetTreeView(tree: tree.children[index], providers: providers, onAction: onAction)
+                    WidgetTreeView(tree: tree.children[index], providers: providers, interactionStore: interactionStore, nodePath: childPath(index), fillsAvailableSpace: false, onAction: onAction)
                 }
             })
         case .box:
             return AnyView(VStack(alignment: horizontalAlignment, spacing: gap) {
                 ForEach(tree.children.indices, id: \.self) { index in
-                    WidgetTreeView(tree: tree.children[index], providers: providers, onAction: onAction)
+                    WidgetTreeView(tree: tree.children[index], providers: providers, interactionStore: interactionStore, nodePath: childPath(index), fillsAvailableSpace: false, onAction: onAction)
                 }
             })
         case .grid:
@@ -72,7 +79,7 @@ struct WidgetTreeView: View {
                 spacing: gap
             ) {
                 ForEach(tree.children.indices, id: \.self) { index in
-                    WidgetTreeView(tree: tree.children[index], providers: providers, onAction: onAction)
+                    WidgetTreeView(tree: tree.children[index], providers: providers, interactionStore: interactionStore, nodePath: childPath(index), fillsAvailableSpace: false, onAction: onAction)
                 }
             })
         case .spacer:
@@ -92,6 +99,10 @@ struct WidgetTreeView: View {
             return AnyView(EditableTextField(initialText: tree.text ?? "", style: tree.style))
         case .toggle:
             return AnyView(EditableToggle(initialValue: (tree.value ?? 0) == 1))
+        case .timer:
+            return AnyView(WidgetTimerView(path: nodePath, durationSeconds: tree.durationSeconds ?? 1, store: interactionStore))
+        case .taskList:
+            return AnyView(WidgetTaskListView(path: nodePath, defaults: tree.tasks ?? [], store: interactionStore))
         case .shape:
             return AnyView(RoundedRectangle(cornerRadius: CGFloat(tree.style?.radius ?? 12)).fill(foregroundColor ?? Color.secondary))
         case .icon:
@@ -105,7 +116,7 @@ struct WidgetTreeView: View {
             }) {
                 HStack(spacing: gap) {
                     ForEach(tree.children.indices, id: \.self) { index in
-                        WidgetTreeView(tree: tree.children[index], providers: providers, onAction: onAction)
+                        WidgetTreeView(tree: tree.children[index], providers: providers, interactionStore: interactionStore, nodePath: childPath(index), fillsAvailableSpace: false, onAction: onAction)
                     }
                 }
             }.disabled(tree.action == nil))
@@ -183,6 +194,10 @@ struct WidgetTreeView: View {
     private var expandsWidth: Bool { tree.style?.width == .fill }
     private var expandsHeight: Bool { tree.style?.height == .fill }
     private var gap: CGFloat { CGFloat(tree.style?.gap ?? ((tree.kind == .column || tree.kind == .row) ? 8 : 0)) }
+
+    private func childPath(_ index: Int) -> String {
+        "\(nodePath).children[\(index)]"
+    }
 
     private var horizontalAlignment: HorizontalAlignment {
         switch tree.style?.alignItems {

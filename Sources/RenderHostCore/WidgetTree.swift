@@ -17,6 +17,8 @@ public enum WidgetNodeKind: String, Codable, Sendable {
     case gauge
     case progress
     case grid
+    case timer
+    case taskList
 }
 
 public enum WidgetLength: Codable, Equatable, Sendable {
@@ -356,6 +358,18 @@ public enum WidgetKey: Codable, Equatable, Sendable {
     }
 }
 
+public struct WidgetTaskItem: Codable, Equatable, Identifiable, Sendable {
+    public let id: String
+    public let text: String
+    public let completed: Bool
+
+    public init(id: String, text: String, completed: Bool = false) {
+        self.id = id
+        self.text = text
+        self.completed = completed
+    }
+}
+
 public struct WidgetTree: Codable, Equatable, Sendable {
     public let kind: WidgetNodeKind
     public let key: WidgetKey?
@@ -370,6 +384,8 @@ public struct WidgetTree: Codable, Equatable, Sendable {
     public let source: ImageSource?
     public let action: WidgetAction?
     public let columns: Int?
+    public let durationSeconds: Int?
+    public let tasks: [WidgetTaskItem]?
 
     public init(
         kind: WidgetNodeKind,
@@ -384,7 +400,9 @@ public struct WidgetTree: Codable, Equatable, Sendable {
         name: String? = nil,
         source: ImageSource? = nil,
         action: WidgetAction? = nil,
-        columns: Int? = nil
+        columns: Int? = nil,
+        durationSeconds: Int? = nil,
+        tasks: [WidgetTaskItem]? = nil
     ) {
         self.kind = kind
         self.key = key
@@ -399,10 +417,12 @@ public struct WidgetTree: Codable, Equatable, Sendable {
         self.source = source
         self.action = action
         self.columns = columns
+        self.durationSeconds = durationSeconds
+        self.tasks = tasks
     }
 
     private enum CodingKeys: String, CodingKey {
-        case kind, key, children, text, provider, style, value, maximum, orientation, name, source, action, columns
+        case kind, key, children, text, provider, style, value, maximum, orientation, name, source, action, columns, durationSeconds, tasks
     }
 
     public init(from decoder: Decoder) throws {
@@ -420,6 +440,8 @@ public struct WidgetTree: Codable, Equatable, Sendable {
         source = try container.decodeIfPresent(ImageSource.self, forKey: .source)
         action = try container.decodeIfPresent(WidgetAction.self, forKey: .action)
         columns = try container.decodeIfPresent(Int.self, forKey: .columns)
+        durationSeconds = try container.decodeIfPresent(Int.self, forKey: .durationSeconds)
+        tasks = try container.decodeIfPresent([WidgetTaskItem].self, forKey: .tasks)
     }
 
     public func validationIssues(path: String = "root") -> [WidgetTreeValidationIssue] {
@@ -442,6 +464,21 @@ public struct WidgetTree: Codable, Equatable, Sendable {
         }
         if kind == .toggle && value != 0 && value != 1 {
             issues.append(.init(path: "\(path).value", message: "toggle value must be zero or one"))
+        }
+        if kind == .timer && (durationSeconds == nil || durationSeconds ?? 0 <= 0) {
+            issues.append(.init(path: "\(path).durationSeconds", message: "timer duration must be a positive integer in seconds"))
+        }
+        if kind == .taskList {
+            guard let tasks else {
+                issues.append(.init(path: "\(path).tasks", message: "taskList nodes require an array of items"))
+                return issues
+            }
+            var ids = Set<String>()
+            for (index, task) in tasks.enumerated() {
+                if task.id.isEmpty { issues.append(.init(path: "\(path).tasks[\(index)].id", message: "task id must be non-empty")) }
+                if !ids.insert(task.id).inserted { issues.append(.init(path: "\(path).tasks[\(index)].id", message: "task ids must be unique")) }
+                if task.text.isEmpty { issues.append(.init(path: "\(path).tasks[\(index)].text", message: "task text must be non-empty")) }
+            }
         }
         if let provider, provider.isEmpty {
             issues.append(.init(path: "\(path).provider", message: "provider name must be non-empty"))
@@ -480,6 +517,8 @@ public struct WidgetTree: Codable, Equatable, Sendable {
         if kind != .image && source != nil { issues.append(.init(path: "\(path).source", message: "only image nodes may define a source")) }
         if kind != .divider && orientation != nil { issues.append(.init(path: "\(path).orientation", message: "only divider nodes may define an orientation")) }
         if kind != .grid && columns != nil { issues.append(.init(path: "\(path).columns", message: "only grid nodes may define columns")) }
+        if kind != .timer && durationSeconds != nil { issues.append(.init(path: "\(path).durationSeconds", message: "only timer nodes may define durationSeconds")) }
+        if kind != .taskList && tasks != nil { issues.append(.init(path: "\(path).tasks", message: "only taskList nodes may define tasks")) }
         switch action {
         case .invoke(let name, _), .set(let name, _):
             if name.isEmpty { issues.append(.init(path: "\(path).action.name", message: "action name must be non-empty")) }

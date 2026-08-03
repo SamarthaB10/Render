@@ -28,6 +28,7 @@ private final class RenderHostDelegate: NSObject, NSApplicationDelegate {
             hasSpotifyAccount: manifest.accounts.contains(where: { $0.connector == SpotifyConnector.connectorID })
         )
         let contentModel = WidgetContentModel(tree: loadTree(workspace: workspace))
+        let interactionStore = WidgetInteractionStore(workspace: workspace)
         let panel = DesktopWidgetPanel(
             contentRect: NSRect(
                 x: 0,
@@ -40,11 +41,12 @@ private final class RenderHostDelegate: NSObject, NSApplicationDelegate {
             preferences: preferences
         )
         let initialSize = renderSize(preferences: preferences, panel: panel, manifest: manifest)
-        let contentView = DraggableHostingView(
+        let hostedContentView = DraggableHostingView(
             rootView: AnyView(
                 WidgetTreeContainer(
                     model: contentModel,
                     providers: providers,
+                    interactionStore: interactionStore,
                     widgetName: manifest.name,
                     workspace: workspace,
                     adjustable: manifest.adjustable,
@@ -108,6 +110,7 @@ private final class RenderHostDelegate: NSObject, NSApplicationDelegate {
                 queue: .main
             ) { [weak panel] _ in
                 guard let panel else { return }
+                panel.clampToVisibleDisplay()
                 var next = preferencesModel.value
                 let contentSize = panel.contentRect(forFrameRect: panel.frame).size
                 next.width = contentSize.width
@@ -124,14 +127,18 @@ private final class RenderHostDelegate: NSObject, NSApplicationDelegate {
                 }
             }
         }
-        contentView.onDrag = { [weak panel] origin in
+        hostedContentView.onDrag = { [weak panel] origin in
             guard !preferencesModel.value.locked else { return }
             panel?.move(to: origin)
         }
-        contentView.onDragEnded = { [weak self, weak panel] in
+        hostedContentView.onDragEnded = { [weak self, weak panel] in
             guard let self, let panel, !preferencesModel.value.locked else { return }
             self.savePlacement(workspace: workspace, origin: panel.frame.origin, panel: panel)
         }
+        let contentView = AdjustableWidgetContentView(
+            hostedView: hostedContentView,
+            panel: panel
+        )
         panel.contentView = contentView
         var pendingWorker: WorkerSession?
         if let workspace {
@@ -352,6 +359,7 @@ private final class RenderHostDelegate: NSObject, NSApplicationDelegate {
 private struct WidgetTreeContainer: View {
     @ObservedObject var model: WidgetContentModel
     @ObservedObject var providers: ProviderStore
+    @ObservedObject var interactionStore: WidgetInteractionStore
     let widgetName: String
     let workspace: String?
     let adjustable: RuntimeManifest.Adjustable?
@@ -365,7 +373,7 @@ private struct WidgetTreeContainer: View {
 
     var body: some View {
         ZStack {
-            WidgetTreeView(tree: model.tree, providers: providers, onAction: onAction)
+            WidgetTreeView(tree: model.tree, providers: providers, interactionStore: interactionStore, nodePath: "root", fillsAvailableSpace: true, onAction: onAction)
             WidgetSettingsOverlay(
                 widgetName: widgetName,
                 workspace: workspace,

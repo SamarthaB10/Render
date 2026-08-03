@@ -35,6 +35,20 @@ final class DesktopWindowPolicyTests: XCTestCase {
         XCTAssertEqual(decoded, policy)
     }
 
+    func testAdjustableFrameOriginStaysInsideVisibleDisplayAfterResize() {
+        let visibleFrame = CGRect(x: 0, y: 0, width: 1440, height: 900)
+        let widgetSize = CGSize(width: 360, height: 520)
+
+        XCTAssertEqual(
+            WidgetFrameGeometry.clampedOrigin(
+                origin: CGPoint(x: 200, y: 500),
+                size: widgetSize,
+                visibleFrame: visibleFrame
+            ),
+            CGPoint(x: 200, y: 380)
+        )
+    }
+
     func testInvalidTreeReportsActionablePaths() {
         let tree = WidgetTree(
             kind: .column,
@@ -130,6 +144,24 @@ final class DesktopWindowPolicyTests: XCTestCase {
 
         XCTAssertEqual(tree.children, [])
         XCTAssertEqual(tree.text, "CPU")
+    }
+
+    func testInteractiveTimerAndTaskListNodesDecodeAndValidate() throws {
+        let data = Data(#"""
+        {
+          "kind": "column",
+          "children": [
+            { "kind": "timer", "durationSeconds": 1500 },
+            { "kind": "taskList", "tasks": [{ "id": "read", "text": "Read chapter 3", "completed": false }] }
+          ]
+        }
+        """#.utf8)
+
+        let tree = try JSONDecoder().decode(WidgetTree.self, from: data)
+
+        XCTAssertEqual(tree.children[0].durationSeconds, 1500)
+        XCTAssertEqual(tree.children[1].tasks?.first?.id, "read")
+        XCTAssertTrue(tree.validationIssues().isEmpty)
     }
 
     func testPhaseNineTreeDecodesStylesActionsAndKeyTypes() throws {

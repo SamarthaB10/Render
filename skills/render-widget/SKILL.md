@@ -36,7 +36,7 @@ Each described item includes its exact `importPath`, TypeScript `signature`, can
 
 If the request needs something missing—such as a provider, action, or connector whose catalog status is `planned` or `contract-only`—report the exact catalog item and status, explain what host contract is absent, and stop that part of the widget. Do not substitute fake data, a browser fallback, a private native API, or an invented Render API. If the supported design needs network, filesystem, app, account, or other machine access, declare the narrowest capability and ask the user for permission before proceeding.
 
-For the Phase 9 surface, the roadmap families are layout, typography/content, visuals, controls/actions, collections/data, and providers/integrations. The shipped first slice is `Box`, `Spacer`, `Divider`, `Icon`, `Image`, `Button`, `TextField`, `Toggle`, `Progress`, `Grid`, typed actions/provider states, the JSX runtime, and the host-owned `WidgetAdjustable`/`WidgetRenderContext` contract. `TextField` and `Toggle` provide current-session native editing and completion controls; persistent widget-owned state and add/remove collection controls are not yet part of the contract. Treat any item as unavailable until `render sdk list --json` and `render sdk describe ... --json` expose its exact contract and support status.
+For the Phase 9 surface, the roadmap families are layout, typography/content, visuals, controls/actions, collections/data, and providers/integrations. The shipped first slice includes `Box`, `Spacer`, `Divider`, `Icon`, `Image`, `Button`, `TextField`, `Toggle`, `Timer`, `TaskList`, `Progress`, `Grid`, typed actions/provider states, the JSX runtime, and the host-owned `WidgetAdjustable`/`WidgetRenderContext` contract. `Timer` and `TaskList` are host-owned stateful primitives: timers persist countdown state across relaunch, and task lists support direct editing, completion, adding, removal, and persistence. Treat any item as unavailable until `render sdk list --json` and `render sdk describe ... --json` expose its exact contract and support status.
 
 ### 2. Create or identify an isolated workspace
 
@@ -71,7 +71,15 @@ export default widget({
 ]));
 ```
 
-The scaffold above is the canonical CPU/RAM example. It is also the canonical example for the first provider-backed widget path. For another composition, inspect every primitive with `render sdk describe <name> --json` and copy its documented signature and example. The current runtime supports all cataloged layout, content, control, and progress primitives, plus constrained typed styles and automatic TSX. `useTimer` remains cataloged for a future host-scheduled update contract and is not yet rendered by the native host. Image URL/provider sources are cataloged gaps and `render check` rejects them until their capability-backed providers ship. Every future primitive must ship as SDK type, JSX/runtime contract, catalog entry, native renderer, validation, agent documentation, focused tests, and performance evidence before the skill may use it.
+The scaffold above is the canonical CPU/RAM example. It is also the canonical example for the first provider-backed widget path. For another composition, inspect every primitive with `render sdk describe <name> --json` and copy its documented signature and example. The current runtime supports all cataloged layout, content, control, task-list, timer, and progress primitives, plus constrained typed styles and automatic TSX. `useTimer` remains cataloged for a future host-scheduled update binding; use `Timer` for a visible host-owned countdown surface. Image URL/provider sources are cataloged gaps and `render check` rejects them until their capability-backed providers ship. Every future primitive must ship as SDK type, JSX/runtime contract, catalog entry, native renderer, validation, agent documentation, focused tests, and performance evidence before the skill may use it.
+
+For stateful study or planning widgets, inspect the exact contracts before authoring:
+
+```bash
+render sdk describe Timer --json
+render sdk describe TaskList --json
+render sdk describe WidgetTaskItem --json
+```
 
 For an adjustable widget, inspect the exact contract before authoring:
 
