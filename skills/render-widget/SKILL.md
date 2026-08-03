@@ -80,6 +80,7 @@ For an authenticated integration, declare the connector and exact scopes in the 
 "accounts": [{
   "connector": "spotify",
   "scopes": [
+    "user-read-private",
     "user-read-playback-state",
     "user-read-currently-playing",
     "user-modify-playback-state"
@@ -87,7 +88,7 @@ For an authenticated integration, declare the connector and exact scopes in the 
 }]
 ```
 
-`RenderHost` will own OAuth, secure credential storage, refresh, API calls, and permission state. Never put access tokens, refresh tokens, client secrets, or arbitrary OAuth URLs in the widget source. Do not claim Spotify playback is live until `render sdk describe spotify --json` reports `status: "implemented"`.
+`RenderHost` owns OAuth, secure credential storage, refresh, API calls, and permission state. Never put access tokens, refresh tokens, client secrets, or arbitrary OAuth URLs in the widget source. Spotify is implemented when `render sdk describe spotify --json` reports `status: "implemented"`, but the local host still needs a Spotify client ID configured before authorization can open.
 
 ### 4. Validate before running
 
@@ -110,7 +111,7 @@ Wait for the status result to report the active widget as running and, when nati
 render run --workspace "$WORKSPACE" --watch
 ```
 
-Successful edits update the existing widget in place. The first prototype is draggable; placement is persisted by the native host. The implemented local providers are `system.cpu`, `system.memory`, and `system.time`; `system.time` is rendered as the host-local clock when bound to `Text`. The Spotify connector is currently contract-only: its account requirement is validated and discoverable, but host authorization and playback providers/actions are not yet shipped.
+Successful edits update the existing widget in place. The first prototype is draggable; placement is persisted by the native host. The implemented local providers are `system.cpu`, `system.memory`, and `system.time`; `system.time` is rendered as the host-local clock when bound to `Text`. Spotify providers/actions are host-backed and remain explicit unavailable states until the user connects an account.
 
 ### 6. Remix, move, and recover
 
@@ -136,4 +137,4 @@ Report the resulting active and last-known-good versions to the user.
 
 ## North-star behavior
 
-The long-term goal is to handle requests such as “I need a mini 4x4 widget that plays my Spotify music.” The current CPU/RAM widget is only the first reference fixture. The SDK now has the generic account requirement and Spotify connector contract; the next host slices add cataloged playback providers/actions, secure authorization, and Render-owned permission UI before claiming that request is supported.
+The long-term goal is to handle requests such as “I need a mini 4x4 widget that plays my Spotify music.” The SDK now exposes the generic account requirement, Spotify playback providers/actions, secure host authorization, and Render-owned permission UI. The agent must still configure the local Spotify client ID and let the user accept permissions before claiming the widget is connected.

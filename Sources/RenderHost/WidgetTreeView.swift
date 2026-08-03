@@ -163,9 +163,11 @@ struct WidgetTreeView: View {
 
     private var displayedText: String {
         guard let provider = providerValue else { return tree.text ?? "" }
-        guard provider.state == .available, let value = provider.value else {
+        guard provider.state == .available else {
             return provider.state == .loading ? "Loading…" : "Unavailable"
         }
+        if let text = provider.text { return text }
+        guard let value = provider.value else { return "Unavailable" }
         if provider.name == "system.time" {
             return Self.timeFormatter.string(from: Date(timeIntervalSince1970: value))
         }

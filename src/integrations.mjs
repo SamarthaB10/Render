@@ -1,4 +1,5 @@
 const SPOTIFY_SCOPES = new Set([
+  "user-read-private",
   "user-read-playback-state",
   "user-read-currently-playing",
   "user-modify-playback-state"

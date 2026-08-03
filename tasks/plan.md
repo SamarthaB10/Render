@@ -120,24 +120,24 @@ previous, next, and volume changes. Playlist, library, history, search, and
 arbitrary third-party OAuth remain separate catalog entries until their host
 contracts are designed and tested.
 
-- [ ] Task 26: Add a generic account/connector contract to the SDK, manifest validator, catalog, and agent-readable docs.
-- [ ] Task 27: Add a host-owned auth state machine and secure credential boundary with deterministic tests and no credentials in widget trees or logs.
-- [ ] Task 28: Add Render-owned authorization prompt and connected/denied/unavailable states to the native widget surface.
-- [ ] Task 29: Add the trusted Spotify connector using Authorization Code with PKCE, token refresh, allowlisted API calls, playback providers, and explicit playback actions.
-- [ ] Task 30: Add the liquid-glass hover settings control, confirmed stop flow, process metadata/kill command, and placement-safe interaction handling.
-- [ ] Task 31: Add a canonical Spotify widget example, update SDK discovery/agent guidance, and verify the complete check → authorize → run → control → remix → rollback workflow.
+- [x] Task 26: Add a generic account/connector contract to the SDK, manifest validator, catalog, and agent-readable docs.
+- [x] Task 27: Add a host-owned auth state machine and secure credential boundary with deterministic tests and no credentials in widget trees or logs.
+- [x] Task 28: Add Render-owned authorization prompt and connected/denied/unavailable states to the native widget surface.
+- [x] Task 29: Add the trusted Spotify connector using Authorization Code with PKCE, token refresh, allowlisted API calls, playback providers, and explicit playback actions.
+- [x] Task 30: Add the liquid-glass hover settings control, confirmed stop flow, process metadata/kill command, and placement-safe interaction handling.
+- [x] Task 31: Add a canonical Spotify widget example, update SDK discovery/agent guidance, and verify the complete check → authorize → run → control → remix → rollback workflow.
 
 ### Checkpoint: Phase 10 foundation
 
-- [ ] SDK and native host agree on one versioned, serializable account contract.
-- [ ] Missing permission leaves the widget alive with an explicit connect state.
-- [ ] Raw access/refresh tokens never cross the worker boundary, enter a tree,
+- [x] SDK and native host agree on one versioned, serializable account contract.
+- [x] Missing permission leaves the widget alive with an explicit connect state.
+- [x] Raw access/refresh tokens never cross the worker boundary, enter a tree,
   or appear in diagnostics.
-- [ ] Spotify actions are host-owned, scope-checked, allowlisted, and expose
+- [x] Spotify actions are host-owned, scope-checked, allowlisted, and expose
   loading/success/error/unavailable state.
 - [ ] Settings controls are keyboard reachable, confirmation-protected, and do
   not steal drag behavior from the widget surface.
-- [ ] Official Spotify authorization, scope, playback, and volume behavior is
+- [x] Official Spotify authorization, scope, playback, and volume behavior is
   recorded in the implementation docs.
 
 ## Risks and mitigations

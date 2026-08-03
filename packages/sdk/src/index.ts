@@ -65,7 +65,7 @@ export interface WidgetAccountBinding {
 export interface ProviderValue {
   name: string;
   state: ProviderState;
-  value?: number;
+  value?: WidgetJsonValue;
   message?: string;
 }
 
@@ -123,7 +123,14 @@ export type WidgetJsonValue =
   | WidgetJsonValue[]
   | { [key: string]: WidgetJsonValue };
 
-export type WidgetActionName = "widget.refresh" | "widget.reload";
+export type WidgetActionName =
+  | "widget.refresh"
+  | "widget.reload"
+  | "spotify.play"
+  | "spotify.pause"
+  | "spotify.next"
+  | "spotify.previous"
+  | "spotify.set-volume";
 export type WidgetAction =
   | { type: "invoke"; name: WidgetActionName; payload?: WidgetJsonValue }
   | { type: "set"; name: WidgetActionName; value: WidgetJsonValue };

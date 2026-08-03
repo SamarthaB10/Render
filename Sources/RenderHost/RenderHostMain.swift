@@ -12,9 +12,18 @@ private final class RenderHostDelegate: NSObject, NSApplicationDelegate {
         let policy = DesktopWindowPolicy()
         let workspace = workspaceArgument()
         let manifest = loadManifest(workspace: workspace)
-        let providers = ProviderStore(subscriptions: Set(manifest.subscribe))
+        let spotify = SpotifyConnector()
+        let providers = ProviderStore(
+            subscriptions: Set(manifest.subscribe),
+            accountRequirements: manifest.accounts,
+            spotify: spotify
+        )
         providers.start()
-        let actionDispatcher = WidgetActionDispatcher(capabilities: manifest.capabilities)
+        let actionDispatcher = WidgetActionDispatcher(
+            capabilities: manifest.capabilities,
+            spotify: spotify,
+            hasSpotifyAccount: manifest.accounts.contains(where: { $0.connector == SpotifyConnector.connectorID })
+        )
         let contentModel = WidgetContentModel(tree: loadTree(workspace: workspace))
         let panel = DesktopWidgetPanel(
             contentRect: NSRect(
@@ -27,7 +36,32 @@ private final class RenderHostDelegate: NSObject, NSApplicationDelegate {
         )
         let contentView = DraggableHostingView(
             rootView: AnyView(
-                WidgetTreeContainer(model: contentModel, providers: providers, onAction: actionDispatcher.dispatch)
+                WidgetTreeContainer(
+                    model: contentModel,
+                    providers: providers,
+                    widgetName: manifest.name,
+                    workspace: workspace,
+                    onAction: actionDispatcher.dispatch,
+                    onAuthorize: {
+                        guard let requirement = manifest.accounts.first(where: { $0.connector == SpotifyConnector.connectorID }) else { return }
+                        providers.setAuthorizationMessage("Opening Spotify authorization…")
+                        Task {
+                            do {
+                                _ = try await spotify.authorize(scopes: requirement.scopes)
+                                await MainActor.run {
+                                    providers.setAuthorizationMessage(nil)
+                                    providers.refreshNow()
+                                }
+                            } catch {
+                                await MainActor.run {
+                                    providers.setAuthorizationMessage(error.localizedDescription)
+                                    providers.refreshNow()
+                                }
+                            }
+                        }
+                    },
+                    onStop: { NSApp.terminate(nil) }
+                )
             )
         )
         contentView.onDrag = { [weak panel] origin in
@@ -208,18 +242,62 @@ private final class RenderHostDelegate: NSObject, NSApplicationDelegate {
 private struct WidgetTreeContainer: View {
     @ObservedObject var model: WidgetContentModel
     @ObservedObject var providers: ProviderStore
+    let widgetName: String
+    let workspace: String?
     let onAction: (WidgetAction) -> Void
+    let onAuthorize: () -> Void
+    let onStop: () -> Void
 
     var body: some View {
-        WidgetTreeView(tree: model.tree, providers: providers, onAction: onAction)
+        ZStack {
+            WidgetTreeView(tree: model.tree, providers: providers, onAction: onAction)
+            WidgetSettingsOverlay(
+                widgetName: widgetName,
+                workspace: workspace,
+                accountStatus: providers.accountStatus(for: SpotifyConnector.connectorID),
+                authorizationMessage: providers.authorizationMessage,
+                onAuthorize: onAuthorize,
+                onStop: onStop
+            )
+        }
     }
 }
 
 private struct RuntimeManifest: Decodable {
+    let name: String
     let size: Size
     let anchor: Anchor
     let capabilities: [String]
     let subscribe: [String]
+    let accounts: [WidgetAccountRequirement]
+
+    init(name: String, size: Size, anchor: Anchor, capabilities: [String], subscribe: [String], accounts: [WidgetAccountRequirement]) {
+        self.name = name
+        self.size = size
+        self.anchor = anchor
+        self.capabilities = capabilities
+        self.subscribe = subscribe
+        self.accounts = accounts
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        name = try container.decodeIfPresent(String.self, forKey: .name) ?? "Render Widget"
+        size = try container.decode(Size.self, forKey: .size)
+        anchor = try container.decode(Anchor.self, forKey: .anchor)
+        capabilities = try container.decode([String].self, forKey: .capabilities)
+        subscribe = try container.decode([String].self, forKey: .subscribe)
+        accounts = try container.decodeIfPresent([WidgetAccountRequirement].self, forKey: .accounts) ?? []
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case size
+        case name
+        case anchor
+        case capabilities
+        case subscribe
+        case accounts
+    }
 
     struct Size: Decodable {
         let width: Double
@@ -237,10 +315,12 @@ private struct RuntimeManifest: Decodable {
     }
 
     static let fallback = RuntimeManifest(
+        name: "Render Widget",
         size: Size(width: 320, height: 180),
         anchor: Anchor(corner: .topLeft, offset: Offset(x: 24, y: 24)),
         capabilities: [],
-        subscribe: []
+        subscribe: [],
+        accounts: []
     )
 }
 

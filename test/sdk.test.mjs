@@ -68,6 +68,11 @@ test("SDK catalog exposes canonical primitives, providers, styles, and capabilit
     "Fragment",
     "widget.refresh",
     "widget.reload",
+    "spotify.play",
+    "spotify.pause",
+    "spotify.next",
+    "spotify.previous",
+    "spotify.set-volume",
     "WidgetStyle",
     "WidgetAction",
     "WidgetActionName",
@@ -89,6 +94,12 @@ test("SDK catalog exposes canonical primitives, providers, styles, and capabilit
     "system.cpu",
     "system.memory",
     "system.time",
+    "spotify.account",
+    "spotify.track.title",
+    "spotify.track.artist",
+    "spotify.playback.isPlaying",
+    "spotify.playback.progress",
+    "spotify.playback.volume",
     "network",
     "filesystem.read",
     "filesystem.write"
@@ -137,7 +148,7 @@ test("SDK exposes generic account requirements and the Spotify connector contrac
   const catalog = await import("../packages/sdk/src/catalog.ts");
   const connector = catalog.describeSdkCatalog("spotify");
   assert.equal(connector.kind, "connector");
-  assert.equal(connector.status, "contract-only");
+  assert.equal(connector.status, "implemented");
   assert.match(connector.example, /user-modify-playback-state/);
   assert.match(connector.notes.join(" "), /raw tokens/i);
 });
@@ -149,7 +160,7 @@ test("CLI exposes SDK catalog list and describe operations", () => {
 
   assert.equal(listed.ok, true);
   assert.equal(listed.operation, "sdk.list");
-  assert.equal(listed.items.length, 46);
+  assert.equal(listed.items.length, 57);
   assert.equal(listed.sdkVersion, "0.1.0");
   assert.deepEqual(described.item, {
     name: "system.cpu",
