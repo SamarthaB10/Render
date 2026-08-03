@@ -173,6 +173,34 @@ final class DesktopWindowPolicyTests: XCTestCase {
         XCTAssertTrue(tree.validationIssues().isEmpty)
     }
 
+    func testYouTubePlayerSupportsPersistedLinkInputConfiguration() throws {
+        let data = Data(#"""
+        {
+          "kind": "youtubePlayer",
+          "allowLinkInput": true,
+          "autoplay": false,
+          "controls": true,
+          "startSeconds": 12
+        }
+        """#.utf8)
+
+        let tree = try JSONDecoder().decode(WidgetTree.self, from: data)
+
+        XCTAssertEqual(tree.kind, .youtubePlayer)
+        XCTAssertTrue(tree.allowLinkInput == true)
+        XCTAssertEqual(tree.startSeconds, 12)
+        XCTAssertTrue(tree.validationIssues().isEmpty)
+    }
+
+    func testYouTubePlayerRejectsInvalidVideoIDWithoutLinkInput() throws {
+        let tree = WidgetTree(kind: .youtubePlayer, videoId: "not-a-video-id")
+
+        XCTAssertEqual(
+            tree.validationIssues(),
+            [.init(path: "root.videoId", message: "YouTubePlayer requires an 11-character YouTube video ID")]
+        )
+    }
+
     func testPhaseNineTreeDecodesStylesActionsAndKeyTypes() throws {
         let data = Data(#"""
           "kind": "button",

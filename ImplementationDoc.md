@@ -262,6 +262,9 @@ The first native renderer implements:
 - Productivity foundation slice: native `ScrollView`, persistent multiline `TextEditor`, and stable keyed interaction state for future editable primitives.
 - Stateful editing deepening: `Timer` duration entry and persistence plus `TaskList` reorder and clear-completed operations are host-owned and survive relaunches.
 - Date/time slice: `DateTime` renders localized ISO values, while keyed `DateTimePicker` controls persist user-selected date, time, or combined date-time values.
+- Reminders connector slice: the manifest can declare `reminders.read` and `reminders.write`; the host owns EventKit permission, exposes redacted account state plus incomplete-count/next-reminder providers, and accepts explicit create/update/complete/delete actions. EventKit objects and opaque reminder identifiers never cross into widget source or worker messages.
+- Generic collection slice: `List` renders static `WidgetListItem` rows or structured provider rows such as `reminders.items`; row identity and display fields stay serializable, while dynamic per-row actions and virtualization remain later contracts.
+- YouTube playback slice: `YouTubePlayer` accepts a validated video ID, requires the manifest `network` capability, and renders the official player inside a host-owned WebKit surface. With `allowLinkInput`, users can toggle a persisted native input and paste a supported YouTube link; arbitrary HTML, iframe markup, and source URLs do not cross the SDK seam.
 
 This is the first slice of a larger Render SDK. Agents compose from the SDK; they do not invent ad-hoc primitives or bypass the native renderer.
 
@@ -504,7 +507,7 @@ The SDK will grow through these cataloged families, in dependency order:
   audio visualizations where a host provider exists.
 - **Controls and actions:** `Button`, `Toggle`, `Slider`, `TextField`,
   `Checkbox`, `Picker`, menus, focus state, and typed declarative actions.
-- **Collections and data:** keyed `List`, virtualized collections, key-value
+- **Collections and data:** structured `List`, virtualized collections, key-value
   rows, loading states, empty states, and unavailable states.
 - **Providers and integrations:** host-owned system, time, media, weather,
   account, and other providers with explicit availability, capability, and

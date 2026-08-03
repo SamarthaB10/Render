@@ -36,7 +36,7 @@ Each described item includes its exact `importPath`, TypeScript `signature`, can
 
 If the request needs something missing—such as a provider, action, or connector whose catalog status is `planned` or `contract-only`—report the exact catalog item and status, explain what host contract is absent, and stop that part of the widget. Do not substitute fake data, a browser fallback, a private native API, or an invented Render API. If the supported design needs network, filesystem, app, account, or other machine access, declare the narrowest capability and ask the user for permission before proceeding.
 
-For the Phase 9 surface, the roadmap families are layout, typography/content, visuals, controls/actions, collections/data, and providers/integrations. The shipped first slice includes `Box`, `Spacer`, `Divider`, `Icon`, `Image`, `Button`, `TextField`, `TextEditor`, `Toggle`, `Timer`, `TaskList`, `ScrollView`, `Progress`, `Grid`, typed actions/provider states, the JSX runtime, and the host-owned `WidgetAdjustable`/`WidgetRenderContext` contract. `Timer`, `TaskList`, and `TextEditor` are host-owned stateful primitives: timers persist countdown state across relaunch, task lists support direct editing, completion, adding, removal, and persistence, and editors persist user text. Use stable keys for stateful nodes so user data survives remixes and reordering. Treat any item as unavailable until `render sdk list --json` and `render sdk describe ... --json` expose its exact contract and support status.
+For the Phase 9 surface, the roadmap families are layout, typography/content, visuals, controls/actions, collections/data, and providers/integrations. The shipped first slice includes `Box`, `Spacer`, `Divider`, `Icon`, `Image`, `Button`, `TextField`, `TextEditor`, `Toggle`, `Timer`, `TaskList`, `List`, `YouTubePlayer`, `ScrollView`, `Progress`, `Grid`, typed actions/provider states, the JSX runtime, and the host-owned `WidgetAdjustable`/`WidgetRenderContext` contract. `Timer`, `TaskList`, and `TextEditor` are host-owned stateful primitives: timers persist countdown state across relaunch, task lists support direct editing, completion, adding, removal, and persistence, and editors persist user text. `List` is the generic read-only collection surface in this slice; use `WidgetListItem` for static rows or a structured provider such as `reminders.items`. `YouTubePlayer` is the explicit network-backed media surface: it accepts a validated YouTube video ID, requires `network` in the manifest, and supports a persisted native link-input toggle through `allowLinkInput`. Use stable keys for stateful nodes so user data survives remixes and reordering. Treat any item as unavailable until `render sdk list --json` and `render sdk describe ... --json` expose its exact contract and support status.
 
 ### 2. Create or identify an isolated workspace
 
@@ -79,6 +79,10 @@ For stateful study or planning widgets, inspect the exact contracts before autho
 render sdk describe Timer --json
 render sdk describe TaskList --json
 render sdk describe WidgetTaskItem --json
+render sdk describe List --json
+render sdk describe WidgetListItem --json
+render sdk describe YouTubePlayer --json
+render sdk describe YouTubePlayerProps --json
 render sdk describe ScrollView --json
 render sdk describe TextEditor --json
 render sdk describe DateTime --json
@@ -126,6 +130,44 @@ require Premium access; if the host reports HTTP 403, explain that limitation
 and keep the widget in an explicit unavailable state. Do not invent track,
 progress, volume, or device data and do not ask the agent to regenerate the
 widget as though this were a TSX error.
+
+For native macOS Reminders, inspect the implemented connector and each
+provider/action before authoring:
+
+```bash
+render sdk describe reminders --json
+render sdk describe reminders.account --json
+render sdk describe reminders.items --json
+render sdk describe reminders.incompleteCount --json
+render sdk describe reminders.next.title --json
+render sdk describe reminders.next.dueDate --json
+render sdk describe reminders.create --json
+render sdk describe reminders.update --json
+render sdk describe reminders.complete --json
+render sdk describe reminders.delete --json
+```
+
+Declare the exact account scopes in the manifest:
+
+```tsx
+"accounts": [{
+  "connector": "reminders",
+  "scopes": ["reminders.read", "reminders.write"]
+}]
+```
+
+Use provider bindings for redacted status/count/next-item display and
+explicit action payloads for mutations. `reminders.create` requires
+`{ title }` and accepts optional `listName` and ISO `dueDate`;
+`reminders.update` requires an opaque `id` and accepts `title`, `dueDate`
+(or `null`), and `completed`; `reminders.complete` requires `id` and
+defaults `completed` to `true`; `reminders.delete` requires `id`. The
+native host asks for permission through the settings panel and keeps
+EventKit objects out of the widget. Run `npm run package:host` before using
+permission-gated providers; the generated app bundle carries
+`NSRemindersFullAccessUsageDescription` so macOS can show the system prompt.
+`List(useProvider("reminders.items"))` is read-only in this slice; use the
+explicit Reminders actions for mutations until row action bindings ship.
 
 ### 4. Validate before running
 

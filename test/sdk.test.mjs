@@ -62,6 +62,8 @@ test("SDK catalog exposes canonical primitives, providers, styles, and capabilit
     "Toggle",
     "Timer",
     "TaskList",
+    "List",
+    "YouTubePlayer",
     "Shape",
     "Icon",
     "Image",
@@ -81,9 +83,17 @@ test("SDK catalog exposes canonical primitives, providers, styles, and capabilit
     "spotify.next",
     "spotify.previous",
     "spotify.set-volume",
+    "reminders.create",
+    "reminders.update",
+    "reminders.complete",
+    "reminders.delete",
     "WidgetStyle",
     "WidgetAction",
     "WidgetActionName",
+    "ReminderCreateActionPayload",
+    "ReminderUpdateActionPayload",
+    "ReminderCompleteActionPayload",
+    "ReminderDeleteActionPayload",
     "ImageSource",
     "WidgetNode",
     "WidgetNodeKind",
@@ -94,12 +104,15 @@ test("SDK catalog exposes canonical primitives, providers, styles, and capabilit
     "WidgetAdjustable",
     "WidgetRenderContext",
     "WidgetTaskItem",
+    "WidgetListItem",
+    "YouTubePlayerProps",
     "WidgetDateTimeMode",
     "WidgetAccountRequirement",
     "WidgetAccountState",
     "WidgetAccountBinding",
     "useAccount",
     "spotify",
+    "reminders",
     "WidgetDefinition",
     "ProviderBinding",
     "ProviderState",
@@ -115,6 +128,11 @@ test("SDK catalog exposes canonical primitives, providers, styles, and capabilit
     "spotify.playback.isPlaying",
     "spotify.playback.progress",
     "spotify.playback.volume",
+    "reminders.account",
+    "reminders.items",
+    "reminders.incompleteCount",
+    "reminders.next.title",
+    "reminders.next.dueDate",
     "network",
     "filesystem.read",
     "filesystem.write"
@@ -176,7 +194,7 @@ test("CLI exposes SDK catalog list and describe operations", () => {
 
   assert.equal(listed.ok, true);
   assert.equal(listed.operation, "sdk.list");
-  assert.equal(listed.items.length, 72);
+  assert.equal(listed.items.length, 90);
   assert.equal(listed.sdkVersion, "0.1.0");
   assert.deepEqual(described.item, {
     name: "system.cpu",

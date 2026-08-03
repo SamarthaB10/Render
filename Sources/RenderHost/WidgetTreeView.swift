@@ -118,6 +118,17 @@ struct WidgetTreeView: View {
             return AnyView(WidgetTimerView(path: nodePath, durationSeconds: tree.durationSeconds ?? 1, store: interactionStore))
         case .taskList:
             return AnyView(WidgetTaskListView(path: nodePath, defaults: tree.tasks ?? [], store: interactionStore))
+        case .list:
+            return AnyView(WidgetListView(defaults: tree.items ?? [], provider: providerValue))
+        case .youtubePlayer:
+            return AnyView(YouTubePlayerView(path: nodePath,
+                initialVideoID: tree.videoId,
+                allowLinkInput: tree.allowLinkInput == true,
+                controls: tree.controls ?? true,
+                autoplay: tree.autoplay ?? false,
+                startSeconds: tree.startSeconds,
+                store: interactionStore
+            ))
         case .shape:
             return AnyView(RoundedRectangle(cornerRadius: CGFloat(tree.style?.radius ?? 12)).fill(foregroundColor ?? Color.secondary))
         case .icon:
@@ -349,6 +360,71 @@ struct WidgetTreeView: View {
         let blue = Double((number >> (expanded.count == 8 ? 8 : 0)) & 0xff) / 255
         let alpha = expanded.count == 8 ? Double(number & 0xff) / 255 : 1
         return Color(red: red, green: green, blue: blue, opacity: alpha)
+    }
+}
+
+private struct WidgetListView: View {
+    let defaults: [WidgetListItem]
+    let provider: ProviderValue?
+
+    var body: some View {
+        Group {
+            if let provider {
+                switch provider.state {
+                case .loading:
+                    Text("Loading…")
+                case .unavailable:
+                    Text("Unavailable")
+                case .available:
+                    rows(providerItems)
+                }
+            } else {
+                rows(defaults)
+            }
+        }
+    }
+
+    private func rows(_ items: [WidgetListItem]) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if items.isEmpty {
+                Text("No items")
+                    .foregroundColor(.secondary)
+            } else {
+                ForEach(items) { item in
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: item.completed ? "checkmark.circle.fill" : "circle")
+                            .foregroundColor(item.completed ? .accentColor : .secondary)
+                            .accessibilityHidden(true)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(item.title)
+                                .strikethrough(item.completed)
+                            if let subtitle = item.subtitle, !subtitle.isEmpty {
+                                Text(subtitle)
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel(item.completed ? "Completed: \(item.title)" : item.title)
+                }
+            }
+        }
+    }
+
+    private var providerItems: [WidgetListItem] {
+        guard let provider, case .array(let values) = provider.jsonValue else { return [] }
+        return values.compactMap { value in
+            guard case .object(let object) = value,
+                  case .string(let id) = object["id"],
+                  case .string(let title) = object["title"]
+            else { return nil }
+            let subtitle: String?
+            if case .string(let value) = object["subtitle"] { subtitle = value } else { subtitle = nil }
+            let completed: Bool
+            if case .boolean(let value) = object["completed"] { completed = value } else { completed = false }
+            return WidgetListItem(id: id, title: title, subtitle: subtitle, completed: completed)
+        }
     }
 }
 

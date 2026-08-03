@@ -23,7 +23,11 @@ const SUPPORTED_ACTIONS = new Set([
   "spotify.pause",
   "spotify.next",
   "spotify.previous",
-  "spotify.set-volume"
+  "spotify.set-volume",
+  "reminders.create",
+  "reminders.update",
+  "reminders.complete",
+  "reminders.delete"
 ]);
 const SUPPORTED_PROVIDERS = new Set([
   "system.cpu",
@@ -34,7 +38,12 @@ const SUPPORTED_PROVIDERS = new Set([
   "spotify.track.artist",
   "spotify.playback.isPlaying",
   "spotify.playback.progress",
-  "spotify.playback.volume"
+  "spotify.playback.volume",
+  "reminders.account",
+  "reminders.items",
+  "reminders.incompleteCount",
+  "reminders.next.title",
+  "reminders.next.dueDate"
 ]);
 
 export function buildRuntimeTree(source, filename = "widget.tsx", options = {}) {
@@ -42,7 +51,7 @@ export function buildRuntimeTree(source, filename = "widget.tsx", options = {}) 
   const mode = options.mode ?? manifest.adjustable?.responsive?.default ?? "auto";
   const tree = buildTsxRuntimeTree(source, { sdk, filename, renderContext: { mode, size: options.size } });
   const subscriptions = new Set(manifest.subscribe);
-  const accounts = new Set((manifest.accounts ?? []).map((account) => account.connector));
+  const accounts = new Map((manifest.accounts ?? []).map((account) => [account.connector, new Set(account.scopes)]));
   validateRuntimeTree(tree, "root", subscriptions, new Set(manifest.capabilities), accounts);
   return JSON.parse(JSON.stringify(tree));
 }
@@ -120,8 +129,8 @@ export function runWorkspace(workspace, requestId = randomUUID(), options = {}) 
       ok: false,
       diagnostics: [{
         code: "host-not-built",
-        path: ".build/debug/RenderHost",
-        message: "build the RenderHost executable before running a widget"
+        path: ".build/debug/RenderHost.app/Contents/MacOS/RenderHost",
+        message: "run npm run package:host before running a native widget"
       }]
     };
     recordFailure(root, result.diagnostics);
@@ -495,8 +504,8 @@ export function rollbackWorkspace(workspace, version, requestId = randomUUID(), 
       ok: false,
       diagnostics: [{
         code: "host-not-built",
-        path: ".build/debug/RenderHost",
-        message: "build the RenderHost executable before rolling back"
+        path: ".build/debug/RenderHost.app/Contents/MacOS/RenderHost",
+        message: "run npm run package:host before rolling back a native widget"
       }]
     };
   }
@@ -568,7 +577,7 @@ function validateRuntimeTree(node, pathName, subscriptions, capabilities, accoun
   }
   const kinds = new Set([
     "column", "row", "stack", "box", "scrollView", "spacer", "divider", "text", "textField", "textEditor", "dateTime", "dateTimePicker", "toggle", "timer", "taskList", "shape",
-    "icon", "image", "button", "gauge", "progress", "grid"
+    "icon", "image", "button", "gauge", "progress", "grid", "list", "youtubePlayer"
   ]);
   if (!kinds.has(node.kind)) {
     throw new Error(`${pathName}.kind: unknown widget primitive`);
@@ -603,8 +612,12 @@ function validateRuntimeTree(node, pathName, subscriptions, capabilities, accoun
   if (node.provider !== undefined && !SUPPORTED_PROVIDERS.has(node.provider)) {
     throw new Error(`${pathName}.provider: unsupported provider '${node.provider}'; use render sdk list to choose a host provider`);
   }
-  if (node.provider?.startsWith("spotify.") && !accounts.has("spotify")) {
-    throw new Error(`${pathName}.provider: ${node.provider} requires a spotify account requirement; add manifest.accounts and ask the user for permission`);
+  const providerConnector = connectorForName(node.provider);
+  if (providerConnector && !accounts.has(providerConnector)) {
+    throw new Error(`${pathName}.provider: ${node.provider} requires a ${providerConnector} account requirement; add manifest.accounts and ask the user for permission`);
+  }
+  if (providerConnector === "reminders" && !accounts.get(providerConnector).has("reminders.read")) {
+    throw new Error(`${pathName}.provider: ${node.provider} requires the reminders.read scope; add it to manifest.accounts and ask the user for permission`);
   }
   if ((node.kind === "text" || node.kind === "textField") && (typeof node.text !== "string" || node.text.length === 0) && node.provider === undefined) {
     throw new Error(`${pathName}.text: text nodes require text or a provider`);
@@ -647,6 +660,41 @@ function validateRuntimeTree(node, pathName, subscriptions, capabilities, accoun
       if (typeof task.text !== "string" || task.text.length === 0) throw new Error(`${pathName}.tasks[${index}].text: task text must be non-empty`);
       if (task.completed !== undefined && typeof task.completed !== "boolean") throw new Error(`${pathName}.tasks[${index}].completed: task completion must be boolean`);
     });
+  }
+  if (node.kind === "list") {
+    if (node.provider === undefined && !Array.isArray(node.items)) {
+      throw new Error(`${pathName}.items: list nodes require an array of items or a provider`);
+    }
+    if (node.items !== undefined) validateListItems(node.items, `${pathName}.items`);
+  }
+  if (node.kind !== "list" && node.items !== undefined) {
+    throw new Error(`${pathName}.items: only list nodes may define items`);
+  }
+  if (node.kind === "youtubePlayer") {
+    if (!capabilities.has("network")) {
+      throw new Error(`${pathName}: YouTubePlayer requires the \"network\" capability; add it to manifest.capabilities and ask the user for permission`);
+    }
+    if (node.videoId === undefined && node.allowLinkInput !== true) {
+      throw new Error(`${pathName}.videoId: YouTubePlayer requires a video ID or allowLinkInput: true`);
+    }
+    if (node.videoId !== undefined && (typeof node.videoId !== "string" || !/^[A-Za-z0-9_-]{11}$/.test(node.videoId))) {
+      throw new Error(`${pathName}.videoId: YouTubePlayer requires an 11-character YouTube video ID`);
+    }
+    if (node.allowLinkInput !== undefined && typeof node.allowLinkInput !== "boolean") {
+      throw new Error(`${pathName}.allowLinkInput: YouTubePlayer allowLinkInput must be boolean`);
+    }
+    if (node.autoplay !== undefined && typeof node.autoplay !== "boolean") {
+      throw new Error(`${pathName}.autoplay: YouTubePlayer autoplay must be boolean`);
+    }
+    if (node.controls !== undefined && typeof node.controls !== "boolean") {
+      throw new Error(`${pathName}.controls: YouTubePlayer controls must be boolean`);
+    }
+    if (node.startSeconds !== undefined && (!Number.isFinite(node.startSeconds) || node.startSeconds < 0)) {
+      throw new Error(`${pathName}.startSeconds: YouTubePlayer startSeconds must be a non-negative number`);
+    }
+  }
+  if (node.kind !== "youtubePlayer" && (node.videoId !== undefined || node.allowLinkInput !== undefined || node.autoplay !== undefined || node.controls !== undefined || node.startSeconds !== undefined)) {
+    throw new Error(`${pathName}: YouTubePlayer fields may only be used by youtubePlayer nodes`);
   }
   if ((node.kind === "gauge" || node.kind === "progress")) {
     const hasProvider = typeof node.provider === "string" && node.provider.length > 0;
@@ -693,18 +741,74 @@ function validateAction(action, pathName, accounts) {
   if (!SUPPORTED_ACTIONS.has(action.name)) {
     throw new Error(`${pathName}.name: unsupported action '${action.name}'; use render sdk describe WidgetActionName`);
   }
-  if (action.name.startsWith("spotify.") && !accounts.has("spotify")) {
-    throw new Error(`${pathName}.name: ${action.name} requires a spotify account requirement; add manifest.accounts and ask the user for permission`);
+  const actionConnector = connectorForName(action.name);
+  if (actionConnector && !accounts.has(actionConnector)) {
+    throw new Error(`${pathName}.name: ${action.name} requires a ${actionConnector} account requirement; add manifest.accounts and ask the user for permission`);
+  }
+  if (actionConnector === "reminders" && !accounts.get(actionConnector).has("reminders.write")) {
+    throw new Error(`${pathName}.name: ${action.name} requires the reminders.write scope; add it to manifest.accounts and ask the user for permission`);
   }
   if (action.name === "spotify.set-volume") {
     if (action.type !== "set" || typeof action.value !== "number" || !Number.isInteger(action.value) || action.value < 0 || action.value > 100) {
       throw new Error(`${pathName}: spotify.set-volume requires an integer set value between 0 and 100`);
     }
+  } else if (action.name.startsWith("reminders.")) {
+    if (action.type !== "invoke") throw new Error(`${pathName}: ${action.name} requires an invoke action`);
+    validateReminderAction(action.name, action.payload, pathName);
   } else if (action.type !== "invoke") {
     throw new Error(`${pathName}: ${action.name} requires an invoke action`);
   }
   if (action.type === "invoke" && action.payload !== undefined) validateJsonValue(action.payload, `${pathName}.payload`);
   if (action.type === "set") validateJsonValue(action.value, `${pathName}.value`);
+}
+
+function connectorForName(name) {
+  if (typeof name !== "string") return undefined;
+  if (name.startsWith("spotify.")) return "spotify";
+  if (name.startsWith("reminders.")) return "reminders";
+  return undefined;
+}
+
+function validateReminderAction(name, payload, pathName) {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    throw new Error(`${pathName}.payload: ${name} requires an object payload; use render sdk describe ${name}`);
+  }
+  const requiredString = (field) => {
+    if (typeof payload[field] !== "string" || payload[field].trim() === "") {
+      throw new Error(`${pathName}.payload.${field}: ${name} requires a non-empty string`);
+    }
+  };
+  if (name === "reminders.create") requiredString("title");
+  if (["reminders.update", "reminders.complete", "reminders.delete"].includes(name)) requiredString("id");
+  if (name === "reminders.update" && payload.completed !== undefined && typeof payload.completed !== "boolean") {
+    throw new Error(`${pathName}.payload.completed: reminders.update requires a boolean when completed is supplied`);
+  }
+  if (name === "reminders.complete" && payload.completed !== undefined && typeof payload.completed !== "boolean") {
+    throw new Error(`${pathName}.payload.completed: reminders.complete requires a boolean when completed is supplied`);
+  }
+  for (const field of ["listName", "dueDate", "title"]) {
+    if (payload[field] !== undefined && typeof payload[field] !== "string") {
+      throw new Error(`${pathName}.payload.${field}: ${name} requires a string when supplied`);
+    }
+  }
+  for (const field of ["dueDate"]) {
+    if (payload[field] !== undefined && (typeof payload[field] !== "string" || !Number.isFinite(Date.parse(payload[field])))) {
+      throw new Error(`${pathName}.payload.${field}: ${name} requires a valid ISO date string when supplied`);
+    }
+  }
+}
+
+function validateListItems(items, pathName) {
+  const ids = new Set();
+  items.forEach((item, index) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) throw new Error(`${pathName}[${index}]: list item must be an object`);
+    if (typeof item.id !== "string" || item.id.trim() === "") throw new Error(`${pathName}[${index}].id: list item id must be non-empty`);
+    if (ids.has(item.id)) throw new Error(`${pathName}[${index}].id: list item ids must be unique`);
+    ids.add(item.id);
+    if (typeof item.title !== "string" || item.title.trim() === "") throw new Error(`${pathName}[${index}].title: list item title must be non-empty`);
+    if (item.subtitle !== undefined && typeof item.subtitle !== "string") throw new Error(`${pathName}[${index}].subtitle: list item subtitle must be a string`);
+    if (item.completed !== undefined && typeof item.completed !== "boolean") throw new Error(`${pathName}[${index}].completed: list item completion must be boolean`);
+  });
 }
 
 function validateJsonValue(value, pathName) {
@@ -790,6 +894,8 @@ function validateSpacing(value, pathName) {
 function findHostPath() {
   const candidates = [
     process.env.RENDER_HOST_PATH,
+    path.resolve(".build/debug/RenderHost.app/Contents/MacOS/RenderHost"),
+    path.resolve(".build/arm64-apple-macosx/debug/RenderHost.app/Contents/MacOS/RenderHost"),
     path.resolve(".build/debug/RenderHost"),
     path.resolve(".build/arm64-apple-macosx/debug/RenderHost")
   ].filter(Boolean);

@@ -27,6 +27,8 @@ private struct StoredInteractionState: Codable {
     var taskLists: [String: StoredTaskList] = [:]
     var textEditors: [String: StoredTextEditor]? = nil
     var dateTimes: [String: StoredDateTime]? = nil
+    var youtubeURLs: [String: String]? = nil
+    var youtubeLinkInputEnabled: [String: Bool]? = nil
 }
 
 final class WidgetInteractionStore: ObservableObject {
@@ -116,6 +118,28 @@ final class WidgetInteractionStore: ObservableObject {
         var dateTimes = state.dateTimes ?? [:]
         dateTimes[path] = StoredDateTime(value: value)
         state.dateTimes = dateTimes
+        persist()
+    }
+
+    func youtubeURL(path: String, defaultValue: String?) -> String? {
+        state.youtubeURLs?[path] ?? defaultValue
+    }
+
+    func saveYouTubeURL(path: String, value: String) {
+        var urls = state.youtubeURLs ?? [:]
+        urls[path] = value
+        state.youtubeURLs = urls
+        persist()
+    }
+
+    func youtubeLinkInputIsEnabled(path: String, defaultValue: Bool) -> Bool {
+        state.youtubeLinkInputEnabled?[path] ?? defaultValue
+    }
+
+    func saveYouTubeLinkInput(path: String, enabled: Bool) {
+        var values = state.youtubeLinkInputEnabled ?? [:]
+        values[path] = enabled
+        state.youtubeLinkInputEnabled = values
         persist()
     }
 

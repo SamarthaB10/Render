@@ -13,7 +13,7 @@ The current reference implementation is a native CPU/RAM widget. It proves the a
 - Native macOS desktop-layer rendering through SwiftUI/AppKit.
 - One active widget per workspace.
 - `widget.tsx` as the readable source of truth.
-- A canonical `@render/sdk` with native layout, content, image, control, task-list, timer, progress, provider, action, and typed-style contracts.
+- A canonical `@render/sdk` with native layout, content, image, control, task-list, timer, list, progress, provider, action, and typed-style contracts.
 - Automatic TSX compilation to a serializable declarative tree; no DOM, HTML, CSS, browser runtime, or webview.
 - Agent-readable SDK discovery through `render sdk list --json` and `render sdk describe <name> --json`.
 - Workspace-scoped validation, running, watch mode, logical movement, snapshots, rollback, and last-known-good recovery.
@@ -25,6 +25,9 @@ The current reference implementation is a native CPU/RAM widget. It proves the a
 - Native `DateTime` display and persistent `DateTimePicker` controls for date, time, or combined date-time values.
 - Generic host-owned account requirements with secure macOS Keychain storage.
 - A Spotify connector for current playback, track metadata, play/pause, previous/next, and volume control.
+- A macOS Reminders connector with permission-gated account state, incomplete-count and next-reminder providers, and explicit create/update/complete/delete actions.
+- A generic native `List` primitive for static rows or structured provider-backed rows such as `reminders.items`.
+- A native `YouTubePlayer` primitive backed by an isolated WebKit surface, with explicit network capability, validated video IDs, and an optional persisted link-input toggle.
 - Render-owned Spotify permission prompt and a liquid-glass widget settings panel with metadata and a confirmed stop control.
 
 MCP is not required for this prototype. The agent boundary is the deterministic local CLI plus the checked-in widget-authoring skill. MCP can wrap that stable contract later if broader interoperability requires it.
@@ -59,9 +62,10 @@ git clone https://github.com/SamarthaB10/Render.git
 cd Render
 npm install
 swift build
+npm run package:host
 ```
 
-The native executable is written to `.build/debug/RenderHost`. The repository's Node CLI is `bin/render.mjs`; while working from the checkout, invoke it with `node bin/render.mjs`.
+`swift build` produces the development executable at `.build/debug/RenderHost`. `npm run package:host` additionally creates and ad-hoc signs `.build/debug/RenderHost.app`, embedding the macOS usage metadata needed for permission-gated providers such as Reminders. Set `RENDER_SIGNING_IDENTITY` when using a local signing identity. The repository's Node CLI is `bin/render.mjs`; while working from the checkout, invoke it with `node bin/render.mjs`.
 
 ## Create and run your first widget
 
@@ -74,7 +78,7 @@ node bin/render.mjs check --workspace "$HOME/RenderWidgets/system-monitor" --jso
 node bin/render.mjs run --workspace "$HOME/RenderWidgets/system-monitor" --json
 ```
 
-`run` automatically finds `.build/debug/RenderHost`. To select a specific host binary, set `RENDER_HOST_PATH`:
+`run` automatically prefers `.build/debug/RenderHost.app/Contents/MacOS/RenderHost` and falls back to the raw SwiftPM executable. To select a specific host binary, set `RENDER_HOST_PATH`:
 
 ```bash
 RENDER_HOST_PATH="$PWD/.build/debug/RenderHost" \
@@ -327,6 +331,8 @@ node bin/render.mjs sdk describe system.memory --json
 The catalog currently exposes these implemented families:
 
 - Layout: `Column`, `Row`, `Stack`, `Box`, `Spacer`, `Divider`, `Grid`.
+- Collections: `List` for static rows or structured provider-backed rows; `TaskList` remains the editable task-specific primitive.
+- Media: `YouTubePlayer` for official embedded playback inside a native widget surface; use a valid 11-character video ID.
 - Content and visuals: `Text`, editable native `TextField`, native `Toggle`, `Shape`, `Icon`, native asset `Image`.
 - Controls and progress: `Button`, `Gauge`, `Progress`.
 - Data and lifecycle: `useProvider`, typed provider states, `widget.refresh`, `widget.reload`, and the worker protocol types.
@@ -338,8 +344,11 @@ The catalog also marks contract-only and planned items. Current limitations are 
 - URL/provider-backed images are rejected until capability-backed providers ship; native asset images are supported.
 - Spotify is the first implemented authenticated connector. It currently covers account status, current playback metadata, play/pause, previous/next, and volume; playlists, search, library, history, and artwork retrieval are separate future connector surfaces.
 - Spotify requires a local client ID and user consent; without either, the host reports the reason instead of using fake data.
-- One active widget, local development, and a locally built host are the current scope; packaging, notarization, and distribution are future work.
+- Reminders requires native macOS full access. The host keeps EventKit objects and reminder identifiers out of widget source; the packaged host must include `NSRemindersFullAccessUsageDescription` for the system permission prompt.
+- `YouTubePlayer` requires the manifest `network` capability. Set `allowLinkInput: true` to show a native toggle and persisted input for `youtube.com` or `youtu.be` links; source code still cannot provide arbitrary HTML, iframe markup, or URLs.
+- One active widget, local development, and a locally packaged host are the current scope; notarization and distribution are future work.
 - `TextField` supports direct editing during the current widget session. `Timer` and `TaskList` provide host-owned persisted interaction state; `TaskList` supports direct task editing, completion, adding, and removal. Use `render sdk describe Timer --json`, `render sdk describe TaskList --json`, and `render sdk describe WidgetTaskItem --json` for the exact contracts.
+- For Reminders widgets, inspect `reminders`, `reminders.account`, `reminders.items`, `reminders.incompleteCount`, `reminders.next.title`, `reminders.next.dueDate`, and the four `reminders.*` actions before authoring. Use `List(useProvider("reminders.items"))` for native read-only rows, and declare `reminders.read`; add `reminders.write` when the widget edits the user’s lists.
 
 If the catalog cannot express a requested feature, the agent should report the missing contract instead of generating a fake integration or falling back to web technology.
 
@@ -352,6 +361,7 @@ If the catalog cannot express a requested feature, the agent should report the m
 | `npm test` | Run the Node test suite |
 | `swift build` | Build the native macOS host |
 | `swift test` | Run Swift package tests |
+| `npm run package:host` | Build an ad-hoc signed `RenderHost.app` with permission metadata |
 | `npm run measure:performance` | Run the checked-in performance measurements |
 | `node bin/render.mjs sdk list --json` | Discover the agent-readable SDK catalog |
 | `node bin/render.mjs check --workspace <path> --json` | Validate a widget without promoting it |
