@@ -90,6 +90,8 @@ struct WidgetTreeView: View {
             return AnyView(Text(displayedText))
         case .textField:
             return AnyView(EditableTextField(initialText: tree.text ?? "", style: tree.style))
+        case .toggle:
+            return AnyView(EditableToggle(initialValue: (tree.value ?? 0) == 1))
         case .shape:
             return AnyView(RoundedRectangle(cornerRadius: CGFloat(tree.style?.radius ?? 12)).fill(foregroundColor ?? Color.secondary))
         case .icon:
@@ -332,5 +334,20 @@ private struct EditableTextField: View {
             .padding(8)
             .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: CGFloat(style?.radius ?? 8)))
             .foregroundColor(.primary)
+    }
+}
+
+private struct EditableToggle: View {
+    @State private var value: Bool
+
+    init(initialValue: Bool) {
+        _value = State(initialValue: initialValue)
+    }
+
+    var body: some View {
+        Toggle("", isOn: $value)
+            .labelsHidden()
+            .toggleStyle(.checkbox)
+            .controlSize(.small)
     }
 }

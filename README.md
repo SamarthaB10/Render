@@ -274,7 +274,7 @@ node bin/render.mjs sdk describe system.memory --json
 The catalog currently exposes these implemented families:
 
 - Layout: `Column`, `Row`, `Stack`, `Box`, `Spacer`, `Divider`, `Grid`.
-- Content and visuals: `Text`, editable native `TextField`, `Shape`, `Icon`, native asset `Image`.
+- Content and visuals: `Text`, editable native `TextField`, native `Toggle`, `Shape`, `Icon`, native asset `Image`.
 - Controls and progress: `Button`, `Gauge`, `Progress`.
 - Data and lifecycle: `useProvider`, typed provider states, `widget.refresh`, `widget.reload`, and the worker protocol types.
 - Styles: typed color, sizing, spacing, alignment, radius, border, shadow, font, opacity, and semantic tokens.
@@ -287,6 +287,7 @@ The catalog also marks contract-only and planned items. Current limitations are 
 - Spotify requires a local client ID and user consent; without either, the host reports the reason instead of using fake data.
 - One active widget, local development, and a locally built host are the current scope; packaging, notarization, and distribution are future work.
 - `TextField` supports direct editing during the current widget session. Persistent widget-owned state and add/remove collection controls remain planned SDK surfaces.
+- `Toggle` supports direct task completion toggles during the current widget session; shared state and persistence remain planned.
 
 If the catalog cannot express a requested feature, the agent should report the missing contract instead of generating a fake integration or falling back to web technology.
 

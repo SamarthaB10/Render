@@ -7,6 +7,7 @@ export type WidgetNodeKind =
   | "divider"
   | "text"
   | "textField"
+  | "toggle"
   | "shape"
   | "icon"
   | "image"
@@ -175,6 +176,10 @@ export interface TextFieldProps extends WidgetComponentProps {
   text?: string;
 }
 
+export interface ToggleProps extends WidgetComponentProps {
+  checked?: boolean;
+}
+
 export interface ShapeProps extends WidgetComponentProps {}
 
 export interface GaugeProps extends WidgetComponentProps {
@@ -325,6 +330,16 @@ export function TextField(input: string | TextFieldProps, style?: WidgetStyle): 
     return nodeWithOptionalStyle({ kind: "textField", text: String(props.text ?? firstChild(props.children) ?? "") }, props.style);
   }
   return nodeWithOptionalStyle({ kind: "textField", text: input as string }, style);
+}
+
+export function Toggle(checked: boolean, style?: WidgetStyle): WidgetNode;
+export function Toggle(props: ToggleProps): WidgetNode;
+export function Toggle(input: boolean | ToggleProps, style?: WidgetStyle): WidgetNode {
+  if (isProps(input)) {
+    const props = input as ToggleProps;
+    return nodeWithOptionalStyle({ kind: "toggle", value: props.checked === true ? 1 : 0 }, props.style);
+  }
+  return nodeWithOptionalStyle({ kind: "toggle", value: input ? 1 : 0 }, style);
 }
 
 export function Shape(style?: WidgetStyle): WidgetNode;
