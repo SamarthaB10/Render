@@ -51,6 +51,16 @@ test("supports fragments by flattening them into a native container", () => {
   });
 });
 
+test("passes the active responsive mode through the render context", () => {
+  const adaptiveManifest = manifest.slice(0, -1) + ', "adjustable": { "enabled": true, "responsive": { "modes": { "compact": { "minWidth": 180, "minHeight": 180 }, "regular": { "minWidth": 280, "minHeight": 300 } }, "default": "regular" } } }';
+  const tree = buildTsxRuntimeTree(`
+    import { Text, widget } from "@render/sdk";
+    export default widget(${adaptiveManifest}, ({ mode }) => <Text>{mode}</Text>);
+  `, { sdk, renderContext: { mode: "compact" } });
+
+  assert.deepEqual(tree, { kind: "text", text: "compact" });
+});
+
 test("preserves call-style widget sources", () => {
   const tree = buildTsxRuntimeTree(`
     import { Column, Text, widget } from "@render/sdk";

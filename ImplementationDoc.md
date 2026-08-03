@@ -41,6 +41,7 @@ The first proof is:
 - The first prototype supports one active widget.
 - Remixing updates that widget in place rather than creating a second widget.
 - The user can drag the generated first-prototype widget, and its screen placement persists.
+- A widget may declare host-owned adjustable sizing. Native resize handles, lock state, responsive mode selection, and size preferences persist separately from widget source.
 - The widget is a true desktop-layer surface, not a browser or ordinary floating app window.
 
 ### First prototype scope
@@ -234,6 +235,7 @@ The exact public API is finalized by the SDK implementation, but these rules are
 - `sdkVersion` is locked and checked for compatibility.
 - `name` is human-facing identity.
 - `size` is required.
+- `adjustable` is optional. When enabled, it may declare `minSize`, `maxSize`, and named responsive modes with a default mode.
 - `anchor` defaults to the top-left of the primary display.
 - The runtime, not the agent, generates the stable `widgetId`.
 - Capabilities are explicit and fine-grained, such as `network`, `filesystem.read`, and `filesystem.write`.
@@ -254,6 +256,7 @@ The first native renderer implements:
 - `Text`
 - `Shape`
 - `Gauge`
+- Host-owned adjustable sizing and responsive render context (`WidgetAdjustable`, `WidgetRenderContext`).
 
 This is the first slice of a larger Render SDK. Agents compose from the SDK; they do not invent ad-hoc primitives or bypass the native renderer.
 
@@ -301,6 +304,9 @@ The first CLI uses explicit workspace-scoped subcommands:
 | `render run --watch` | Keep the CLI attached and hot-reload successful source changes. |
 | `render status` | Report widget, host, snapshot, provider, permission, and failure state. |
 | `render move` | Update logical anchor and offset without using raw screen coordinates. |
+| `render resize` | Persist a bounded widget size and relaunch the active widget. |
+| `render mode` | Select `auto` or one of the widget's declared responsive modes. |
+| `render reset-size` | Clear the local size override and return to manifest defaults. |
 | `render rollback` | Select and relaunch a known-good snapshot. |
 | `render sdk list` | List primitives, providers, styles, actions, and capabilities. |
 | `render sdk describe <name>` | Show the exact current SDK contract for one catalog item. |
@@ -518,6 +524,8 @@ to native interaction:
 - Define the JSX runtime (`jsx`, `jsxs`, and `Fragment`) and typed style props
   without exposing CSS or arbitrary style strings.
 - Add `Box`, `Spacer`, and `Divider` for composable layout.
+- Add the host-owned adjustable sizing contract with native resize handles,
+  persistent local preferences, lock state, and responsive render context.
 - Add `Icon`, `Image`, `Button`, and `Progress` with native rendering,
   accessibility labels where applicable, and serializable state/action output.
 - Define typed actions, provider values, loading/unavailable states, and the

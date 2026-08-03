@@ -6,6 +6,7 @@ const ROOT_FIELDS = new Set([
   "sdkVersion",
   "size",
   "anchor",
+  "adjustable",
   "capabilities",
   "subscribe",
   "accounts"
@@ -58,6 +59,10 @@ export function validateManifest(manifest) {
       requireFiniteNumber(manifest.anchor.offset, "x", "anchor.offset.x", issues);
       requireFiniteNumber(manifest.anchor.offset, "y", "anchor.offset.y", issues);
     }
+  }
+
+  if (manifest.adjustable !== undefined) {
+    validateAdjustable(manifest.adjustable, issues);
   }
 
   if (!Array.isArray(manifest.capabilities)) {
@@ -155,4 +160,58 @@ function requireFiniteNumber(object, field, path, issues) {
 
 function isRecord(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function validateAdjustable(adjustable, issues) {
+  if (!isRecord(adjustable)) {
+    issues.push({ path: "adjustable", message: "must be an object" });
+    return;
+  }
+  if (adjustable.enabled !== undefined && typeof adjustable.enabled !== "boolean") {
+    issues.push({ path: "adjustable.enabled", message: "must be a boolean" });
+  }
+  const minSize = adjustable.minSize;
+  const maxSize = adjustable.maxSize;
+  if (minSize !== undefined) validateSizeObject(minSize, "adjustable.minSize", issues);
+  if (maxSize !== undefined) validateSizeObject(maxSize, "adjustable.maxSize", issues);
+  if (isRecord(minSize) && isRecord(maxSize)) {
+    if (maxSize.width < minSize.width) issues.push({ path: "adjustable.maxSize.width", message: "must be at least adjustable.minSize.width" });
+    if (maxSize.height < minSize.height) issues.push({ path: "adjustable.maxSize.height", message: "must be at least adjustable.minSize.height" });
+  }
+
+  if (adjustable.responsive !== undefined) {
+    const responsive = adjustable.responsive;
+    if (!isRecord(responsive)) {
+      issues.push({ path: "adjustable.responsive", message: "must be an object" });
+      return;
+    }
+    if (!isRecord(responsive.modes) || Object.keys(responsive.modes).length === 0) {
+      issues.push({ path: "adjustable.responsive.modes", message: "must be a non-empty object" });
+    } else {
+      for (const [mode, bounds] of Object.entries(responsive.modes)) {
+        validateModeBounds(bounds, `adjustable.responsive.modes.${mode}`, issues);
+      }
+      if (typeof responsive.default !== "string" || !(responsive.default in responsive.modes)) {
+        issues.push({ path: "adjustable.responsive.default", message: "must name one of the declared responsive modes" });
+      }
+    }
+  }
+}
+
+function validateSizeObject(value, path, issues) {
+  if (!isRecord(value)) {
+    issues.push({ path, message: "must be an object" });
+    return;
+  }
+  requirePositiveNumber(value, "width", `${path}.width`, issues);
+  requirePositiveNumber(value, "height", `${path}.height`, issues);
+}
+
+function validateModeBounds(value, path, issues) {
+  if (!isRecord(value)) {
+    issues.push({ path, message: "must be an object" });
+    return;
+  }
+  requirePositiveNumber(value, "minWidth", `${path}.minWidth`, issues);
+  requirePositiveNumber(value, "minHeight", `${path}.minHeight`, issues);
 }

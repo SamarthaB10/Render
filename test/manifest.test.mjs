@@ -57,6 +57,33 @@ test("accepts a declarative connector account requirement", () => {
   assert.deepEqual(validateManifest(manifest), []);
 });
 
+test("accepts adjustable bounds and responsive modes", () => {
+  const manifest = {
+    schemaVersion: 1,
+    name: "Adaptive Todo",
+    sdkVersion: "0.1.0",
+    size: { width: 280, height: 300 },
+    anchor: { corner: "top-left", offset: { x: 0, y: 0 } },
+    adjustable: {
+      enabled: true,
+      minSize: { width: 180, height: 180 },
+      maxSize: { width: 720, height: 720 },
+      responsive: {
+        modes: {
+          compact: { minWidth: 180, minHeight: 180 },
+          regular: { minWidth: 280, minHeight: 300 },
+          expanded: { minWidth: 420, minHeight: 420 }
+        },
+        default: "regular"
+      }
+    },
+    capabilities: [],
+    subscribe: []
+  };
+
+  assert.deepEqual(validateManifest(manifest), []);
+});
+
 test("reports unsupported connector and scope requirements", () => {
   const issues = validateManifest({
     schemaVersion: 1,

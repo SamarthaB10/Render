@@ -11,6 +11,7 @@ import { extractManifest, validateManifest } from "./manifest.mjs";
 import { buildRuntimeTree } from "./runtime.mjs";
 import { transpileTsx } from "./tsx-runtime.mjs";
 import { CANONICAL_WIDGET_SOURCE } from "../packages/sdk/src/catalog.ts";
+import { readPreferences } from "./preferences.mjs";
 
 export function initWorkspace(workspace, requestId = randomUUID()) {
   return createWorkspace(workspace, requestId, "init");
@@ -202,7 +203,7 @@ export function statusWorkspace(workspace, requestId = randomUUID()) {
     const worker = existsSync(workerStatePath)
       ? JSON.parse(readFileSync(workerStatePath, "utf8"))
       : null;
-    return { requestId, operation: "status", workspace: root, ok: true, state, worker, diagnostics: [] };
+    return { requestId, operation: "status", workspace: root, ok: true, state, worker, preferences: readPreferences(root), diagnostics: [] };
   } catch {
     return result(requestId, "status", root, false, [{
       code: "invalid-metadata",

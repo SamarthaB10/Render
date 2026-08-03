@@ -12,6 +12,7 @@ import {
   statusWorkspace
 } from "./workspace.mjs";
 import { extractManifest, updateManifest, validateManifest } from "./manifest.mjs";
+import { readPreferences, writePreferences } from "./preferences.mjs";
 
 // Receipt: perf/receipts/phase8-worker.json
 const SUPERVISOR_STARTUP_TIMEOUT_MS = 5000;
@@ -36,9 +37,10 @@ const SUPPORTED_PROVIDERS = new Set([
   "spotify.playback.volume"
 ]);
 
-export function buildRuntimeTree(source, filename = "widget.tsx") {
-  const tree = buildTsxRuntimeTree(source, { sdk, filename });
+export function buildRuntimeTree(source, filename = "widget.tsx", options = {}) {
   const manifest = extractManifest(source);
+  const mode = options.mode ?? manifest.adjustable?.responsive?.default ?? "auto";
+  const tree = buildTsxRuntimeTree(source, { sdk, filename, renderContext: { mode, size: options.size } });
   const subscriptions = new Set(manifest.subscribe);
   const accounts = new Set((manifest.accounts ?? []).map((account) => account.connector));
   validateRuntimeTree(tree, "root", subscriptions, new Set(manifest.capabilities), accounts);
@@ -380,6 +382,89 @@ export function moveWorkspace(
   }
 
   return { ...result, operation: "move", anchor: nextAnchor };
+}
+
+export function resizeWorkspace(workspace, { width, height } = {}, requestId = randomUUID()) {
+  const root = path.resolve(workspace);
+  const check = checkWorkspace(root, requestId);
+  if (!check.ok) return { ...check, operation: "resize" };
+  const manifest = extractManifest(readFileSync(path.join(root, "widget.tsx"), "utf8"));
+  const adjustable = manifest.adjustable;
+  if (!adjustable?.enabled) return {
+    requestId,
+    operation: "resize",
+    workspace: root,
+    ok: false,
+    diagnostics: [{ code: "resize-disabled", path: "adjustable.enabled", message: "widget does not declare adjustable resizing" }]
+  };
+  const invalidDimension = ["width", "height"].find((axis) => {
+    const value = { width, height }[axis];
+    return value !== undefined && value !== null && (!Number.isFinite(Number(value)) || Number(value) <= 0);
+  });
+  if (invalidDimension) return {
+    requestId,
+    operation: "resize",
+    workspace: root,
+    ok: false,
+    diagnostics: [{
+      code: "invalid-size",
+      path: invalidDimension,
+      message: `${invalidDimension} must be a finite positive number`
+    }]
+  };
+  const current = readPreferences(root);
+  const next = {
+    ...current,
+    width: clampDimension(width ?? current.width ?? manifest.size.width, adjustable, "width"),
+    height: clampDimension(height ?? current.height ?? manifest.size.height, adjustable, "height")
+  };
+  writePreferences(root, next);
+  const launched = runWorkspace(root, requestId);
+  return { ...launched, operation: "resize", preferences: next };
+}
+
+export function setWidgetMode(workspace, mode = "auto", requestId = randomUUID()) {
+  const root = path.resolve(workspace);
+  const check = checkWorkspace(root, requestId);
+  if (!check.ok) return { ...check, operation: "mode" };
+  const manifest = extractManifest(readFileSync(path.join(root, "widget.tsx"), "utf8"));
+  const modes = manifest.adjustable?.responsive?.modes ?? {};
+  if (mode !== "auto" && !Object.hasOwn(modes, mode)) {
+    return {
+      requestId,
+      operation: "mode",
+      workspace: root,
+      ok: false,
+      diagnostics: [{ code: "invalid-mode", path: "adjustable.responsive.modes", message: `mode '${mode}' is not declared by the widget` }]
+    };
+  }
+  const current = readPreferences(root);
+  const selected = modes[mode];
+  const next = {
+    ...current,
+    mode,
+    width: selected ? Math.max(current.width ?? manifest.size.width, selected.minWidth) : current.width,
+    height: selected ? Math.max(current.height ?? manifest.size.height, selected.minHeight) : current.height
+  };
+  writePreferences(root, next);
+  const launched = runWorkspace(root, requestId);
+  return { ...launched, operation: "mode", preferences: next };
+}
+
+export function resetWidgetSize(workspace, requestId = randomUUID()) {
+  const root = path.resolve(workspace);
+  const check = checkWorkspace(root, requestId);
+  if (!check.ok) return { ...check, operation: "reset-size" };
+  const next = { ...readPreferences(root), width: null, height: null };
+  writePreferences(root, next);
+  const launched = runWorkspace(root, requestId);
+  return { ...launched, operation: "reset-size", preferences: next };
+}
+
+function clampDimension(value, adjustable, axis) {
+  const minimum = adjustable.minSize?.[axis] ?? 1;
+  const maximum = adjustable.maxSize?.[axis] ?? Number.POSITIVE_INFINITY;
+  return Math.min(Math.max(Number(value), minimum), maximum);
 }
 
 export function rollbackWorkspace(workspace, version, requestId = randomUUID(), options = {}) {

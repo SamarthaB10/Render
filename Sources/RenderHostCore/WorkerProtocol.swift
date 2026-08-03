@@ -19,6 +19,16 @@ public struct WorkerDiagnostic: Codable, Equatable, Sendable {
     }
 }
 
+public struct WorkerRenderSize: Codable, Equatable, Sendable {
+    public let width: Double
+    public let height: Double
+
+    public init(width: Double, height: Double) {
+        self.width = width
+        self.height = height
+    }
+}
+
 public struct WorkerMessage: Codable, Equatable, Sendable {
     public static let currentProtocolVersion = 1
 
@@ -30,6 +40,8 @@ public struct WorkerMessage: Codable, Equatable, Sendable {
     public let selectedVersion: Int?
     public let workspace: String?
     public let sourcePath: String?
+    public let mode: String?
+    public let size: WorkerRenderSize?
     public let tree: WidgetTree?
     public let diagnostics: [WorkerDiagnostic]?
 
@@ -41,6 +53,8 @@ public struct WorkerMessage: Codable, Equatable, Sendable {
         selectedVersion: Int? = nil,
         workspace: String? = nil,
         sourcePath: String? = nil,
+        mode: String? = nil,
+        size: WorkerRenderSize? = nil,
         tree: WidgetTree? = nil,
         diagnostics: [WorkerDiagnostic]? = nil,
         protocolVersion: Int = WorkerMessage.currentProtocolVersion
@@ -53,6 +67,8 @@ public struct WorkerMessage: Codable, Equatable, Sendable {
         self.selectedVersion = selectedVersion
         self.workspace = workspace
         self.sourcePath = sourcePath
+        self.mode = mode
+        self.size = size
         self.tree = tree
         self.diagnostics = diagnostics
     }

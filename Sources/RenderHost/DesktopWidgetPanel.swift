@@ -2,10 +2,14 @@ import AppKit
 import RenderHostCore
 
 final class DesktopWidgetPanel: NSPanel {
-    init(contentRect: NSRect, policy: DesktopWindowPolicy) {
+    private let defaultContentSize: NSSize
+
+    init(contentRect: NSRect, policy: DesktopWindowPolicy, adjustable: RuntimeManifest.Adjustable? = nil, preferences: WidgetPreferences = .defaults) {
+        defaultContentSize = contentRect.size
+        let isAdjustable = adjustable?.enabled == true
         super.init(
             contentRect: contentRect,
-            styleMask: [.borderless, .nonactivatingPanel],
+            styleMask: isAdjustable ? [.borderless, .nonactivatingPanel, .resizable] : [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
         )
@@ -19,10 +23,30 @@ final class DesktopWidgetPanel: NSPanel {
         level = NSWindow.Level(rawValue: DesktopWindowLevel.interactive)
         collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary]
         isReleasedWhenClosed = false
+        apply(preferences: preferences, adjustable: adjustable)
     }
 
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
+
+    func apply(preferences: WidgetPreferences, adjustable: RuntimeManifest.Adjustable?) {
+        if let minSize = adjustable?.minSize {
+            self.minSize = NSSize(width: minSize.width, height: minSize.height)
+        }
+        if let maxSize = adjustable?.maxSize {
+            self.maxSize = NSSize(width: maxSize.width, height: maxSize.height)
+        }
+        isMovable = !preferences.locked
+        isMovableByWindowBackground = !preferences.locked
+        if preferences.locked {
+            styleMask.remove(.resizable)
+        } else if adjustable?.enabled == true {
+            styleMask.insert(.resizable)
+        }
+        let width = preferences.width ?? defaultContentSize.width
+        let height = preferences.height ?? defaultContentSize.height
+        setContentSize(NSSize(width: width, height: height))
+    }
 
     func move(to candidateOrigin: NSPoint) {
         let targetScreen = screen(containing: candidateOrigin) ?? NSScreen.main ?? NSScreen.screens.first

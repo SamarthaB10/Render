@@ -7,11 +7,14 @@ private final class RenderHostDelegate: NSObject, NSApplicationDelegate {
     private var panel: DesktopWidgetPanel?
     private var providers: ProviderStore?
     private var worker: WorkerSession?
+    private var resizeObserver: NSObjectProtocol?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let policy = DesktopWindowPolicy()
         let workspace = workspaceArgument()
         let manifest = loadManifest(workspace: workspace)
+        let preferences = loadPreferences(workspace: workspace, manifest: manifest)
+        let preferencesModel = WidgetPreferencesModel(preferences)
         let spotify = SpotifyConnector()
         let providers = ProviderStore(
             subscriptions: Set(manifest.subscribe),
@@ -32,8 +35,11 @@ private final class RenderHostDelegate: NSObject, NSApplicationDelegate {
                 width: manifest.size.width,
                 height: manifest.size.height
             ),
-            policy: policy
+            policy: policy,
+            adjustable: manifest.adjustable,
+            preferences: preferences
         )
+        let initialSize = renderSize(preferences: preferences, panel: panel, manifest: manifest)
         let contentView = DraggableHostingView(
             rootView: AnyView(
                 WidgetTreeContainer(
@@ -41,6 +47,37 @@ private final class RenderHostDelegate: NSObject, NSApplicationDelegate {
                     providers: providers,
                     widgetName: manifest.name,
                     workspace: workspace,
+                    adjustable: manifest.adjustable,
+                    defaultSize: manifest.size,
+                    preferences: preferencesModel,
+                    onPreferencesChange: { [weak panel] next in
+                        preferencesModel.value = next
+                        self.savePreferences(next, workspace: workspace)
+                        panel?.apply(preferences: next, adjustable: manifest.adjustable)
+                    },
+                    onModeChange: { [weak self, weak panel] mode in
+                        guard let self else { return }
+                        var next = preferencesModel.value
+                        next.mode = mode
+                        if mode != "auto",
+                           let bounds = manifest.adjustable?.responsive?.modes[mode] {
+                            let size = renderSize(preferences: next, panel: panel, manifest: manifest)
+                            next.width = max(size.width, bounds.minWidth)
+                            next.height = max(size.height, bounds.minHeight)
+                        }
+                        preferencesModel.value = next
+                        savePreferences(next, workspace: workspace)
+                        panel?.apply(preferences: next, adjustable: manifest.adjustable)
+                        let size = renderSize(preferences: next, panel: panel, manifest: manifest)
+                        self.worker?.render(
+                            mode: effectiveMode(preferences: next, manifest: manifest, size: size),
+                            size: WorkerRenderSize(width: size.width, height: size.height)
+                        ) { result in
+                            if case .failure(let error) = result {
+                                NSLog("Render mode change failed: %@", error.localizedDescription)
+                            }
+                        }
+                    },
                     onAction: actionDispatcher.dispatch,
                     onAuthorize: {
                         guard let requirement = manifest.accounts.first(where: { $0.connector == SpotifyConnector.connectorID }) else { return }
@@ -64,11 +101,35 @@ private final class RenderHostDelegate: NSObject, NSApplicationDelegate {
                 )
             )
         )
+        if manifest.adjustable?.enabled == true {
+            resizeObserver = NotificationCenter.default.addObserver(
+                forName: NSWindow.didResizeNotification,
+                object: panel,
+                queue: .main
+            ) { [weak panel] _ in
+                guard let panel else { return }
+                var next = preferencesModel.value
+                let contentSize = panel.contentRect(forFrameRect: panel.frame).size
+                next.width = contentSize.width
+                next.height = contentSize.height
+                preferencesModel.value = next
+                self.savePreferences(next, workspace: workspace)
+                self.worker?.render(
+                    mode: self.effectiveMode(preferences: next, manifest: manifest, size: contentSize),
+                    size: WorkerRenderSize(width: contentSize.width, height: contentSize.height)
+                ) { result in
+                    if case .failure(let error) = result {
+                        NSLog("Render resize failed: %@", error.localizedDescription)
+                    }
+                }
+            }
+        }
         contentView.onDrag = { [weak panel] origin in
+            guard !preferencesModel.value.locked else { return }
             panel?.move(to: origin)
         }
         contentView.onDragEnded = { [weak self, weak panel] in
-            guard let self, let panel else { return }
+            guard let self, let panel, !preferencesModel.value.locked else { return }
             self.savePlacement(workspace: workspace, origin: panel.frame.origin, panel: panel)
         }
         panel.contentView = contentView
@@ -79,7 +140,9 @@ private final class RenderHostDelegate: NSObject, NSApplicationDelegate {
                 workerScript: workerScriptArgument(),
                 sourcePath: workerSourcePath(),
                 statePath: workerStatePath(),
-                treePath: workerTreePath()
+                treePath: workerTreePath(),
+                mode: effectiveMode(preferences: preferences, manifest: manifest, size: initialSize),
+                size: WorkerRenderSize(width: initialSize.width, height: initialSize.height)
             )
             worker.onTree = { [weak contentModel] tree in
                 DispatchQueue.main.async {
@@ -123,6 +186,7 @@ private final class RenderHostDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        if let resizeObserver { NotificationCenter.default.removeObserver(resizeObserver) }
         worker?.stop()
     }
 
@@ -184,6 +248,48 @@ private final class RenderHostDelegate: NSObject, NSApplicationDelegate {
         try? data.write(to: placementURL(workspace: workspace), options: .atomic)
     }
 
+    private func loadPreferences(workspace: String?, manifest: RuntimeManifest) -> WidgetPreferences {
+        let fallback = WidgetPreferences.defaults
+        guard let workspace,
+              let data = try? Data(contentsOf: preferencesURL(workspace: workspace)),
+              let preferences = try? JSONDecoder().decode(WidgetPreferences.self, from: data)
+        else { return fallback }
+        guard let responsive = manifest.adjustable?.responsive,
+              preferences.mode != "auto",
+              responsive.modes[preferences.mode] == nil
+        else { return preferences }
+        var recovered = preferences
+        recovered.mode = "auto"
+        return recovered
+    }
+
+    private func savePreferences(_ preferences: WidgetPreferences, workspace: String?) {
+        guard let workspace, let data = try? JSONEncoder().encode(preferences) else { return }
+        try? data.write(to: preferencesURL(workspace: workspace), options: .atomic)
+    }
+
+    private func renderSize(preferences: WidgetPreferences, panel: DesktopWidgetPanel?, manifest: RuntimeManifest) -> NSSize {
+        if let panel {
+            return panel.contentRect(forFrameRect: panel.frame).size
+        }
+        return NSSize(
+            width: preferences.width ?? manifest.size.width,
+            height: preferences.height ?? manifest.size.height
+        )
+    }
+
+    private func effectiveMode(preferences: WidgetPreferences, manifest: RuntimeManifest, size: NSSize) -> String {
+        guard preferences.mode == "auto", let responsive = manifest.adjustable?.responsive else {
+            return preferences.mode
+        }
+        let fitting = responsive.modes
+            .filter { size.width >= $0.value.minWidth && size.height >= $0.value.minHeight }
+            .max { lhs, rhs in
+                (lhs.value.minWidth + lhs.value.minHeight) < (rhs.value.minWidth + rhs.value.minHeight)
+            }
+        return fitting?.key ?? responsive.defaultMode
+    }
+
     private func screen(for placement: WidgetPlacement, panel: DesktopWidgetPanel) -> NSScreen? {
         if let screenID = placement.screenID,
            let screen = NSScreen.screens.first(where: { panel.displayID(for: $0) == screenID }) {
@@ -195,6 +301,10 @@ private final class RenderHostDelegate: NSObject, NSApplicationDelegate {
 
     private func placementURL(workspace: String) -> URL {
         URL(fileURLWithPath: workspace).appendingPathComponent(".render/runtime/placement.json")
+    }
+
+    private func preferencesURL(workspace: String) -> URL {
+        URL(fileURLWithPath: workspace).appendingPathComponent(".render/runtime/preferences.json")
     }
 
     private func workspaceArgument() -> String? {
@@ -244,6 +354,11 @@ private struct WidgetTreeContainer: View {
     @ObservedObject var providers: ProviderStore
     let widgetName: String
     let workspace: String?
+    let adjustable: RuntimeManifest.Adjustable?
+    let defaultSize: RuntimeManifest.Size
+    @ObservedObject var preferences: WidgetPreferencesModel
+    let onPreferencesChange: (WidgetPreferences) -> Void
+    let onModeChange: (String) -> Void
     let onAction: (WidgetAction) -> Void
     let onAuthorize: () -> Void
     let onStop: () -> Void
@@ -254,6 +369,11 @@ private struct WidgetTreeContainer: View {
             WidgetSettingsOverlay(
                 widgetName: widgetName,
                 workspace: workspace,
+                adjustable: adjustable,
+                defaultSize: defaultSize,
+                preferences: preferences.value,
+                onPreferencesChange: onPreferencesChange,
+                onModeChange: onModeChange,
                 accountStatus: providers.accountStatus(for: SpotifyConnector.connectorID),
                 authorizationMessage: providers.authorizationMessage,
                 onAuthorize: onAuthorize,
@@ -263,21 +383,23 @@ private struct WidgetTreeContainer: View {
     }
 }
 
-private struct RuntimeManifest: Decodable {
+struct RuntimeManifest: Decodable {
     let name: String
     let size: Size
     let anchor: Anchor
     let capabilities: [String]
     let subscribe: [String]
     let accounts: [WidgetAccountRequirement]
+    let adjustable: Adjustable?
 
-    init(name: String, size: Size, anchor: Anchor, capabilities: [String], subscribe: [String], accounts: [WidgetAccountRequirement]) {
+    init(name: String, size: Size, anchor: Anchor, capabilities: [String], subscribe: [String], accounts: [WidgetAccountRequirement], adjustable: Adjustable? = nil) {
         self.name = name
         self.size = size
         self.anchor = anchor
         self.capabilities = capabilities
         self.subscribe = subscribe
         self.accounts = accounts
+        self.adjustable = adjustable
     }
 
     init(from decoder: Decoder) throws {
@@ -288,6 +410,7 @@ private struct RuntimeManifest: Decodable {
         capabilities = try container.decode([String].self, forKey: .capabilities)
         subscribe = try container.decode([String].self, forKey: .subscribe)
         accounts = try container.decodeIfPresent([WidgetAccountRequirement].self, forKey: .accounts) ?? []
+        adjustable = try container.decodeIfPresent(Adjustable.self, forKey: .adjustable)
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -297,6 +420,7 @@ private struct RuntimeManifest: Decodable {
         case capabilities
         case subscribe
         case accounts
+        case adjustable
     }
 
     struct Size: Decodable {
@@ -312,6 +436,25 @@ private struct RuntimeManifest: Decodable {
     struct Offset: Decodable {
         let x: Double
         let y: Double
+    }
+
+    struct Adjustable: Decodable {
+        let enabled: Bool
+        let minSize: Size?
+        let maxSize: Size?
+        let responsive: Responsive?
+    }
+
+    struct Responsive: Decodable {
+        let modes: [String: Mode]
+        let defaultMode: String
+
+        private enum CodingKeys: String, CodingKey { case modes, defaultMode = "default" }
+    }
+
+    struct Mode: Decodable {
+        let minWidth: Double
+        let minHeight: Double
     }
 
     static let fallback = RuntimeManifest(

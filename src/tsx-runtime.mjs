@@ -93,10 +93,11 @@ export function buildTsxRuntimeTree(source, options = {}) {
       );
     }
   };
+  const context = vm.createContext(sandbox);
 
   try {
     new vm.Script(code, { filename })
-      .runInNewContext(sandbox, { timeout: options.timeoutMs ?? 1000 });
+      .runInContext(context, { timeout: options.timeoutMs ?? 1000 });
   } catch (error) {
     if (error instanceof TsxRuntimeError) throw error;
     throw new TsxRuntimeError(
@@ -115,9 +116,11 @@ export function buildTsxRuntimeTree(source, options = {}) {
 
   let tree;
   try {
-    new vm.Script("exports.__rendered = exports.default.render();", { filename })
-      .runInNewContext(sandbox, { timeout: options.timeoutMs ?? 1000 });
-    tree = sandbox.exports.__rendered;
+    const renderContext = options.renderContext ?? { mode: "auto" };
+    context.__render_context = renderContext;
+    new vm.Script("exports.__rendered = exports.default.render(__render_context);", { filename })
+      .runInContext(context, { timeout: options.timeoutMs ?? 1000 });
+    tree = context.exports.__rendered;
   } catch (error) {
     throw new TsxRuntimeError("tsx-render-error", `widget.tsx render failed: ${error.message}`);
   }
