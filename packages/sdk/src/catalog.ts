@@ -579,7 +579,11 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     fields: ["default", "options"],
     example: 'theme: { default: "dark-glass", options: ["dark-glass", "light", "monochrome"] }',
     status: "implemented",
-    notes: ["The host persists a user-selected theme locally; source declares the available variants and default only."]
+    notes: [
+      "The host persists a user-selected theme locally; source declares the available variants and default only.",
+      "A selected runtime theme applies its palette, typography, geometry, borders, surfaces, and texture across the Widget; semantic SDK tokens continue resolving through that theme.",
+      "Retro means Vaporwave/Outrun: purple void and surfaces, chrome text, hot magenta and electric cyan accents, monospace terminal typography, angular geometry, colored glow, and subtle CRT scanlines."
+    ]
   },
   {
     name: "WidgetThemeName",

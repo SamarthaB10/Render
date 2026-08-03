@@ -1,6 +1,6 @@
 import Foundation
 
-public enum WidgetNodeKind: String, Codable, Sendable {
+public enum WidgetNodeKind: String, Codable, CaseIterable, Sendable {
     case column
     case row
     case stack

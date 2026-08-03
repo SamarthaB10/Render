@@ -49,6 +49,25 @@ final class DesktopWindowPolicyTests: XCTestCase {
         )
     }
 
+    func testWidgetContentScaleFitsBothDimensionsWithoutClipping() {
+        XCTAssertEqual(
+            WidgetFrameGeometry.fitScale(
+                designedSize: CGSize(width: 240, height: 110),
+                availableSize: CGSize(width: 300, height: 290)
+            ),
+            1.25,
+            accuracy: 0.001
+        )
+        XCTAssertEqual(
+            WidgetFrameGeometry.fitScale(
+                designedSize: CGSize(width: 240, height: 110),
+                availableSize: CGSize(width: 100, height: 80)
+            ),
+            100.0 / 240.0,
+            accuracy: 0.001
+        )
+    }
+
     func testInvalidTreeReportsActionablePaths() {
         let tree = WidgetTree(
             kind: .column,

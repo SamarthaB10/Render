@@ -25,6 +25,13 @@ struct RenderTheme {
     let control: Color
     let status: Color
     let border: Color
+    let surfaceRadius: CGFloat
+    let defaultBorderWidth: CGFloat
+    let baseFontSize: CGFloat
+    let usesMonospaceTypography: Bool
+    let usesScanlines: Bool
+    let shadowColor: Color
+    let shadowRadius: CGFloat
 
     init(name: String) {
         self.init(name: RenderThemeName(rawValue: name) ?? .darkGlass)
@@ -45,6 +52,13 @@ struct RenderTheme {
             control = Color.white.opacity(0.12)
             status = Color.white.opacity(0.16)
             border = Color.white.opacity(0.20)
+            surfaceRadius = 16
+            defaultBorderWidth = 1
+            baseFontSize = 13
+            usesMonospaceTypography = false
+            usesScanlines = false
+            shadowColor = .clear
+            shadowRadius = 0
         case .light:
             primaryText = Color(red: 0.08, green: 0.10, blue: 0.13)
             secondaryText = Color(red: 0.30, green: 0.34, blue: 0.40)
@@ -57,6 +71,13 @@ struct RenderTheme {
             control = Color(red: 0.90, green: 0.92, blue: 0.94)
             status = Color(red: 0.86, green: 0.89, blue: 0.92)
             border = Color.black.opacity(0.14)
+            surfaceRadius = 14
+            defaultBorderWidth = 1
+            baseFontSize = 13
+            usesMonospaceTypography = false
+            usesScanlines = false
+            shadowColor = .black.opacity(0.12)
+            shadowRadius = 8
         case .monochrome:
             primaryText = .white
             secondaryText = Color.white.opacity(0.70)
@@ -69,18 +90,35 @@ struct RenderTheme {
             control = Color.white.opacity(0.16)
             status = Color.white.opacity(0.20)
             border = Color.white.opacity(0.28)
+            surfaceRadius = 10
+            defaultBorderWidth = 1
+            baseFontSize = 13
+            usesMonospaceTypography = true
+            usesScanlines = false
+            shadowColor = .white.opacity(0.10)
+            shadowRadius = 6
         case .retro:
-            primaryText = Color(red: 1.0, green: 0.88, blue: 0.62)
-            secondaryText = Color(red: 0.78, green: 0.68, blue: 0.46)
-            tertiaryText = Color(red: 0.55, green: 0.48, blue: 0.34)
-            accent = Color(red: 1.0, green: 0.62, blue: 0.22)
-            danger = Color(red: 1.0, green: 0.30, blue: 0.22)
-            success = Color(red: 0.56, green: 0.86, blue: 0.34)
-            surface = Color(red: 0.08, green: 0.07, blue: 0.05)
-            panel = Color(red: 0.16, green: 0.13, blue: 0.09)
-            control = Color(red: 0.28, green: 0.22, blue: 0.13)
-            status = Color(red: 0.34, green: 0.26, blue: 0.14)
-            border = Color(red: 1.0, green: 0.62, blue: 0.22).opacity(0.38)
+            // Retro is the Render-native Vaporwave/Outrun variant: a purple
+            // void, chrome text, cyan and magenta signal colors, terminal
+            // typography, angular surfaces, and restrained CRT scanlines.
+            primaryText = Color(red: 0.88, green: 0.88, blue: 0.88)
+            secondaryText = Color(red: 0.88, green: 0.88, blue: 0.88).opacity(0.70)
+            tertiaryText = Color(red: 0.88, green: 0.88, blue: 0.88).opacity(0.46)
+            accent = Color(red: 1.0, green: 0.0, blue: 1.0)
+            danger = Color(red: 1.0, green: 0.20, blue: 0.44)
+            success = Color(red: 0.0, green: 1.0, blue: 1.0)
+            surface = Color(red: 0.035, green: 0.0, blue: 0.08)
+            panel = Color(red: 0.10, green: 0.06, blue: 0.24)
+            control = Color(red: 0.0, green: 1.0, blue: 1.0).opacity(0.14)
+            status = Color(red: 1.0, green: 0.0, blue: 1.0).opacity(0.16)
+            border = Color(red: 0.0, green: 1.0, blue: 1.0).opacity(0.80)
+            surfaceRadius = 0
+            defaultBorderWidth = 2
+            baseFontSize = 13
+            usesMonospaceTypography = true
+            usesScanlines = true
+            shadowColor = Color(red: 0.0, green: 1.0, blue: 1.0).opacity(0.18)
+            shadowRadius = 10
         }
     }
 

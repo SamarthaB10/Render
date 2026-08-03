@@ -64,3 +64,39 @@ The SDK catalog, widget skill, check diagnostics, README, and implementation
 roadmap are part of the agent contract. Every supported primitive, provider,
 action, capability, failure, and required user permission should be
 discoverable from those surfaces without reading the host implementation.
+
+## Canonical Widget contract
+
+The canonical Widget contract is the versioned, self-describing JSON Schema at
+`contracts/render-widget-contract.v1.json`. It is the source of truth for the
+agent-visible Widget manifest, retained tree, primitives, styles, providers,
+actions, capabilities, connectors, and compatibility version. TypeScript,
+native Swift, and agent-facing Markdown outputs are generated from it and CI
+rejects drift between the source and those outputs.
+
+## Widget lifecycle state
+
+The policy state of an installed Widget: `stopped`, `candidate`, `starting`,
+`running`, `recovering`, or `quarantined`. It is separate from the existing
+`status` field so older CLI consumers remain compatible while promotion,
+rollback, restart, and failure recovery become explicit.
+
+## Lifecycle receipt
+
+A durable JSONL record at `.render/logs/lifecycle.jsonl` for each lifecycle
+transition. It names the Widget, request, prior and next state, reason,
+active and last-known-good versions, process identity, and diagnostics.
+
+## Widget host session
+
+The native host session is the deep module that owns one Widget's loaded
+manifest and tree, providers, actions, preferences, placement, worker, and
+shutdown. The AppKit delegate starts the session and composes views; it does
+not duplicate those policies.
+
+## Provider and connector registry
+
+The host-owned lookup seam generated from the canonical contract. It maps
+provider and action names to their connector and maps connector IDs to their
+typed native adapters. Spotify and Reminders are current adapters; adding a
+new integration extends the registry and contract together.

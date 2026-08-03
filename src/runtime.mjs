@@ -12,40 +12,14 @@ import {
   restoreSnapshot,
   statusWorkspace
 } from "./workspace.mjs";
+import { persistLifecycleState } from "./lifecycle.mjs";
 import { extractManifest, updateManifest, validateManifest } from "./manifest.mjs";
 import { readPreferences, writePreferences } from "./preferences.mjs";
 
 // Receipt: perf/receipts/phase8-worker.json
 const SUPERVISOR_STARTUP_TIMEOUT_MS = 5000;
-const SUPPORTED_ACTIONS = new Set([
-  "widget.refresh",
-  "widget.reload",
-  "spotify.play",
-  "spotify.pause",
-  "spotify.next",
-  "spotify.previous",
-  "spotify.set-volume",
-  "reminders.create",
-  "reminders.update",
-  "reminders.complete",
-  "reminders.delete"
-]);
-const SUPPORTED_PROVIDERS = new Set([
-  "system.cpu",
-  "system.memory",
-  "system.time",
-  "spotify.account",
-  "spotify.track.title",
-  "spotify.track.artist",
-  "spotify.playback.isPlaying",
-  "spotify.playback.progress",
-  "spotify.playback.volume",
-  "reminders.account",
-  "reminders.items",
-  "reminders.incompleteCount",
-  "reminders.next.title",
-  "reminders.next.dueDate"
-]);
+const SUPPORTED_ACTIONS = new Set(sdk.WIDGET_ACTION_NAMES);
+const SUPPORTED_PROVIDERS = new Set(sdk.WIDGET_PROVIDER_NAMES);
 
 export function buildRuntimeTree(source, filename = "widget.tsx", options = {}) {
   const manifest = extractManifest(source);
@@ -120,7 +94,7 @@ export function runWorkspace(workspace, requestId = randomUUID(), options = {}) 
 
   const prepared = prepareRun(workspace, requestId);
   if (!prepared.ok) {
-    recordFailure(workspace, prepared.diagnostics);
+    recordFailure(workspace, prepared.diagnostics, requestId);
     return prepared;
   }
 
@@ -134,7 +108,7 @@ export function runWorkspace(workspace, requestId = randomUUID(), options = {}) 
         message: "run npm run package:host before running a native widget"
       }]
     };
-    recordFailure(root, result.diagnostics);
+    recordFailure(root, result.diagnostics, requestId);
     return result;
   }
 
@@ -163,7 +137,12 @@ export function runWorkspace(workspace, requestId = randomUUID(), options = {}) 
     hostLogPath,
     lastTransitionAt: new Date().toISOString()
   };
-  updateState(root, state);
+  updateState(root, { ...state, lifecycleState: "running" }, {
+    requestId,
+    event: "host.started",
+    reason: "native host started with a validated snapshot",
+    to: "running"
+  });
   return {
     ...prepared,
     running: true,
@@ -177,7 +156,7 @@ export function runWorkspace(workspace, requestId = randomUUID(), options = {}) 
 function runSupervisedWorkspace(root, requestId, hostPath) {
   const check = checkWorkspace(root, requestId);
   if (!check.ok) {
-    recordFailure(root, check.diagnostics);
+    recordFailure(root, check.diagnostics, requestId);
     return { ...check, operation: "run" };
   }
 
@@ -196,7 +175,7 @@ function runSupervisedWorkspace(root, requestId, hostPath) {
         message: "run render init before running a widget"
       }]
     };
-    recordFailure(root, result.diagnostics);
+    recordFailure(root, result.diagnostics, requestId);
     return result;
   }
 
@@ -206,7 +185,7 @@ function runSupervisedWorkspace(root, requestId, hostPath) {
   );
   const launched = launchNativeSupervisor(root, hostPath);
   if (!launched.ok) {
-    recordFailure(root, launched.diagnostics);
+    recordFailure(root, launched.diagnostics, requestId);
     return {
       requestId,
       operation: "run",
@@ -229,7 +208,12 @@ function runSupervisedWorkspace(root, requestId, hostPath) {
     hostLogPath: launched.hostLogPath,
     lastTransitionAt: new Date().toISOString()
   };
-  updateState(root, state);
+  updateState(root, { ...state, lifecycleState: "running" }, {
+    requestId,
+    event: "host.started",
+    reason: "native supervisor started with a validated snapshot",
+    to: "running"
+  });
   return {
     requestId,
     operation: "run",
@@ -543,7 +527,7 @@ export function rollbackWorkspace(workspace, version, requestId = randomUUID(), 
   if (isNativeHost(hostPath) && options.supervised !== false) {
     const launched = launchNativeSupervisor(root, hostPath);
     if (!launched.ok) {
-      recordFailure(root, launched.diagnostics);
+      recordFailure(root, launched.diagnostics, requestId);
       return {
         ...launched,
         operation: "rollback",
@@ -555,12 +539,18 @@ export function rollbackWorkspace(workspace, version, requestId = randomUUID(), 
       ...restored.state,
       status: "running",
       running: true,
+      lifecycleState: "running",
       stopRequested: false,
       processId: launched.processId,
       workerProcessId: launched.worker?.processId ?? null,
       workerStatePath: launched.workerStatePath,
       hostLogPath: launched.hostLogPath,
       lastTransitionAt: new Date().toISOString()
+    }, {
+      requestId,
+      event: "rollback.started",
+      reason: "restored last-known-good snapshot is running",
+      to: "running"
     });
     return {
       ...restored,
@@ -586,7 +576,12 @@ export function rollbackWorkspace(workspace, version, requestId = randomUUID(), 
     closeSync(logHandle);
   }
   child.unref();
-  updateState(root, { ...restored.state, status: "running", running: true, stopRequested: false, processId: child.pid, workerProcessId: null, hostLogPath, lastTransitionAt: new Date().toISOString() });
+  updateState(root, { ...restored.state, status: "running", running: true, lifecycleState: "running", stopRequested: false, processId: child.pid, workerProcessId: null, hostLogPath, lastTransitionAt: new Date().toISOString() }, {
+    requestId,
+    event: "rollback.started",
+    reason: "restored last-known-good snapshot is running",
+    to: "running"
+  });
   return { ...restored, running: true, processId: child.pid, hostLogPath };
 }
 
@@ -608,7 +603,7 @@ export function stopWorkspace(workspace, requestId = randomUUID()) {
     }
   }
 
-  const state = markWorkspaceStopped(root, true);
+  const state = markWorkspaceStopped(root, true, requestId);
   return {
     requestId,
     operation: "stop",
@@ -647,10 +642,7 @@ function validateRuntimeTree(node, pathName, subscriptions, capabilities, accoun
   if (!node || typeof node !== "object") {
     throw new Error(`${pathName}: render() must return a widget node`);
   }
-  const kinds = new Set([
-    "column", "row", "stack", "box", "glassPanel", "mediaCard", "scrollView", "spacer", "divider", "text", "textField", "textEditor", "dateTime", "dateTimePicker", "toggle", "timer", "taskList", "shape",
-    "icon", "image", "button", "gauge", "progress", "grid", "list", "visualizer", "youtubePlayer"
-  ]);
+  const kinds = new Set(sdk.WIDGET_NODE_KINDS);
   if (!kinds.has(node.kind)) {
     throw new Error(`${pathName}.kind: unknown widget primitive`);
   }
@@ -847,9 +839,7 @@ function validateAction(action, pathName, accounts) {
 
 function connectorForName(name) {
   if (typeof name !== "string") return undefined;
-  if (name.startsWith("spotify.")) return "spotify";
-  if (name.startsWith("reminders.")) return "reminders";
-  return undefined;
+  return sdk.WIDGET_PROVIDER_CONNECTORS[name] ?? sdk.WIDGET_ACTION_CONNECTORS[name];
 }
 
 function validateReminderAction(name, payload, pathName) {
@@ -1025,11 +1015,8 @@ function stopPreviousHost(root) {
   }
 }
 
-function updateState(root, state) {
-  const metadataPath = path.join(root, ".render", "metadata.json");
-  const temporaryPath = `${metadataPath}.${randomUUID()}.tmp`;
-  writeFileSync(temporaryPath, `${JSON.stringify(state, null, 2)}\n`, "utf8");
-  renameSync(temporaryPath, metadataPath);
+function updateState(root, state, transition = {}) {
+  return persistLifecycleState(root, state, transition);
 }
 
 function writeAtomically(filePath, data) {

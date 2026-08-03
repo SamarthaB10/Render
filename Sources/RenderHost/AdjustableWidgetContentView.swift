@@ -1,6 +1,6 @@
 import AppKit
 
-private enum WidgetResizeEdge {
+private enum WidgetResizeEdge: Equatable {
     case left
     case right
     case top
@@ -14,7 +14,8 @@ private enum WidgetResizeEdge {
 final class AdjustableWidgetContentView: NSView {
     private weak var panel: DesktopWidgetPanel?
     private let hostedView: NSView
-    private let edgeInset: CGFloat = 12
+    private let edgeInset: CGFloat = 18
+    private let settingsHitSize: CGFloat = 52
     private var startFrame: NSRect?
     private var startMouseLocation: NSPoint?
     private var activeEdge: WidgetResizeEdge?
@@ -53,6 +54,10 @@ final class AdjustableWidgetContentView: NSView {
         addCursorRect(NSRect(x: bounds.maxX - inset, y: inset, width: inset, height: max(0, bounds.height - inset * 2)), cursor: .resizeLeftRight)
         addCursorRect(NSRect(x: inset, y: 0, width: max(0, bounds.width - inset * 2), height: inset), cursor: .resizeUpDown)
         addCursorRect(NSRect(x: inset, y: bounds.maxY - inset, width: max(0, bounds.width - inset * 2), height: inset), cursor: .resizeUpDown)
+        addCursorRect(NSRect(x: 0, y: bounds.maxY - inset, width: inset, height: inset), cursor: .crosshair)
+        addCursorRect(NSRect(x: bounds.maxX - inset, y: bounds.maxY - inset, width: inset, height: inset), cursor: .crosshair)
+        addCursorRect(NSRect(x: 0, y: 0, width: inset, height: inset), cursor: .crosshair)
+        addCursorRect(NSRect(x: bounds.maxX - inset, y: 0, width: inset, height: inset), cursor: .crosshair)
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -87,7 +92,11 @@ final class AdjustableWidgetContentView: NSView {
             frame.size.height = startFrame.height + delta.y
         default: break
         }
-        panel.resizeFrame(frame)
+        panel.resizeFrame(
+            frame,
+            preservingRightEdge: [.left, .topLeft, .bottomLeft].contains(edge),
+            preservingTopEdge: [.bottom, .bottomLeft, .bottomRight].contains(edge)
+        )
     }
 
     override func mouseUp(with event: NSEvent) {
@@ -99,7 +108,7 @@ final class AdjustableWidgetContentView: NSView {
     private func edge(at point: NSPoint) -> WidgetResizeEdge? {
         guard bounds.contains(point) else { return nil }
         // Keep the host-owned settings control clickable in the top-right corner.
-        if point.x > bounds.maxX - 72 && point.y > bounds.maxY - 72 { return nil }
+        if point.x > bounds.maxX - settingsHitSize && point.y > bounds.maxY - settingsHitSize { return nil }
         let left = point.x <= edgeInset
         let right = point.x >= bounds.maxX - edgeInset
         let bottom = point.y <= edgeInset

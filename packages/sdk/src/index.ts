@@ -27,6 +27,20 @@ export type WidgetNodeKind =
   | "dateTime"
   | "dateTimePicker";
 
+export {
+  RENDER_WIDGET_CONTRACT_VERSION,
+  WIDGET_ACTION_NAMES,
+  WIDGET_ANCHOR_CORNERS,
+  WIDGET_CAPABILITIES,
+  WIDGET_CONNECTOR_NAMES,
+  WIDGET_CONNECTOR_SCOPES,
+  WIDGET_ACTION_CONNECTORS,
+  WIDGET_NODE_KINDS,
+  WIDGET_PROVIDER_CONNECTORS,
+  WIDGET_PROVIDER_NAMES,
+  WIDGET_THEME_NAMES
+} from "./widget-contract.generated.ts";
+
 export { describeSdkCatalog, listSdkCatalog, SDK_PACKAGE, SDK_VERSION } from "./catalog.ts";
 export type { SdkCatalogItem, SdkCatalogKind } from "./catalog.ts";
 export { RENDER_WORKER_PROTOCOL_VERSION } from "./worker-protocol.ts";

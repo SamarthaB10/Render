@@ -1,4 +1,9 @@
 import { validateAccountRequirements } from "./integrations.mjs";
+import {
+  WIDGET_ANCHOR_CORNERS,
+  WIDGET_CAPABILITIES,
+  WIDGET_THEME_NAMES
+} from "../packages/sdk/src/widget-contract.generated.ts";
 
 const ROOT_FIELDS = new Set([
   "schemaVersion",
@@ -12,9 +17,9 @@ const ROOT_FIELDS = new Set([
   "accounts",
   "theme"
 ]);
-const CAPABILITIES = new Set(["network", "filesystem.read", "filesystem.write"]);
-const CORNERS = new Set(["top-left", "top-right", "bottom-left", "bottom-right"]);
-const THEMES = new Set(["dark-glass", "light", "monochrome", "retro"]);
+const CAPABILITIES = new Set(WIDGET_CAPABILITIES);
+const CORNERS = new Set(WIDGET_ANCHOR_CORNERS);
+const THEMES = new Set(WIDGET_THEME_NAMES);
 
 export function extractManifest(source) {
   return readManifest(source).manifest;

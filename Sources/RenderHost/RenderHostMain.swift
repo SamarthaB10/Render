@@ -5,35 +5,27 @@ import SwiftUI
 
 private final class RenderHostDelegate: NSObject, NSApplicationDelegate {
     private var panel: DesktopWidgetPanel?
-    private var providers: ProviderStore?
-    private var worker: WorkerSession?
+    private var session: WidgetHostSession?
     private var resizeObserver: NSObjectProtocol?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let policy = DesktopWindowPolicy()
         let workspace = workspaceArgument()
-        let manifest = loadManifest(workspace: workspace)
-        let preferences = loadPreferences(workspace: workspace, manifest: manifest)
-        let preferencesModel = WidgetPreferencesModel(preferences)
-        let spotify = SpotifyConnector()
-        let reminders = RemindersConnector()
-        let providers = ProviderStore(
-            subscriptions: Set(manifest.subscribe),
-            accountRequirements: manifest.accounts,
-            spotify: spotify,
-            reminders: reminders
+        let hostSession = WidgetHostSession(
+            workspace: workspace,
+            workerScript: workerScriptArgument(),
+            sourcePath: workerSourcePath(),
+            statePath: workerStatePath(),
+            treePath: workerTreePath()
         )
+        let manifest = hostSession.manifest
+        let preferences = hostSession.preferences.value
+        let preferencesModel = hostSession.preferences
+        let providers = hostSession.providers
         providers.start()
-        let actionDispatcher = WidgetActionDispatcher(
-            capabilities: manifest.capabilities,
-            spotify: spotify,
-            reminders: reminders,
-            hasSpotifyAccount: manifest.accounts.contains(where: { $0.connector == SpotifyConnector.connectorID }),
-            hasRemindersAccount: manifest.accounts.contains(where: { $0.connector == RemindersConnector.connectorID && $0.scopes.contains("reminders.write") }),
-            onRemindersMutation: providers.refreshNow
-        )
-        let contentModel = WidgetContentModel(tree: loadTree(workspace: workspace))
-        let interactionStore = WidgetInteractionStore(workspace: workspace)
+        let actionDispatcher = hostSession.actionDispatcher
+        let contentModel = hostSession.contentModel
+        let interactionStore = hostSession.interactionStore
         let panel = DesktopWidgetPanel(
             contentRect: NSRect(
                 x: 0,
@@ -45,7 +37,6 @@ private final class RenderHostDelegate: NSObject, NSApplicationDelegate {
             adjustable: manifest.adjustable,
             preferences: preferences
         )
-        let initialSize = renderSize(preferences: preferences, panel: panel, manifest: manifest)
         let hostedContentView = DraggableHostingView(
             rootView: AnyView(
                 WidgetTreeContainer(
@@ -58,32 +49,31 @@ private final class RenderHostDelegate: NSObject, NSApplicationDelegate {
                         defaultTheme: RenderThemeName.darkGlass.rawValue,
                         options: RenderThemeName.allCases.map(\.rawValue)
                     ),
-                    workerStatePath: workerStatePath(),
+                    workerStatePath: hostSession.workerStatePath,
                     adjustable: manifest.adjustable,
                     defaultSize: manifest.size,
                     preferences: preferencesModel,
                     onPreferencesChange: { [weak panel] next in
                         preferencesModel.value = next
-                        self.savePreferences(next, workspace: workspace)
+                        hostSession.savePreferences(next)
                         panel?.apply(preferences: next, adjustable: manifest.adjustable)
                     },
-                    onModeChange: { [weak self, weak panel] mode in
-                        guard let self else { return }
+                    onModeChange: { [weak panel] mode in
                         var next = preferencesModel.value
                         next.mode = mode
                         if mode != "auto",
                            let bounds = manifest.adjustable?.responsive?.modes[mode] {
-                            let size = renderSize(preferences: next, panel: panel, manifest: manifest)
+                            let size = hostSession.initialSize(panel: panel)
                             next.width = max(size.width, bounds.minWidth)
                             next.height = max(size.height, bounds.minHeight)
                         }
                         preferencesModel.value = next
-                        savePreferences(next, workspace: workspace)
+                        hostSession.savePreferences(next)
                         panel?.apply(preferences: next, adjustable: manifest.adjustable)
-                        let size = renderSize(preferences: next, panel: panel, manifest: manifest)
-                        self.worker?.render(
-                            mode: effectiveMode(preferences: next, manifest: manifest, size: size),
-                            size: WorkerRenderSize(width: size.width, height: size.height)
+                        let size = hostSession.initialSize(panel: panel)
+                        hostSession.render(
+                            mode: hostSession.effectiveMode(size: size),
+                            size: size
                         ) { result in
                             if case .failure(let error) = result {
                                 NSLog("Render mode change failed: %@", error.localizedDescription)
@@ -109,8 +99,8 @@ private final class RenderHostDelegate: NSObject, NSApplicationDelegate {
                             }
                         }
                     },
-                    onStop: { [weak self] in
-                        self?.markIntentionalStop(workspace: workspace)
+                    onStop: {
+                        hostSession.markIntentionalStop()
                         NSApp.terminate(nil)
                     }
                 )
@@ -129,10 +119,10 @@ private final class RenderHostDelegate: NSObject, NSApplicationDelegate {
                 next.width = contentSize.width
                 next.height = contentSize.height
                 preferencesModel.value = next
-                self.savePreferences(next, workspace: workspace)
-                self.worker?.render(
-                    mode: self.effectiveMode(preferences: next, manifest: manifest, size: contentSize),
-                    size: WorkerRenderSize(width: contentSize.width, height: contentSize.height)
+                hostSession.savePreferences(next)
+                hostSession.render(
+                    mode: hostSession.effectiveMode(size: contentSize),
+                    size: contentSize
                 ) { result in
                     if case .failure(let error) = result {
                         NSLog("Render resize failed: %@", error.localizedDescription)
@@ -144,38 +134,16 @@ private final class RenderHostDelegate: NSObject, NSApplicationDelegate {
             guard !preferencesModel.value.locked else { return }
             panel?.move(to: origin)
         }
-        hostedContentView.onDragEnded = { [weak self, weak panel] in
-            guard let self, let panel, !preferencesModel.value.locked else { return }
-            self.savePlacement(workspace: workspace, origin: panel.frame.origin, panel: panel)
+        hostedContentView.onDragEnded = { [weak panel] in
+            guard let panel, !preferencesModel.value.locked else { return }
+            hostSession.savePlacement(origin: panel.frame.origin, panel: panel)
         }
         let contentView = AdjustableWidgetContentView(
             hostedView: hostedContentView,
             panel: panel
         )
         panel.contentView = contentView
-        var pendingWorker: WorkerSession?
-        if let workspace {
-            let worker = WorkerSession(
-                workspace: workspace,
-                workerScript: workerScriptArgument(),
-                sourcePath: workerSourcePath(),
-                statePath: workerStatePath(),
-                treePath: workerTreePath(),
-                mode: effectiveMode(preferences: preferences, manifest: manifest, size: initialSize),
-                size: WorkerRenderSize(width: initialSize.width, height: initialSize.height)
-            )
-            worker.onTree = { [weak contentModel] tree in
-                DispatchQueue.main.async {
-                    contentModel?.tree = tree
-                }
-            }
-            worker.onFailure = { diagnostics in
-                NSLog("Render worker failure: %@", diagnostics.map(\.message).joined(separator: "; "))
-            }
-            pendingWorker = worker
-            self.worker = worker
-        }
-        if let placement = loadPlacement(workspace: workspace),
+        if let placement = hostSession.loadPlacement(),
            let screen = screen(for: placement, panel: panel) {
             panel.place(placement, on: screen)
         } else {
@@ -188,145 +156,13 @@ private final class RenderHostDelegate: NSObject, NSApplicationDelegate {
         }
         panel.orderFrontRegardless()
         self.panel = panel
-        self.providers = providers
-
-        if let pendingWorker {
-            DispatchQueue.global(qos: .userInitiated).async {
-                do {
-                    let tree = try pendingWorker.start()
-                    DispatchQueue.main.async {
-                        contentModel.tree = tree
-                    }
-                } catch {
-                    pendingWorker.recordInitialFailure(error)
-                    NSLog("Render worker failed to start: %@", error.localizedDescription)
-                }
-            }
-        }
+        self.session = hostSession
+        hostSession.startWorker()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
         if let resizeObserver { NotificationCenter.default.removeObserver(resizeObserver) }
-        worker?.stop()
-    }
-
-    private func loadTree(workspace: String?) -> WidgetTree {
-        guard
-            let workspace,
-            let data = try? Data(contentsOf: URL(fileURLWithPath: workspace).appendingPathComponent(".render/runtime/tree.json")),
-            let tree = try? JSONDecoder().decode(WidgetTree.self, from: data),
-            tree.validationIssues().isEmpty
-        else {
-            return WidgetTree(
-                kind: .column,
-                children: [
-                    WidgetTree(kind: .text, text: "Render"),
-                    WidgetTree(kind: .text, text: "Native host online")
-                ],
-                style: WidgetStyle(width: 320, height: 180, color: "#1565c0")
-            )
-        }
-        return tree
-    }
-
-    private func loadManifest(workspace: String?) -> RuntimeManifest {
-        guard
-            let workspace,
-            let data = try? Data(contentsOf: URL(fileURLWithPath: workspace).appendingPathComponent(".render/runtime/manifest.json")),
-            let manifest = try? JSONDecoder().decode(RuntimeManifest.self, from: data)
-        else {
-            return .fallback
-        }
-        return manifest
-    }
-
-    private func loadPlacement(workspace: String?) -> WidgetPlacement? {
-        guard
-            let workspace,
-            let data = try? Data(contentsOf: placementURL(workspace: workspace))
-        else {
-            return nil
-        }
-        return try? JSONDecoder().decode(WidgetPlacement.self, from: data)
-    }
-
-    private func savePlacement(workspace: String?, origin: NSPoint, panel: DesktopWidgetPanel) {
-        guard
-            let workspace,
-            let screen = panel.screen(containing: origin),
-            let screenID = panel.displayID(for: screen)
-        else {
-            return
-        }
-
-        let placement = WidgetPlacement(
-            screenID: screenID,
-            originX: origin.x,
-            originY: origin.y
-        )
-        guard let data = try? JSONEncoder().encode(placement) else { return }
-        try? data.write(to: placementURL(workspace: workspace), options: .atomic)
-    }
-
-    private func loadPreferences(workspace: String?, manifest: RuntimeManifest) -> WidgetPreferences {
-        let fallback = WidgetPreferences.defaults
-        guard let workspace,
-              let data = try? Data(contentsOf: preferencesURL(workspace: workspace)),
-              let preferences = try? JSONDecoder().decode(WidgetPreferences.self, from: data)
-        else { return fallback }
-        guard let responsive = manifest.adjustable?.responsive,
-              preferences.mode != "auto",
-              responsive.modes[preferences.mode] == nil
-        else { return preferences }
-        var recovered = preferences
-        recovered.mode = "auto"
-        return recovered
-    }
-
-    private func savePreferences(_ preferences: WidgetPreferences, workspace: String?) {
-        guard let workspace, let data = try? JSONEncoder().encode(preferences) else { return }
-        try? data.write(to: preferencesURL(workspace: workspace), options: .atomic)
-    }
-
-    private func markIntentionalStop(workspace: String?) {
-        guard let workspace else { return }
-        let metadataURL = URL(fileURLWithPath: workspace).appendingPathComponent(".render/metadata.json")
-        guard
-            let data = try? Data(contentsOf: metadataURL),
-            var metadata = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
-        else { return }
-
-        metadata["status"] = "stopped"
-        metadata["running"] = false
-        metadata["stopRequested"] = true
-        metadata["processId"] = NSNull()
-        metadata["workerProcessId"] = NSNull()
-        metadata["workerStatePath"] = NSNull()
-        metadata["lastTransitionAt"] = ISO8601DateFormatter().string(from: Date())
-        guard let nextData = try? JSONSerialization.data(withJSONObject: metadata, options: [.prettyPrinted, .sortedKeys]) else { return }
-        try? nextData.write(to: metadataURL, options: .atomic)
-    }
-
-    private func renderSize(preferences: WidgetPreferences, panel: DesktopWidgetPanel?, manifest: RuntimeManifest) -> NSSize {
-        if let panel {
-            return panel.contentRect(forFrameRect: panel.frame).size
-        }
-        return NSSize(
-            width: preferences.width ?? manifest.size.width,
-            height: preferences.height ?? manifest.size.height
-        )
-    }
-
-    private func effectiveMode(preferences: WidgetPreferences, manifest: RuntimeManifest, size: NSSize) -> String {
-        guard preferences.mode == "auto", let responsive = manifest.adjustable?.responsive else {
-            return preferences.mode
-        }
-        let fitting = responsive.modes
-            .filter { size.width >= $0.value.minWidth && size.height >= $0.value.minHeight }
-            .max { lhs, rhs in
-                (lhs.value.minWidth + lhs.value.minHeight) < (rhs.value.minWidth + rhs.value.minHeight)
-            }
-        return fitting?.key ?? responsive.defaultMode
+        session?.stop()
     }
 
     private func screen(for placement: WidgetPlacement, panel: DesktopWidgetPanel) -> NSScreen? {
@@ -336,14 +172,6 @@ private final class RenderHostDelegate: NSObject, NSApplicationDelegate {
         }
         return panel.screen(containing: NSPoint(x: placement.originX, y: placement.originY))
             ?? NSScreen.screens.first
-    }
-
-    private func placementURL(workspace: String) -> URL {
-        URL(fileURLWithPath: workspace).appendingPathComponent(".render/runtime/placement.json")
-    }
-
-    private func preferencesURL(workspace: String) -> URL {
-        URL(fileURLWithPath: workspace).appendingPathComponent(".render/runtime/preferences.json")
     }
 
     private func workspaceArgument() -> String? {
@@ -407,7 +235,16 @@ private struct WidgetTreeContainer: View {
 
     var body: some View {
         ZStack {
-            WidgetTreeView(tree: model.tree, providers: providers, interactionStore: interactionStore, theme: RenderTheme(name: selectedTheme), nodePath: "root", fillsAvailableSpace: true, onAction: onAction)
+            WidgetTreeView(
+                tree: model.tree,
+                providers: providers,
+                interactionStore: interactionStore,
+                theme: RenderTheme(name: selectedTheme),
+                nodePath: "root",
+                fillsAvailableSpace: true,
+                usesThemeOverrides: preferences.value.theme != nil,
+                onAction: onAction
+            )
             WidgetSettingsOverlay(
                 widgetName: widgetName,
                 workspace: workspace,
