@@ -3,6 +3,7 @@ import RenderHostCore
 
 struct WidgetTimerView: View {
     let path: String
+    let style: WidgetStyle?
     @ObservedObject var store: WidgetInteractionStore
 
     @State private var configuredDurationSeconds: Int
@@ -11,8 +12,9 @@ struct WidgetTimerView: View {
     @State private var endsAt: Date?
     @State private var durationText: String
 
-    init(path: String, durationSeconds: Int, store: WidgetInteractionStore) {
+    init(path: String, durationSeconds: Int, style: WidgetStyle? = nil, store: WidgetInteractionStore) {
         self.path = path
+        self.style = style
         self.store = store
         let state = store.timerState(path: path, defaultDurationSeconds: durationSeconds)
         _configuredDurationSeconds = State(initialValue: state.durationSeconds)
@@ -25,7 +27,7 @@ struct WidgetTimerView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(formattedTime)
-                .font(.system(size: 42, weight: .bold, design: .monospaced))
+                .font(.system(size: CGFloat(style?.font?.size ?? 42), weight: .bold, design: .monospaced))
                 .frame(maxWidth: .infinity, alignment: .center)
             HStack(spacing: 8) {
                 Button(running ? "Pause" : "Start") {
