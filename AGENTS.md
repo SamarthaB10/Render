@@ -54,14 +54,6 @@ Candidate Widget changes must be validated before promotion. A failed candidate 
 
 The SDK-only rule applies to Widget authors. Agents changing Render itself may add primitives or providers, but only through the public catalog and its complete validation, runtime, documentation, and test surface. Do not solve a platform gap by putting platform code in an individual Widget.
 
-### Protect local state
-
-Never stage, overwrite, delete, or reformat user-owned Widget workspaces, generated files, secrets, or unrelated local changes unless the task names the exact target. Keep temporary work isolated and remove it through a recoverable path when possible. Repository edits must not silently include local runtime artifacts.
-
-### Capabilities are explicit
-
-Use only the capabilities declared by the Widget and allowed by the Render contract. Network access, filesystem access, app launching, commands, and other machine effects must remain visible and permission-based. Do not turn a prototype shortcut into an implicit capability.
-
 ### Boil the ocean
 
 When planning, do not be afraid to suggest seemingly insane solutions. We effectively have to rethink and rebuild what it means to make a desktop widget platform. The bar is an amazing developer experience without giving up performance: TSX familiarity for developers and agents who know the web, with efficiency that beats the native incumbents.
@@ -95,32 +87,4 @@ Good code is the simplest thing that delivers full functionality and performance
 
 These principles are strong defaults, not decoration. If a necessary platform change conflicts with one, state the conflict, explain the tradeoff, and get explicit approval before deviating. The SDK boundary for normal Widget work and the last-known-good invariant are not optional shortcuts.
 
-## Working with the repository
-
-Before changing code, inspect the applicable guidance, domain glossary, repository status, current branch, and relevant execution path. Identify the smallest change that proves the behavior.
-
-For non-trivial work:
-
-- Keep the diff focused and preserve existing architecture and dependency choices.
-- Add or update the focused verification before calling the work complete.
-- Run the relevant CLI, native build, and test checks; report anything the environment cannot execute.
-- Review the final diff for accidental user files, generated artifacts, secrets, and unrelated edits.
-- Make failures actionable: name the operation, path, state, and next repair step. Never hide an error in a silent catch.
-
-When repository publication is in scope, create a branch from the intended destination branch, commit with a Conventional Commit message, and push the branch for review. Do not merge pull requests unless explicitly asked. The safe recovery path for source changes is a reviewable revert; Widget runtime recovery uses the last-known-good snapshot and Render rollback.
-
-## Canonical product check
-
-Render's agent experience is not complete until a fresh agent can:
-
-1. Discover the SDK and create an isolated workspace.
-2. Build a useful Widget using only catalog primitives and declared providers/capabilities.
-3. Run `check --json`, start the native Widget, and confirm it is visible on the desktop.
-4. Remix its source, move it logically and interactively, and watch a valid edit.
-5. Introduce or encounter a failed candidate and restore the last-known-good Widget without losing the active state.
-
-If this flow is awkward, opaque, or requires bespoke Widget code, treat that as a Render platform problem to fix—not as a reason to make the agent work around the SDK.
-
-## Domain context
-
-Read [docs/domain-glossary.md](docs/domain-glossary.md) before making product or runtime decisions. It defines Render's shared language for Widgets, Providers, the Renderer, Conjure/Share/Remix, portable Widget files, and system capabilities.
+#
