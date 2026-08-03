@@ -4,9 +4,11 @@ const SPOTIFY_SCOPES = new Set([
   "user-read-currently-playing",
   "user-modify-playback-state"
 ]);
+const REMINDERS_SCOPES = new Set(["reminders.read", "reminders.write"]);
 
 export const CONNECTOR_SCOPES = Object.freeze({
-  spotify: SPOTIFY_SCOPES
+  spotify: SPOTIFY_SCOPES,
+  reminders: REMINDERS_SCOPES
 });
 
 export const SUPPORTED_CONNECTORS = new Set(Object.keys(CONNECTOR_SCOPES));

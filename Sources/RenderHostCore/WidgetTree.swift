@@ -19,6 +19,8 @@ public enum WidgetNodeKind: String, Codable, Sendable {
     case grid
     case timer
     case taskList
+    case list
+    case youtubePlayer
     case scrollView
     case textEditor
     case dateTime
@@ -374,6 +376,20 @@ public struct WidgetTaskItem: Codable, Equatable, Identifiable, Sendable {
     }
 }
 
+public struct WidgetListItem: Codable, Equatable, Identifiable, Sendable {
+    public let id: String
+    public let title: String
+    public let subtitle: String?
+    public let completed: Bool
+
+    public init(id: String, title: String, subtitle: String? = nil, completed: Bool = false) {
+        self.id = id
+        self.title = title
+        self.subtitle = subtitle
+        self.completed = completed
+    }
+}
+
 public struct WidgetTree: Codable, Equatable, Sendable {
     public let kind: WidgetNodeKind
     public let key: WidgetKey?
@@ -390,6 +406,12 @@ public struct WidgetTree: Codable, Equatable, Sendable {
     public let columns: Int?
     public let durationSeconds: Int?
     public let tasks: [WidgetTaskItem]?
+    public let items: [WidgetListItem]?
+    public let videoId: String?
+    public let allowLinkInput: Bool?
+    public let autoplay: Bool?
+    public let controls: Bool?
+    public let startSeconds: Double?
     public let placeholder: String?
     public let dateTime: String?
     public let dateTimeMode: String?
@@ -410,6 +432,12 @@ public struct WidgetTree: Codable, Equatable, Sendable {
         columns: Int? = nil,
         durationSeconds: Int? = nil,
         tasks: [WidgetTaskItem]? = nil,
+        items: [WidgetListItem]? = nil,
+        videoId: String? = nil,
+        allowLinkInput: Bool? = nil,
+        autoplay: Bool? = nil,
+        controls: Bool? = nil,
+        startSeconds: Double? = nil,
         placeholder: String? = nil,
         dateTime: String? = nil,
         dateTimeMode: String? = nil
@@ -429,13 +457,19 @@ public struct WidgetTree: Codable, Equatable, Sendable {
         self.columns = columns
         self.durationSeconds = durationSeconds
         self.tasks = tasks
+        self.items = items
+        self.videoId = videoId
+        self.allowLinkInput = allowLinkInput
+        self.autoplay = autoplay
+        self.controls = controls
+        self.startSeconds = startSeconds
         self.placeholder = placeholder
         self.dateTime = dateTime
         self.dateTimeMode = dateTimeMode
     }
 
     private enum CodingKeys: String, CodingKey {
-        case kind, key, children, text, provider, style, value, maximum, orientation, name, source, action, columns, durationSeconds, tasks, placeholder, dateTime, dateTimeMode
+        case kind, key, children, text, provider, style, value, maximum, orientation, name, source, action, columns, durationSeconds, tasks, items, videoId, allowLinkInput, autoplay, controls, startSeconds, placeholder, dateTime, dateTimeMode
     }
 
     public init(from decoder: Decoder) throws {
@@ -455,6 +489,12 @@ public struct WidgetTree: Codable, Equatable, Sendable {
         columns = try container.decodeIfPresent(Int.self, forKey: .columns)
         durationSeconds = try container.decodeIfPresent(Int.self, forKey: .durationSeconds)
         tasks = try container.decodeIfPresent([WidgetTaskItem].self, forKey: .tasks)
+        items = try container.decodeIfPresent([WidgetListItem].self, forKey: .items)
+        videoId = try container.decodeIfPresent(String.self, forKey: .videoId)
+        allowLinkInput = try container.decodeIfPresent(Bool.self, forKey: .allowLinkInput)
+        autoplay = try container.decodeIfPresent(Bool.self, forKey: .autoplay)
+        controls = try container.decodeIfPresent(Bool.self, forKey: .controls)
+        startSeconds = try container.decodeIfPresent(Double.self, forKey: .startSeconds)
         placeholder = try container.decodeIfPresent(String.self, forKey: .placeholder)
         dateTime = try container.decodeIfPresent(String.self, forKey: .dateTime)
         dateTimeMode = try container.decodeIfPresent(String.self, forKey: .dateTimeMode)
@@ -496,6 +536,18 @@ public struct WidgetTree: Codable, Equatable, Sendable {
                 if task.text.isEmpty { issues.append(.init(path: "\(path).tasks[\(index)].text", message: "task text must be non-empty")) }
             }
         }
+        if kind == .list, provider == nil {
+            guard let items else {
+                issues.append(.init(path: "\(path).items", message: "list nodes require an array of items or a provider"))
+                return issues
+            }
+            var ids = Set<String>()
+            for (index, item) in items.enumerated() {
+                if item.id.isEmpty { issues.append(.init(path: "\(path).items[\(index)].id", message: "list item id must be non-empty")) }
+                if !ids.insert(item.id).inserted { issues.append(.init(path: "\(path).items[\(index)].id", message: "list item ids must be unique")) }
+                if item.title.isEmpty { issues.append(.init(path: "\(path).items[\(index)].title", message: "list item title must be non-empty")) }
+            }
+        }
         if let provider, provider.isEmpty {
             issues.append(.init(path: "\(path).provider", message: "provider name must be non-empty"))
         }
@@ -535,6 +587,27 @@ public struct WidgetTree: Codable, Equatable, Sendable {
         if kind != .grid && columns != nil { issues.append(.init(path: "\(path).columns", message: "only grid nodes may define columns")) }
         if kind != .timer && durationSeconds != nil { issues.append(.init(path: "\(path).durationSeconds", message: "only timer nodes may define durationSeconds")) }
         if kind != .taskList && tasks != nil { issues.append(.init(path: "\(path).tasks", message: "only taskList nodes may define tasks")) }
+        if kind != .list && items != nil { issues.append(.init(path: "\(path).items", message: "only list nodes may define items")) }
+        if kind == .youtubePlayer {
+            if videoId == nil && allowLinkInput != true {
+                issues.append(.init(path: "\(path).videoId", message: "YouTubePlayer requires a video ID or allowLinkInput: true"))
+                return issues
+            }
+            if let videoId, videoId.range(of: "^[A-Za-z0-9_-]{11}$", options: .regularExpression) == nil {
+                issues.append(.init(path: "\(path).videoId", message: "YouTubePlayer requires an 11-character YouTube video ID"))
+                return issues
+            }
+            if let startSeconds, startSeconds < 0 || !startSeconds.isFinite {
+                issues.append(.init(path: "\(path).startSeconds", message: "YouTubePlayer startSeconds must be a non-negative number"))
+            }
+        }
+        if kind != .youtubePlayer {
+            if videoId != nil { issues.append(.init(path: "\(path).videoId", message: "only youtubePlayer nodes may define a videoId")) }
+            if allowLinkInput != nil { issues.append(.init(path: "\(path).allowLinkInput", message: "only youtubePlayer nodes may define allowLinkInput")) }
+            if autoplay != nil { issues.append(.init(path: "\(path).autoplay", message: "only youtubePlayer nodes may define autoplay")) }
+            if controls != nil { issues.append(.init(path: "\(path).controls", message: "only youtubePlayer nodes may define controls")) }
+            if startSeconds != nil { issues.append(.init(path: "\(path).startSeconds", message: "only youtubePlayer nodes may define startSeconds")) }
+        }
         if kind != .textEditor && placeholder != nil { issues.append(.init(path: "\(path).placeholder", message: "only textEditor nodes may define a placeholder")) }
         let dateTimeKinds: Set<WidgetNodeKind> = [.dateTime, .dateTimePicker]
         if let dateTimeMode, !["date", "time", "dateTime"].contains(dateTimeMode) {

@@ -17,6 +17,8 @@ export type WidgetNodeKind =
   | "grid"
   | "timer"
   | "taskList"
+  | "list"
+  | "youtubePlayer"
   | "scrollView"
   | "textEditor"
   | "dateTime"
@@ -165,7 +167,33 @@ export type WidgetActionName =
   | "spotify.pause"
   | "spotify.next"
   | "spotify.previous"
-  | "spotify.set-volume";
+  | "spotify.set-volume"
+  | "reminders.create"
+  | "reminders.update"
+  | "reminders.complete"
+  | "reminders.delete";
+
+export interface ReminderCreateActionPayload {
+  title: string;
+  listName?: string;
+  dueDate?: string;
+}
+
+export interface ReminderUpdateActionPayload {
+  id: string;
+  title?: string;
+  dueDate?: string | null;
+  completed?: boolean;
+}
+
+export interface ReminderCompleteActionPayload {
+  id: string;
+  completed?: boolean;
+}
+
+export interface ReminderDeleteActionPayload {
+  id: string;
+}
 export type WidgetAction =
   | { type: "invoke"; name: WidgetActionName; payload?: WidgetJsonValue }
   | { type: "set"; name: WidgetActionName; value: WidgetJsonValue };
@@ -191,6 +219,12 @@ export interface WidgetNode {
   columns?: number;
   durationSeconds?: number;
   tasks?: WidgetTaskItem[];
+  items?: WidgetListItem[];
+  videoId?: string;
+  allowLinkInput?: boolean;
+  autoplay?: boolean;
+  controls?: boolean;
+  startSeconds?: number;
   placeholder?: string;
   dateTime?: string;
   dateTimeMode?: WidgetDateTimeMode;
@@ -248,8 +282,27 @@ export interface WidgetTaskItem {
   completed?: boolean;
 }
 
+export interface WidgetListItem {
+  id: string;
+  title: string;
+  subtitle?: string;
+  completed?: boolean;
+}
+
 export interface TaskListProps extends WidgetComponentProps {
   items: WidgetTaskItem[];
+}
+
+export interface ListProps extends WidgetComponentProps {
+  items: WidgetListItem[] | ProviderBinding;
+}
+
+export interface YouTubePlayerProps extends WidgetComponentProps {
+  videoId?: string;
+  allowLinkInput?: boolean;
+  autoplay?: boolean;
+  controls?: boolean;
+  startSeconds?: number;
 }
 
 export interface ShapeProps extends WidgetComponentProps {}
@@ -450,7 +503,7 @@ export function DateTimePicker(input: string | DateTimePickerProps = "", style?:
       dateTimeMode: props.mode ?? "dateTime"
     }, props.style, props.key);
   }
-  return nodeWithOptionalStyle({ kind: "dateTimePicker", dateTime: input || undefined, dateTimeMode: "dateTime" }, style);
+  return nodeWithOptionalStyle({ kind: "dateTimePicker", dateTime: typeof input === "string" && input.length > 0 ? input : undefined, dateTimeMode: "dateTime" }, style);
 }
 
 export function Toggle(checked: boolean, style?: WidgetStyle): WidgetNode;
@@ -481,6 +534,41 @@ export function TaskList(input: WidgetTaskItem[] | TaskListProps, style?: Widget
     return nodeWithOptionalStyle({ kind: "taskList", tasks: props.items.map(normalizeTask) }, props.style, props.key);
   }
   return nodeWithOptionalStyle({ kind: "taskList", tasks: (input as WidgetTaskItem[]).map(normalizeTask) }, style);
+}
+
+export function List(items: WidgetListItem[] | ProviderBinding, style?: WidgetStyle): WidgetNode;
+export function List(props: ListProps): WidgetNode;
+export function List(input: WidgetListItem[] | ProviderBinding | ListProps, style?: WidgetStyle): WidgetNode {
+  if (isProviderBinding(input)) {
+    return nodeWithOptionalStyle({ kind: "list", provider: input.name }, style);
+  }
+  if (isProps(input)) {
+    const props = input as ListProps;
+    const items = props.items;
+    return nodeWithOptionalStyle(
+      isProviderBinding(items) ? { kind: "list", provider: items.name } : { kind: "list", items: items.map(normalizeListItem) },
+      props.style,
+      props.key
+    );
+  }
+  return nodeWithOptionalStyle({ kind: "list", items: (input as WidgetListItem[]).map(normalizeListItem) }, style);
+}
+
+export function YouTubePlayer(videoId: string, style?: WidgetStyle): WidgetNode;
+export function YouTubePlayer(props: YouTubePlayerProps): WidgetNode;
+export function YouTubePlayer(input: string | YouTubePlayerProps, style?: WidgetStyle): WidgetNode {
+  if (isProps(input)) {
+    const props = input as YouTubePlayerProps;
+    return nodeWithOptionalStyle({
+      kind: "youtubePlayer",
+      ...(props.videoId === undefined ? {} : { videoId: props.videoId }),
+      allowLinkInput: props.allowLinkInput === true,
+      autoplay: props.autoplay === true,
+      controls: props.controls !== false,
+      ...(props.startSeconds === undefined ? {} : { startSeconds: props.startSeconds })
+    }, props.style, props.key);
+  }
+  return nodeWithOptionalStyle({ kind: "youtubePlayer", videoId: input as string, allowLinkInput: false, autoplay: false, controls: true }, style);
 }
 
 export function Shape(style?: WidgetStyle): WidgetNode;
@@ -633,4 +721,8 @@ function nodeWithOptionalStyle(node: WidgetNode, style?: WidgetStyle, key?: stri
 
 function normalizeTask(task: WidgetTaskItem): WidgetTaskItem {
   return { id: task.id, text: task.text, completed: task.completed === true };
+}
+
+function normalizeListItem(item: WidgetListItem): WidgetListItem {
+  return { id: item.id, title: item.title, subtitle: item.subtitle, completed: item.completed === true };
 }

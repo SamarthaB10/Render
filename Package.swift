@@ -12,7 +12,12 @@ let package = Package(
     ],
     targets: [
         .target(name: "RenderHostCore"),
-        .executableTarget(name: "RenderHost", dependencies: ["RenderHostCore"]),
+        .executableTarget(
+            name: "RenderHost",
+            dependencies: ["RenderHostCore"],
+            exclude: ["Info.plist"],
+            linkerSettings: [.linkedFramework("WebKit")]
+        ),
         .testTarget(name: "RenderHostCoreTests", dependencies: ["RenderHostCore"])
     ]
 )

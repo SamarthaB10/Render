@@ -9,13 +9,15 @@ public struct ProviderValue: Codable, Equatable, Sendable {
     public let state: ProviderState
     public let value: Double?
     public let text: String?
+    public let jsonValue: WidgetJSONValue?
     public let message: String?
 
-    public init(name: String, state: ProviderState, value: Double? = nil, text: String? = nil, message: String? = nil) {
+    public init(name: String, state: ProviderState, value: Double? = nil, text: String? = nil, jsonValue: WidgetJSONValue? = nil, message: String? = nil) {
         self.name = name
         self.state = state
         self.value = value
         self.text = text
+        self.jsonValue = jsonValue
         self.message = message
     }
 
@@ -25,6 +27,10 @@ public struct ProviderValue: Codable, Equatable, Sendable {
 
     public static func text(name: String, value: String) -> ProviderValue {
         ProviderValue(name: name, state: .available, text: value)
+    }
+
+    public static func structured(name: String, value: WidgetJSONValue) -> ProviderValue {
+        ProviderValue(name: name, state: .available, jsonValue: value)
     }
 
     public static func loading(name: String, message: String = "waiting for provider") -> ProviderValue {

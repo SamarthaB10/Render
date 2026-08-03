@@ -136,7 +136,7 @@ struct WidgetSettingsOverlay: View {
                     Image(systemName: accountIcon(accountStatus.state))
                         .foregroundColor(accountColor(accountStatus.state))
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("Spotify")
+                        Text(connectorName(accountStatus.connector))
                             .font(.subheadline.weight(.semibold))
                         Text(accountStatus.displayName ?? accountStatus.message ?? accountStatus.state.rawValue)
                             .font(.caption)
@@ -179,10 +179,10 @@ struct WidgetSettingsOverlay: View {
                 Image(systemName: "person.crop.circle.badge.checkmark")
                     .font(.title3)
                     .foregroundColor(.green)
-                Text("Connect Spotify")
+                Text("Connect \(connectorName(status.connector))")
                     .font(.headline)
             }
-            Text("This widget needs permission to read your current playback and control your Spotify player. Render keeps the account tokens in the macOS Keychain.")
+            Text(permissionDescription(for: status.connector))
                 .font(.subheadline)
                 .foregroundColor(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -225,6 +225,25 @@ struct WidgetSettingsOverlay: View {
                 .font(.caption.monospaced())
                 .lineLimit(1)
                 .truncationMode(.middle)
+        }
+    }
+
+    private func connectorName(_ connector: String) -> String {
+        switch connector {
+        case "spotify": return "Spotify"
+        case "reminders": return "Reminders"
+        default: return connector.replacingOccurrences(of: ".", with: " ").capitalized
+        }
+    }
+
+    private func permissionDescription(for connector: String) -> String {
+        switch connector {
+        case "spotify":
+            return "This widget needs permission to read your current playback and control your Spotify player. Render keeps the account tokens in the macOS Keychain."
+        case "reminders":
+            return "This widget needs permission to read and update your macOS Reminders. Render keeps EventKit objects and reminder data in the native host."
+        default:
+            return "This widget needs permission to use the \(connectorName(connector)) connector."
         }
     }
 

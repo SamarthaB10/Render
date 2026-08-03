@@ -16,16 +16,21 @@ private final class RenderHostDelegate: NSObject, NSApplicationDelegate {
         let preferences = loadPreferences(workspace: workspace, manifest: manifest)
         let preferencesModel = WidgetPreferencesModel(preferences)
         let spotify = SpotifyConnector()
+        let reminders = RemindersConnector()
         let providers = ProviderStore(
             subscriptions: Set(manifest.subscribe),
             accountRequirements: manifest.accounts,
-            spotify: spotify
+            spotify: spotify,
+            reminders: reminders
         )
         providers.start()
         let actionDispatcher = WidgetActionDispatcher(
             capabilities: manifest.capabilities,
             spotify: spotify,
-            hasSpotifyAccount: manifest.accounts.contains(where: { $0.connector == SpotifyConnector.connectorID })
+            reminders: reminders,
+            hasSpotifyAccount: manifest.accounts.contains(where: { $0.connector == SpotifyConnector.connectorID }),
+            hasRemindersAccount: manifest.accounts.contains(where: { $0.connector == RemindersConnector.connectorID && $0.scopes.contains("reminders.write") }),
+            onRemindersMutation: providers.refreshNow
         )
         let contentModel = WidgetContentModel(tree: loadTree(workspace: workspace))
         let interactionStore = WidgetInteractionStore(workspace: workspace)
@@ -82,11 +87,11 @@ private final class RenderHostDelegate: NSObject, NSApplicationDelegate {
                     },
                     onAction: actionDispatcher.dispatch,
                     onAuthorize: {
-                        guard let requirement = manifest.accounts.first(where: { $0.connector == SpotifyConnector.connectorID }) else { return }
-                        providers.setAuthorizationMessage("Opening Spotify authorization…")
+                        guard let requirement = manifest.accounts.first else { return }
+                        providers.setAuthorizationMessage("Opening \(requirement.connector) permissions…")
                         Task {
                             do {
-                                _ = try await spotify.authorize(scopes: requirement.scopes)
+                                try await providers.authorize(connector: requirement.connector, scopes: requirement.scopes)
                                 await MainActor.run {
                                     providers.setAuthorizationMessage(nil)
                                     providers.refreshNow()
@@ -382,7 +387,7 @@ private struct WidgetTreeContainer: View {
                 preferences: preferences.value,
                 onPreferencesChange: onPreferencesChange,
                 onModeChange: onModeChange,
-                accountStatus: providers.accountStatus(for: SpotifyConnector.connectorID),
+                accountStatus: providers.accountConnector.flatMap { providers.accountStatus(for: $0) },
                 authorizationMessage: providers.authorizationMessage,
                 onAuthorize: onAuthorize,
                 onStop: onStop

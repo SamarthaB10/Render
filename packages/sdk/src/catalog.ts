@@ -217,6 +217,28 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     notes: ["The native renderer owns task editing, completion, adding, removal, reordering, clear-completed, and persistence."]
   },
   {
+    name: "List",
+    kind: "primitive",
+    summary: "Native read-only list of static rows or structured provider rows",
+    importPath: SDK_PACKAGE,
+    signature: "List(items: WidgetListItem[] | ProviderBinding, style?: WidgetStyle): WidgetNode",
+    inputs: ["items", "style"],
+    example: 'List(useProvider("reminders.items"), { gap: 8 })',
+    status: "implemented",
+    notes: ["The native renderer owns row layout and structured provider decoding.", "Provider rows must be structured objects with id, title, optional subtitle, and optional completed fields.", "This slice renders rows natively; dynamic per-row actions are a later action-binding contract."]
+  },
+  {
+    name: "YouTubePlayer",
+    kind: "primitive",
+    summary: "Native embedded YouTube player with user-controlled playback",
+    importPath: SDK_PACKAGE,
+    signature: "YouTubePlayer(videoId: string, style?: WidgetStyle): WidgetNode",
+    inputs: ["videoId", "allowLinkInput", "autoplay", "controls", "startSeconds", "style"],
+    example: 'YouTubePlayer({ videoId: "M7lc1UVf-VE", allowLinkInput: true, controls: true })',
+    status: "implemented",
+    notes: ["The native renderer owns the isolated WKWebView and official YouTube embed surface.", "The manifest must declare the network capability; source defaults use 11-character YouTube video IDs only.", "Set allowLinkInput to true to show a native persisted toggle and input for pasted youtube.com or youtu.be links.", "Autoplay is opt-in and may still be restricted by macOS or YouTube playback policy."]
+  },
+  {
     name: "Shape",
     kind: "primitive",
     summary: "Rounded shape; the current native host renders it blue",
@@ -416,6 +438,46 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     notes: ["Values must be integers from 0 through 100.", "Requires the Spotify account scope user-modify-playback-state."]
   },
   {
+    name: "reminders.create",
+    kind: "action",
+    summary: "Create a macOS Reminder through the host-owned Reminders connector",
+    importPath: SDK_PACKAGE,
+    signature: 'WidgetActionName = "reminders.create"',
+    example: 'Button("Add", { type: "invoke", name: "reminders.create", payload: { title: "Review notes" } })',
+    status: "implemented",
+    notes: ["Requires a reminders account with the reminders.write scope.", "The host owns EventKit permission and never exposes the event store to widget code."]
+  },
+  {
+    name: "reminders.update",
+    kind: "action",
+    summary: "Edit a macOS Reminder title, due date, or completion state",
+    importPath: SDK_PACKAGE,
+    signature: 'WidgetActionName = "reminders.update"',
+    example: 'Button("Rename", { type: "invoke", name: "reminders.update", payload: { id: reminderId, title: "Updated" } })',
+    status: "implemented",
+    notes: ["The payload requires a reminder id and accepts title, dueDate, or completed fields."]
+  },
+  {
+    name: "reminders.complete",
+    kind: "action",
+    summary: "Complete or reopen a macOS Reminder",
+    importPath: SDK_PACKAGE,
+    signature: 'WidgetActionName = "reminders.complete"',
+    example: 'Button("Done", { type: "invoke", name: "reminders.complete", payload: { id: reminderId, completed: true } })',
+    status: "implemented",
+    notes: ["The completed field defaults to true when omitted."]
+  },
+  {
+    name: "reminders.delete",
+    kind: "action",
+    summary: "Delete a macOS Reminder through an explicit host operation",
+    importPath: SDK_PACKAGE,
+    signature: 'WidgetActionName = "reminders.delete"',
+    example: 'Button("Delete", { type: "invoke", name: "reminders.delete", payload: { id: reminderId } })',
+    status: "implemented",
+    notes: ["Requires a reminders account with the reminders.write scope."]
+  },
+  {
     name: "WidgetStyle",
     kind: "style",
     summary: "Constrained native layout, typography, color, and surface styling",
@@ -446,11 +508,53 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     kind: "type",
     summary: "Supported host action names for the active SDK version",
     importPath: SDK_PACKAGE,
-    signature: 'type WidgetActionName = "widget.refresh" | "widget.reload" | "spotify.play" | "spotify.pause" | "spotify.next" | "spotify.previous" | "spotify.set-volume"',
-    fields: ["widget.refresh", "widget.reload", "spotify.play", "spotify.pause", "spotify.next", "spotify.previous", "spotify.set-volume"],
+    signature: 'type WidgetActionName = "widget.refresh" | "widget.reload" | "spotify.play" | "spotify.pause" | "spotify.next" | "spotify.previous" | "spotify.set-volume" | "reminders.create" | "reminders.update" | "reminders.complete" | "reminders.delete"',
+    fields: ["widget.refresh", "widget.reload", "spotify.play", "spotify.pause", "spotify.next", "spotify.previous", "spotify.set-volume", "reminders.create", "reminders.update", "reminders.complete", "reminders.delete"],
     example: 'const action: WidgetActionName = "widget.refresh"',
     status: "implemented",
-    notes: ["Spotify action names are contract-only until the host connector and permission UI are implemented.", "Actions are descriptors and never executable callbacks."]
+    notes: ["Actions are descriptors and never executable callbacks.", "Connector actions require the matching manifest account requirement and host permission."]
+  },
+  {
+    name: "ReminderCreateActionPayload",
+    kind: "type",
+    summary: "Typed payload for creating a macOS Reminder",
+    importPath: SDK_PACKAGE,
+    signature: "interface ReminderCreateActionPayload { title: string; listName?: string; dueDate?: string }",
+    fields: ["title: string", "listName?: string", "dueDate?: string"],
+    example: 'const payload: ReminderCreateActionPayload = { title: "Review notes" }',
+    status: "implemented",
+    notes: ["dueDate is an ISO date-time string when supplied."]
+  },
+  {
+    name: "ReminderUpdateActionPayload",
+    kind: "type",
+    summary: "Typed payload for editing a macOS Reminder",
+    importPath: SDK_PACKAGE,
+    signature: "interface ReminderUpdateActionPayload { id: string; title?: string; dueDate?: string | null; completed?: boolean }",
+    fields: ["id: string", "title?: string", "dueDate?: string | null", "completed?: boolean"],
+    example: 'const payload: ReminderUpdateActionPayload = { id: reminderId, completed: true }',
+    status: "implemented"
+  },
+  {
+    name: "ReminderCompleteActionPayload",
+    kind: "type",
+    summary: "Typed payload for completing or reopening a macOS Reminder",
+    importPath: SDK_PACKAGE,
+    signature: "interface ReminderCompleteActionPayload { id: string; completed?: boolean }",
+    fields: ["id: string", "completed?: boolean"],
+    example: 'const payload: ReminderCompleteActionPayload = { id: reminderId }',
+    status: "implemented",
+    notes: ["completed defaults to true in the native host."]
+  },
+  {
+    name: "ReminderDeleteActionPayload",
+    kind: "type",
+    summary: "Typed payload for deleting a macOS Reminder",
+    importPath: SDK_PACKAGE,
+    signature: "interface ReminderDeleteActionPayload { id: string }",
+    fields: ["id: string"],
+    example: 'const payload: ReminderDeleteActionPayload = { id: reminderId }',
+    status: "implemented"
   },
   {
     name: "ImageSource",
@@ -470,7 +574,7 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     importPath: SDK_PACKAGE,
     signature: "interface WidgetNode { kind: WidgetNodeKind; children?: WidgetNode[]; style?: WidgetStyle; ... }",
     fields: [
-      'kind: "column" | "row" | "stack" | "box" | "scrollView" | "spacer" | "divider" | "text" | "textField" | "textEditor" | "toggle" | "timer" | "taskList" | "shape" | "icon" | "image" | "button" | "gauge" | "progress" | "grid"',
+      'kind: "column" | "row" | "stack" | "box" | "scrollView" | "spacer" | "divider" | "text" | "textField" | "textEditor" | "toggle" | "timer" | "taskList" | "list" | "youtubePlayer" | "shape" | "icon" | "image" | "button" | "gauge" | "progress" | "grid"',
       "children?: WidgetNode[]",
       "text?: string",
       "provider?: string",
@@ -484,6 +588,12 @@ const SDK_CATALOG: SdkCatalogItem[] = [
       "columns?: number",
       "durationSeconds?: number",
       "tasks?: WidgetTaskItem[]",
+      "items?: WidgetListItem[]",
+      "videoId?: string",
+      "allowLinkInput?: boolean",
+      "autoplay?: boolean",
+      "controls?: boolean",
+      "startSeconds?: number",
       "placeholder?: string",
       "dateTime?: string",
       'dateTimeMode?: "date" | "time" | "dateTime"'
@@ -497,7 +607,7 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     kind: "type",
     summary: "Allowed discriminators for declarative widget nodes",
     importPath: SDK_PACKAGE,
-    signature: 'type WidgetNodeKind = "column" | "row" | "stack" | "box" | "scrollView" | "spacer" | "divider" | "text" | "textField" | "textEditor" | "dateTime" | "dateTimePicker" | "toggle" | "timer" | "taskList" | "shape" | "icon" | "image" | "button" | "gauge" | "progress" | "grid"',
+    signature: 'type WidgetNodeKind = "column" | "row" | "stack" | "box" | "scrollView" | "spacer" | "divider" | "text" | "textField" | "textEditor" | "dateTime" | "dateTimePicker" | "toggle" | "timer" | "taskList" | "list" | "youtubePlayer" | "shape" | "icon" | "image" | "button" | "gauge" | "progress" | "grid"',
     example: 'const kind: WidgetNodeKind = "box"',
     status: "implemented"
   },
@@ -584,6 +694,28 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     notes: ["TaskList owns editing, completion, adding, and persistence; widget source supplies defaults."]
   },
   {
+    name: "WidgetListItem",
+    kind: "type",
+    summary: "Portable row shape for the generic native List primitive",
+    importPath: SDK_PACKAGE,
+    signature: "interface WidgetListItem { id: string; title: string; subtitle?: string; completed?: boolean }",
+    fields: ["id", "title", "subtitle", "completed"],
+    example: 'const row: WidgetListItem = { id: "read", title: "Read chapter 3", subtitle: "Today" }',
+    status: "implemented",
+    notes: ["The same shape is used by structured provider values such as reminders.items."]
+  },
+  {
+    name: "YouTubePlayerProps",
+    kind: "type",
+    summary: "Configuration for the native YouTubePlayer primitive",
+    importPath: SDK_PACKAGE,
+    signature: "interface YouTubePlayerProps { videoId?: string; allowLinkInput?: boolean; autoplay?: boolean; controls?: boolean; startSeconds?: number; style?: WidgetStyle }",
+    fields: ["videoId", "allowLinkInput", "autoplay", "controls", "startSeconds", "style"],
+    example: 'const player: YouTubePlayerProps = { videoId: "M7lc1UVf-VE", allowLinkInput: true, controls: true }',
+    status: "implemented",
+    notes: ["Use an 11-character YouTube video ID as the source default, or set allowLinkInput to let the user paste a youtube.com or youtu.be link. Arbitrary URLs and HTML snippets are rejected."]
+  },
+  {
     name: "WidgetDateTimeMode",
     kind: "type",
     summary: "Display components supported by date/time primitives",
@@ -647,6 +779,17 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     example: '"accounts": [{ "connector": "spotify", "scopes": ["user-read-private", "user-read-playback-state", "user-read-currently-playing", "user-modify-playback-state"] }]',
     status: "implemented",
     notes: ["Render owns OAuth, secure credential storage, refresh, and API calls.", "Raw tokens never enter widget.tsx, the worker, the declarative tree, or logs.", "Playback controls require Spotify Premium according to the provider API; unavailable states are explicit."]
+  },
+  {
+    name: "reminders",
+    kind: "connector",
+    summary: "Trusted macOS EventKit connector for reading and editing Reminders",
+    importPath: SDK_PACKAGE,
+    signature: 'accounts: [{ connector: "reminders", scopes: ["reminders.read", "reminders.write"] }]',
+    inputs: ["reminders.read", "reminders.write"],
+    example: '"accounts": [{ "connector": "reminders", "scopes": ["reminders.read", "reminders.write"] }]',
+    status: "implemented",
+    notes: ["Render requests native macOS Reminders permission only when the widget declares and uses this connector.", "The connector keeps EventKit objects and identifiers in the host; widgets receive redacted provider values and pass opaque ids back in explicit actions."]
   },
   {
     name: "WidgetDefinition",
@@ -804,6 +947,61 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     example: 'Progress(useProvider("spotify.playback.volume"), 100)',
     status: "implemented",
     notes: ['Declare "spotify.playback.volume" in the widget manifest subscribe array.', "The value is between 0 and 100 when the provider returns it."]
+  },
+  {
+    name: "reminders.account",
+    kind: "provider",
+    summary: "Redacted macOS Reminders permission state",
+    importPath: SDK_PACKAGE,
+    value: "string | loading | unavailable",
+    signature: 'useProvider("reminders.account"): ProviderBinding',
+    example: 'Text(useProvider("reminders.account"))',
+    status: "implemented",
+    notes: ['Declare "reminders.account" in the widget manifest subscribe array.', "The value never contains reminder data or EventKit objects."]
+  },
+  {
+    name: "reminders.items",
+    kind: "provider",
+    summary: "Structured macOS Reminders rows for the generic List primitive",
+    importPath: SDK_PACKAGE,
+    value: "Array<{ id: string; title: string; subtitle?: string; completed: boolean }> | loading | unavailable",
+    signature: 'useProvider("reminders.items"): ProviderBinding',
+    example: 'List(useProvider("reminders.items"))',
+    status: "implemented",
+    notes: ['Declare "reminders.items" in the widget manifest subscribe array.', "The provider never exposes EventKit objects; rows contain opaque IDs and display fields.", "Use reminders.read; dynamic row actions are not part of this slice yet."]
+  },
+  {
+    name: "reminders.incompleteCount",
+    kind: "provider",
+    summary: "Count of incomplete macOS Reminders visible to the host",
+    importPath: SDK_PACKAGE,
+    value: "number | loading | unavailable",
+    signature: 'useProvider("reminders.incompleteCount"): ProviderBinding',
+    example: 'Text(useProvider("reminders.incompleteCount"))',
+    status: "implemented",
+    notes: ['Declare "reminders.incompleteCount" in the widget manifest subscribe array.', "The count is explicit unavailable when macOS permission is denied."]
+  },
+  {
+    name: "reminders.next.title",
+    kind: "provider",
+    summary: "Title of the first incomplete macOS Reminder sorted by due date",
+    importPath: SDK_PACKAGE,
+    value: "string | loading | unavailable",
+    signature: 'useProvider("reminders.next.title"): ProviderBinding',
+    example: 'Text(useProvider("reminders.next.title"))',
+    status: "implemented",
+    notes: ['Declare "reminders.next.title" in the widget manifest subscribe array.', "The provider is unavailable when there is no incomplete reminder, rather than inventing a placeholder item."]
+  },
+  {
+    name: "reminders.next.dueDate",
+    kind: "provider",
+    summary: "ISO due date for the first incomplete macOS Reminder when one exists",
+    importPath: SDK_PACKAGE,
+    value: "string | loading | unavailable",
+    signature: 'useProvider("reminders.next.dueDate"): ProviderBinding',
+    example: 'Text(useProvider("reminders.next.dueDate"))',
+    status: "implemented",
+    notes: ['Declare "reminders.next.dueDate" in the widget manifest subscribe array.', "Reminders without a due date report an explicit unavailable value."]
   },
   {
     name: "network",
