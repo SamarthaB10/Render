@@ -35,16 +35,14 @@ enum YouTubeLinkParser {
 struct YouTubePlayerView: View {
     let path: String
     let initialVideoID: String?
-    let allowLinkInput: Bool
     let controls: Bool
     let autoplay: Bool
     let startSeconds: Double?
     @ObservedObject var store: WidgetInteractionStore
 
-    init(path: String, initialVideoID: String?, allowLinkInput: Bool, controls: Bool, autoplay: Bool, startSeconds: Double?, store: WidgetInteractionStore) {
+    init(path: String, initialVideoID: String?, controls: Bool, autoplay: Bool, startSeconds: Double?, store: WidgetInteractionStore) {
         self.path = path
         self.initialVideoID = initialVideoID
-        self.allowLinkInput = allowLinkInput
         self.controls = controls
         self.autoplay = autoplay
         self.startSeconds = startSeconds

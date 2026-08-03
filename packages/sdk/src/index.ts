@@ -566,9 +566,32 @@ export function YouTubePlayer(input: string | YouTubePlayerProps, style?: Widget
       autoplay: props.autoplay === true,
       controls: props.controls !== false,
       ...(props.startSeconds === undefined ? {} : { startSeconds: props.startSeconds })
-    }, props.style, props.key);
+    }, youtubePlayerStyle(props.style), props.key);
   }
-  return nodeWithOptionalStyle({ kind: "youtubePlayer", videoId: input as string, allowLinkInput: false, autoplay: false, controls: true }, style);
+  return nodeWithOptionalStyle({ kind: "youtubePlayer", videoId: input as string, allowLinkInput: false, autoplay: false, controls: true }, youtubePlayerStyle(style));
+}
+
+function youtubePlayerStyle(style?: WidgetStyle): WidgetStyle {
+  const radius = style?.radius ?? 16;
+  return {
+    width: 480,
+    height: 270,
+    radius,
+    ...style,
+    border: {
+      color: "#cbd5e1",
+      width: 1,
+      radius,
+      ...style?.border
+    },
+    shadow: {
+      color: "#ffffff",
+      radius: 14,
+      opacity: 0.12,
+      ...style?.shadow
+    },
+    tokens: style?.tokens ?? ["surface"]
+  };
 }
 
 export function Shape(style?: WidgetStyle): WidgetNode;

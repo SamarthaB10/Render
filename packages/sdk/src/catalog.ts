@@ -236,7 +236,7 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     inputs: ["videoId", "allowLinkInput", "autoplay", "controls", "startSeconds", "style"],
     example: 'YouTubePlayer({ videoId: "M7lc1UVf-VE", allowLinkInput: true, controls: true })',
     status: "implemented",
-    notes: ["The native renderer owns the isolated WKWebView and official YouTube embed surface.", "The manifest must declare the network capability; source defaults use 11-character YouTube video IDs only.", "Set allowLinkInput to true to expose a native persisted link editor in the widget's hover settings panel for pasted youtube.com or youtu.be links.", "Autoplay is opt-in and may still be restricted by macOS or YouTube playback policy."]
+    notes: ["The native renderer owns the isolated WKWebView and official YouTube embed surface.", "The manifest must declare the network capability; source defaults use 11-character YouTube video IDs only.", "The SDK supplies a 480x270 neutral glass surface with a 16-point radius, clipped content, border, and shadow when style fields are omitted; explicit style fields override these defaults.", "Set allowLinkInput to true to expose a native persisted link editor in the widget's hover settings panel for pasted youtube.com or youtu.be links.", "Autoplay is opt-in and may still be restricted by macOS or YouTube playback policy."]
   },
   {
     name: "Shape",
@@ -735,7 +735,7 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     fields: ["videoId", "allowLinkInput", "autoplay", "controls", "startSeconds", "style"],
     example: 'const player: YouTubePlayerProps = { videoId: "M7lc1UVf-VE", allowLinkInput: true, controls: true }',
     status: "implemented",
-    notes: ["Use an 11-character YouTube video ID as the source default, or set allowLinkInput to let the user paste a youtube.com or youtu.be link. Arbitrary URLs and HTML snippets are rejected."]
+    notes: ["Use an 11-character YouTube video ID as the source default, or set allowLinkInput to let the user paste a youtube.com or youtu.be link. Arbitrary URLs and HTML snippets are rejected.", "The native host owns link editing, media sizing, rounded clipping, glass material, border, and shadow behavior."]
   },
   {
     name: "WidgetDateTimeMode",

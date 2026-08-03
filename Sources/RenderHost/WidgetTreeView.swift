@@ -131,7 +131,6 @@ struct WidgetTreeView: View {
         case .youtubePlayer:
             return AnyView(YouTubePlayerView(path: nodePath,
                 initialVideoID: tree.videoId,
-                allowLinkInput: tree.allowLinkInput == true,
                 controls: tree.controls ?? true,
                 autoplay: tree.autoplay ?? false,
                 startSeconds: tree.startSeconds,
