@@ -109,12 +109,14 @@ node bin/render.mjs fleet stop \
   --workspace "$HOME/RenderWidgets/system-monitor" \
   --workspace "$HOME/RenderWidgets/study-timer" \
   --json
+node bin/render.mjs fleet relaunch --json
 ```
 
 This is the first fleet slice, not the final crash-isolated architecture: the
 commands orchestrate the existing per-widget host boundary. The future
 host-managed supervisor will preserve this contract while giving every widget
-its own worker process and restart policy.
+its own worker process and restart policy. `fleet relaunch` consumes the
+persisted registry, which is the lifecycle seam a future login item will call.
 
 The status response should report a running widget and, when the native supervisor is active, `worker.status` as `ready`. The widget appears on the desktop at its logical anchor. The first prototype can be dragged by the user, and its placement is persisted by the native host.
 

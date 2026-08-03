@@ -39,6 +39,8 @@ Implementation steps:
 - [x] Define a fleet lifecycle seam with explicit `run`, `status`, and `stop`
   operations over repeated isolated workspaces, plus a persisted registry and
   stale-process reconciliation.
+- [x] Add registry-backed `relaunch` so a lifecycle owner can restore all
+  registered workspaces without reconstructing their paths.
 - Define a stable widget identity, runtime directory, state file, log stream, and process record for each widget.
 - Move launch, readiness, stop, restart, health checks, and crash classification into the supervisor.
 - Ensure each worker has an independent process lifetime and that worker failure is isolated from the host and every other worker.

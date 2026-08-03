@@ -207,12 +207,15 @@ render fleet stop \
   --workspace "$HOME/RenderWidgets/system-monitor" \
   --workspace "$HOME/RenderWidgets/study-timer" \
   --json
+render fleet relaunch --json
 ```
 
 Fleet status reconciles stale process records and marks a workspace stopped
 instead of reporting a dead process as running. This is the first independent
 runtime slice; the future host-managed supervisor will retain this workspace
 and last-known-good contract while moving each widget behind its own worker.
+`fleet relaunch` consumes the persisted registry, so a future login item can
+restore registered widgets without reconstructing workspace paths.
 
 Successful edits update the existing widget in place. The first prototype is draggable; placement is persisted by the native host. The implemented local providers are `system.cpu`, `system.memory`, and `system.time`; `system.time` is rendered as the host-local clock when bound to `Text`. Spotify providers/actions are host-backed and remain explicit unavailable states until the user connects an account.
 

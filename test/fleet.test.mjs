@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { parseOptions } from "../bin/render.mjs";
-import { fleetRun, fleetStatus, fleetStop } from "../src/fleet.mjs";
+import { fleetRelaunch, fleetRun, fleetStatus, fleetStop } from "../src/fleet.mjs";
 import { initWorkspace } from "../src/workspace.mjs";
 
 test("fleet CLI options preserve repeated isolated workspaces", () => {
@@ -53,6 +53,37 @@ test("fleet runs and reports multiple independent widget workspaces", () => {
     assert.equal(stopped.ok, true);
     assert.equal(stopped.widgets.length, 2);
     assert.equal(fleetStatus([first, second], "request-fleet-status-after-stop", { statePath }).widgets.every((item) => item.state.running === false), true);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("fleet relaunch restores every registered workspace after a stop", () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "render-fleet-relaunch-"));
+  const statePath = path.join(root, "fleet.json");
+  const first = path.join(root, "first");
+  const second = path.join(root, "second");
+
+  try {
+    initWorkspace(first, "request-first");
+    initWorkspace(second, "request-second");
+    writeFileSync(path.join(first, "widget.tsx"), widgetSource("First"));
+    writeFileSync(path.join(second, "widget.tsx"), widgetSource("Second"));
+
+    fleetRun([first, second], "request-fleet-run", { hostPath: "/bin/echo", statePath });
+    fleetStop([first, second], "request-fleet-stop", { statePath });
+
+    const relaunched = fleetRelaunch("request-fleet-relaunch", {
+      hostPath: "/bin/echo",
+      statePath
+    });
+
+    assert.equal(relaunched.ok, true);
+    assert.deepEqual(relaunched.widgets.map((item) => item.workspace), [path.resolve(first), path.resolve(second)]);
+    assert.equal(relaunched.widgets.every((item) => item.running === true), true);
+
+    const fromRegistry = fleetStatus(undefined, "request-fleet-status-registry", { statePath });
+    assert.deepEqual(fromRegistry.widgets.map((item) => item.workspace), [path.resolve(first), path.resolve(second)]);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

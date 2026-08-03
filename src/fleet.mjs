@@ -18,11 +18,21 @@ export function fleetRun(workspaces, requestId = randomUUID(), options = {}) {
 
 export function fleetStatus(workspaces, requestId = randomUUID(), options = {}) {
   const roots = normalizeWorkspaces(workspaces);
-  if (roots.length === 0) return invalidFleetResult(requestId, "fleet.status", "at least one --workspace is required");
+  const targets = roots.length > 0 ? roots : registeredWorkspaces(options);
+  if (targets.length === 0) return invalidFleetResult(requestId, "fleet.status", "at least one --workspace is required or the fleet registry must contain a widget");
 
-  const widgets = roots.map((root) => reconcileStatus(root, requestId));
+  const widgets = targets.map((root) => reconcileStatus(root, requestId));
   persistRegistry(options, widgets);
   return fleetResult(requestId, "fleet.status", widgets);
+}
+
+export function fleetRelaunch(requestId = randomUUID(), options = {}) {
+  const roots = registeredWorkspaces(options);
+  if (roots.length === 0) return invalidFleetResult(requestId, "fleet.relaunch", "the fleet registry does not contain a widget workspace");
+
+  const widgets = roots.map((root) => runOne(root, requestId, options));
+  persistRegistry(options, widgets);
+  return fleetResult(requestId, "fleet.relaunch", widgets);
 }
 
 export function fleetStop(workspaces, requestId = randomUUID(), options = {}) {
@@ -117,6 +127,10 @@ function normalizeWorkspaces(workspaces) {
   return [...new Set((Array.isArray(workspaces) ? workspaces : [workspaces])
     .filter((workspace) => typeof workspace === "string" && workspace.length > 0)
     .map((workspace) => path.resolve(workspace)))];
+}
+
+function registeredWorkspaces(options) {
+  return normalizeWorkspaces(readRegistry(registryPath(options)).widgets.map((widget) => widget.workspace));
 }
 
 function registryPath(options) {
