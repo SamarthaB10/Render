@@ -54,10 +54,22 @@ final class DesktopWidgetPanel: NSPanel {
         setFrameOrigin(clampedOrigin(candidateOrigin, to: targetScreen.visibleFrame))
     }
 
-    func resizeFrame(_ candidate: NSRect) {
+    func resizeFrame(
+        _ candidate: NSRect,
+        preservingRightEdge: Bool = false,
+        preservingTopEdge: Bool = false
+    ) {
         var next = candidate
+        let candidateMaxX = candidate.maxX
+        let candidateMaxY = candidate.maxY
         next.size.width = min(max(next.width, minSize.width), maxSize.width)
         next.size.height = min(max(next.height, minSize.height), maxSize.height)
+        if preservingRightEdge {
+            next.origin.x = candidateMaxX - next.width
+        }
+        if preservingTopEdge {
+            next.origin.y = candidateMaxY - next.height
+        }
         if let screen = screen(for: next) {
             next.origin = clampedOrigin(next.origin, to: screen.visibleFrame, size: next.size)
         }

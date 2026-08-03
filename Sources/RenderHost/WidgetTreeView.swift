@@ -19,26 +19,64 @@ struct WidgetTreeView: View {
     }()
 
     var body: some View {
-        surfaceContent
-            .background(backgroundShape)
-            .overlay(borderShape)
+        Group {
+            if fillsAvailableSpace {
+                responsiveSurface
+            } else {
+                surfaceContent
+                    .background(backgroundShape)
+                    .overlay(borderShape)
+                    .shadow(
+                        color: shadowColor,
+                        radius: CGFloat(tree.style?.shadow?.radius ?? 0),
+                        x: CGFloat(tree.style?.shadow?.x ?? 0),
+                        y: CGFloat(tree.style?.shadow?.y ?? 0)
+                    )
+            }
+        }
+    }
+
+    private var responsiveSurface: some View {
+        GeometryReader { proxy in
+            let availableSize = proxy.size
+            let designedSize = CGSize(
+                width: fixedWidth ?? max(availableSize.width, 1),
+                height: fixedHeight ?? max(availableSize.height, 1)
+            )
+            let scale = WidgetFrameGeometry.fitScale(
+                designedSize: designedSize,
+                availableSize: availableSize
+            )
+
+            ZStack(alignment: .topLeading) {
+                backgroundShape
+                surfaceContent
+                    .scaleEffect(scale, anchor: .topLeading)
+                borderShape
+            }
+            .frame(width: availableSize.width, height: availableSize.height, alignment: .topLeading)
+            .clipShape(RoundedRectangle(cornerRadius: CGFloat(tree.style?.radius ?? 0), style: .continuous))
             .shadow(
                 color: shadowColor,
                 radius: CGFloat(tree.style?.shadow?.radius ?? 0),
                 x: CGFloat(tree.style?.shadow?.x ?? 0),
                 y: CGFloat(tree.style?.shadow?.y ?? 0)
             )
+        }
     }
 
     private var surfaceContent: AnyView {
         let laidOutContent = content
+            // A node's declared size includes its padding. Applying padding
+            // after the frame made the authored surface larger than the
+            // native panel and caused text to be clipped at the edges.
+            .padding(edgeInsets(tree.style?.padding))
             .frame(width: fixedWidth, height: fixedHeight, alignment: frameAlignment)
             .frame(
-                maxWidth: fillsAvailableSpace || expandsWidth ? .infinity : nil,
-                maxHeight: fillsAvailableSpace || expandsHeight ? .infinity : nil,
+                maxWidth: expandsWidth ? .infinity : nil,
+                maxHeight: expandsHeight ? .infinity : nil,
                 alignment: frameAlignment
             )
-            .padding(edgeInsets(tree.style?.padding))
             .padding(edgeInsets(tree.style?.margin))
             .opacity(tree.style?.opacity ?? 1)
             .foregroundColor(foregroundColor)

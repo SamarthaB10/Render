@@ -20,7 +20,6 @@ struct WidgetSettingsOverlay: View {
     let onAuthorize: () -> Void
     let onStop: () -> Void
 
-    @State private var isHovered = false
     @State private var isOpen = false
     @State private var showStopConfirmation = false
     @State private var showPermissionPrompt: Bool
@@ -78,11 +77,8 @@ struct WidgetSettingsOverlay: View {
     var body: some View {
         ZStack(alignment: .topTrailing) {
             Color.clear
-                .frame(width: 58, height: 58)
+                .frame(width: 52, height: 52)
                 .contentShape(Rectangle())
-                .onHover { hovering in
-                    withAnimation(.easeOut(duration: 0.16)) { isHovered = hovering }
-                }
                 .zIndex(1)
 
             if showPermissionPrompt, let accountStatus {
@@ -91,19 +87,12 @@ struct WidgetSettingsOverlay: View {
                     .zIndex(2)
             }
 
-            VStack(alignment: .trailing, spacing: 8) {
-                settingsButton
-                if isOpen {
-                    settingsPanel
-                        .transition(.opacity.combined(with: .move(edge: .top)))
-                }
-            }
+            settingsButton
             .padding(10)
-            .allowsHitTesting(isHovered || isOpen)
+            .allowsHitTesting(true)
             .zIndex(3)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-        .animation(.easeOut(duration: 0.16), value: isOpen)
         .onAppear { refreshWorkerState() }
         .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { _ in
             guard isOpen else { return }
@@ -136,97 +125,103 @@ struct WidgetSettingsOverlay: View {
         .foregroundColor(theme.primaryText)
         .background(theme.control, in: Circle())
         .overlay(Circle().stroke(theme.border, lineWidth: 0.5))
-        .opacity(isHovered || isOpen ? 1 : 0)
+        .frame(width: 32, height: 32)
         .accessibilityLabel("Widget settings")
         .accessibilityHint("Opens widget metadata, connection settings, and the stop control")
+        .popover(isPresented: $isOpen, attachmentAnchor: .point(.topTrailing), arrowEdge: .top) {
+            settingsPanel
+        }
     }
 
     private var settingsPanel: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text("Widget settings")
-                    .font(.headline)
-                Spacer(minLength: 20)
-                Button("Close") { isOpen = false }
-                    .buttonStyle(.plain)
-                    .foregroundColor(.secondary)
-            }
-
-            metadataRow("Name", widgetName)
-            metadataRow("Process", "\(ProcessInfo.processInfo.processIdentifier)")
-            metadataRow("Kill command", "kill \(ProcessInfo.processInfo.processIdentifier)")
-            metadataRow("Worker", workerState?.status ?? "unknown")
-            if let workspace {
-                metadataRow("Workspace", URL(fileURLWithPath: workspace).lastPathComponent)
-            }
-
-            if workerState?.status == "quarantined" {
-                VStack(alignment: .leading, spacing: 5) {
-                    Label("Worker paused after five restart failures", systemImage: "exclamationmark.triangle.fill")
-                        .font(.caption.weight(.semibold))
-                        .foregroundColor(.orange)
-                    Text("The last-known-good widget tree remains visible. Repair the widget, then run it again from its Render workspace.")
-                        .font(.caption2)
+        ScrollView(.vertical) {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Text("Widget settings")
+                        .font(.headline)
+                    Spacer(minLength: 20)
+                    Button("Close") { isOpen = false }
+                        .buttonStyle(.plain)
                         .foregroundColor(.secondary)
-                    if let diagnostic = workerState?.diagnostics?.last?.message {
-                        Text(diagnostic)
-                            .font(.caption2.monospaced())
+                }
+
+                metadataRow("Name", widgetName)
+                metadataRow("Process", "\(ProcessInfo.processInfo.processIdentifier)")
+                metadataRow("Kill command", "kill \(ProcessInfo.processInfo.processIdentifier)")
+                metadataRow("Worker", workerState?.status ?? "unknown")
+                if let workspace {
+                    metadataRow("Workspace", URL(fileURLWithPath: workspace).lastPathComponent)
+                }
+
+                if workerState?.status == "quarantined" {
+                    VStack(alignment: .leading, spacing: 5) {
+                        Label("Worker paused after five restart failures", systemImage: "exclamationmark.triangle.fill")
+                            .font(.caption.weight(.semibold))
+                            .foregroundColor(.orange)
+                        Text("The last-known-good widget tree remains visible. Repair the widget, then run it again from its Render workspace.")
+                            .font(.caption2)
                             .foregroundColor(.secondary)
+                        if let diagnostic = workerState?.diagnostics?.last?.message {
+                            Text(diagnostic)
+                                .font(.caption2.monospaced())
+                                .foregroundColor(.secondary)
+                        }
                     }
                 }
-            }
 
-            Divider().opacity(0.35)
+                Divider().opacity(0.35)
 
-            if let accountStatus {
-                HStack(alignment: .top, spacing: 8) {
-                    Image(systemName: accountIcon(accountStatus.state))
-                        .foregroundColor(accountColor(accountStatus.state))
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(connectorName(accountStatus.connector))
-                            .font(.subheadline.weight(.semibold))
-                        Text(accountStatus.displayName ?? accountStatus.message ?? accountStatus.state.rawValue)
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        if accountStatus.state != .connected {
-                            Button("Accept permissions") {
-                                onAuthorize()
+                if let accountStatus {
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: accountIcon(accountStatus.state))
+                            .foregroundColor(accountColor(accountStatus.state))
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(connectorName(accountStatus.connector))
+                                .font(.subheadline.weight(.semibold))
+                            Text(accountStatus.displayName ?? accountStatus.message ?? accountStatus.state.rawValue)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            if accountStatus.state != .connected {
+                                Button("Accept permissions") {
+                                    onAuthorize()
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .controlSize(.small)
                             }
-                            .buttonStyle(.borderedProminent)
-                            .controlSize(.small)
-                        }
-                        if let authorizationMessage {
-                            Text(authorizationMessage)
-                                .font(.caption2)
-                                .foregroundColor(.orange)
+                            if let authorizationMessage {
+                                Text(authorizationMessage)
+                                    .font(.caption2)
+                                    .foregroundColor(.orange)
+                            }
                         }
                     }
                 }
-            }
 
-            if let youtube, youtube.allowLinkInput {
-                Divider().opacity(0.35)
-                youtubeControls(for: youtube)
-            }
+                if let youtube, youtube.allowLinkInput {
+                    Divider().opacity(0.35)
+                    youtubeControls(for: youtube)
+                }
 
-            if let themeConfig, themeConfig.options.count > 1 {
-                Divider().opacity(0.35)
-                themeControls(themeConfig)
-            }
+                if let themeConfig, themeConfig.options.count > 1 {
+                    Divider().opacity(0.35)
+                    themeControls(themeConfig)
+                }
 
-            if adjustable?.enabled == true {
-                Divider().opacity(0.35)
-                adjustableControls
-            }
+                if adjustable?.enabled == true {
+                    Divider().opacity(0.35)
+                    adjustableControls
+                }
 
-            Button("Stop Widget", role: .destructive) {
-                showStopConfirmation = true
+                Button("Stop Widget", role: .destructive) {
+                    showStopConfirmation = true
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
             }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(14)
-        .frame(minWidth: 250, alignment: .leading)
+        .frame(width: 320, height: 420)
         .foregroundColor(theme.primaryText)
         .liquidGlassSurface(theme: theme)
     }
