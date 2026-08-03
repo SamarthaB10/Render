@@ -222,6 +222,7 @@ final class DesktopWindowPolicyTests: XCTestCase {
 
     func testPhaseNineTreeDecodesStylesActionsAndKeyTypes() throws {
         let data = Data(#"""
+        {
           "kind": "button",
           "key": 7,
           "children": [{ "kind": "icon", "name": "play.fill" }],
