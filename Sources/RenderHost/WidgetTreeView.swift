@@ -6,6 +6,7 @@ struct WidgetTreeView: View {
     let tree: WidgetTree
     @ObservedObject var providers: ProviderStore
     @ObservedObject var interactionStore: WidgetInteractionStore
+    let theme: RenderTheme
     let nodePath: String
     let fillsAvailableSpace: Bool
     var onAction: ((WidgetAction) -> Void)? = nil
@@ -53,7 +54,7 @@ struct WidgetTreeView: View {
         case .column:
             return AnyView(VStack(alignment: horizontalAlignment, spacing: gap) {
                 ForEach(tree.children.indices, id: \.self) { index in
-                    WidgetTreeView(tree: tree.children[index], providers: providers, interactionStore: interactionStore, nodePath: childPath(index), fillsAvailableSpace: false, onAction: onAction)
+                    WidgetTreeView(tree: tree.children[index], providers: providers, interactionStore: interactionStore, theme: theme, nodePath: childPath(index), fillsAvailableSpace: false, onAction: onAction)
                     if tree.style?.justifyContent == .spaceBetween && index < tree.children.count - 1 {
                         Spacer(minLength: 0)
                     }
@@ -62,7 +63,7 @@ struct WidgetTreeView: View {
         case .row:
             return AnyView(HStack(alignment: verticalAlignment, spacing: gap) {
                 ForEach(tree.children.indices, id: \.self) { index in
-                    WidgetTreeView(tree: tree.children[index], providers: providers, interactionStore: interactionStore, nodePath: childPath(index), fillsAvailableSpace: false, onAction: onAction)
+                    WidgetTreeView(tree: tree.children[index], providers: providers, interactionStore: interactionStore, theme: theme, nodePath: childPath(index), fillsAvailableSpace: false, onAction: onAction)
                     if tree.style?.justifyContent == .spaceBetween && index < tree.children.count - 1 {
                         Spacer(minLength: 0)
                     }
@@ -71,20 +72,26 @@ struct WidgetTreeView: View {
         case .stack:
             return AnyView(ZStack(alignment: frameAlignment) {
                 ForEach(tree.children.indices, id: \.self) { index in
-                    WidgetTreeView(tree: tree.children[index], providers: providers, interactionStore: interactionStore, nodePath: childPath(index), fillsAvailableSpace: false, onAction: onAction)
+                    WidgetTreeView(tree: tree.children[index], providers: providers, interactionStore: interactionStore, theme: theme, nodePath: childPath(index), fillsAvailableSpace: false, onAction: onAction)
                 }
             })
         case .box:
             return AnyView(VStack(alignment: horizontalAlignment, spacing: gap) {
                 ForEach(tree.children.indices, id: \.self) { index in
-                    WidgetTreeView(tree: tree.children[index], providers: providers, interactionStore: interactionStore, nodePath: childPath(index), fillsAvailableSpace: false, onAction: onAction)
+                    WidgetTreeView(tree: tree.children[index], providers: providers, interactionStore: interactionStore, theme: theme, nodePath: childPath(index), fillsAvailableSpace: false, onAction: onAction)
+                }
+            })
+        case .glassPanel, .mediaCard:
+            return AnyView(VStack(alignment: horizontalAlignment, spacing: gap) {
+                ForEach(tree.children.indices, id: \.self) { index in
+                    WidgetTreeView(tree: tree.children[index], providers: providers, interactionStore: interactionStore, theme: theme, nodePath: childPath(index), fillsAvailableSpace: false, onAction: onAction)
                 }
             })
         case .scrollView:
             return AnyView(SwiftUI.ScrollView(.vertical) {
                 VStack(alignment: horizontalAlignment, spacing: gap) {
                     ForEach(tree.children.indices, id: \.self) { index in
-                        WidgetTreeView(tree: tree.children[index], providers: providers, interactionStore: interactionStore, nodePath: childPath(index), fillsAvailableSpace: false, onAction: onAction)
+                        WidgetTreeView(tree: tree.children[index], providers: providers, interactionStore: interactionStore, theme: theme, nodePath: childPath(index), fillsAvailableSpace: false, onAction: onAction)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: frameAlignment)
@@ -96,7 +103,7 @@ struct WidgetTreeView: View {
                 spacing: gap
             ) {
                 ForEach(tree.children.indices, id: \.self) { index in
-                    WidgetTreeView(tree: tree.children[index], providers: providers, interactionStore: interactionStore, nodePath: childPath(index), fillsAvailableSpace: false, onAction: onAction)
+                    WidgetTreeView(tree: tree.children[index], providers: providers, interactionStore: interactionStore, theme: theme, nodePath: childPath(index), fillsAvailableSpace: false, onAction: onAction)
                 }
             })
         case .spacer:
@@ -128,6 +135,8 @@ struct WidgetTreeView: View {
             return AnyView(WidgetTaskListView(path: nodePath, defaults: tree.tasks ?? [], store: interactionStore))
         case .list:
             return AnyView(WidgetListView(defaults: tree.items ?? [], provider: providerValue))
+        case .visualizer:
+            return AnyView(WidgetVisualizerView(provider: providerValue, mode: tree.visualizerMode ?? "bars", tempo: tree.visualizerTempo ?? 1, theme: theme))
         case .youtubePlayer:
             return AnyView(YouTubePlayerView(path: nodePath,
                 initialVideoID: tree.videoId,
@@ -149,7 +158,7 @@ struct WidgetTreeView: View {
             }) {
                 HStack(spacing: gap) {
                     ForEach(tree.children.indices, id: \.self) { index in
-                        WidgetTreeView(tree: tree.children[index], providers: providers, interactionStore: interactionStore, nodePath: childPath(index), fillsAvailableSpace: false, onAction: onAction)
+                        WidgetTreeView(tree: tree.children[index], providers: providers, interactionStore: interactionStore, theme: theme, nodePath: childPath(index), fillsAvailableSpace: false, onAction: onAction)
                     }
                 }
             }.disabled(tree.action == nil))
@@ -226,7 +235,14 @@ struct WidgetTreeView: View {
     private var fixedHeight: CGFloat? { points(tree.style?.height) }
     private var expandsWidth: Bool { tree.style?.width == .fill }
     private var expandsHeight: Bool { tree.style?.height == .fill }
-    private var gap: CGFloat { CGFloat(tree.style?.gap ?? ((tree.kind == .column || tree.kind == .row) ? 8 : 0)) }
+    private var gap: CGFloat {
+        if let gap = tree.style?.gap { return CGFloat(gap) }
+        switch tree.style?.density {
+        case .compact: return (tree.kind == .column || tree.kind == .row) ? 6 : 0
+        case .comfortable: return (tree.kind == .column || tree.kind == .row) ? 10 : 0
+        default: return (tree.kind == .column || tree.kind == .row) ? 8 : 0
+        }
+    }
 
     private func childPath(_ index: Int) -> String {
         let child = tree.children[index]
@@ -266,16 +282,10 @@ struct WidgetTreeView: View {
     private var foregroundColor: Color? {
         if let color = nativeColor(tree.style?.color) { return color }
         for token in tree.style?.tokens ?? [] {
-            switch token {
-            case .accent: return .accentColor
-            case .danger: return .red
-            case .success: return .green
-            case .textSecondary: return .secondary
-            case .textPrimary: return .primary
-            default: continue
-            }
+            guard isForegroundToken(token), let color = theme.color(for: token) else { continue }
+            return color
         }
-        return nil
+        return theme.primaryText
     }
 
     private var backgroundShape: AnyView {
@@ -283,19 +293,41 @@ struct WidgetTreeView: View {
         if let color = nativeColor(tree.style?.backgroundColor) {
             return AnyView(shape.fill(color))
         }
-        if tree.style?.tokens?.contains(.surfaceElevated) == true {
-            return AnyView(shape.fill(.regularMaterial))
+        if let roleColor = theme.surfaceColor(role: tree.style?.role, material: tree.style?.material) {
+            return AnyView(shape.fill(roleColor))
         }
-        if tree.style?.tokens?.contains(.surface) == true {
-            return AnyView(shape.fill(.ultraThinMaterial))
+        for token in tree.style?.tokens ?? [] {
+            guard isSurfaceToken(token), let color = theme.color(for: token) else { continue }
+            return AnyView(shape.fill(color))
+        }
+        if fillsAvailableSpace {
+            return AnyView(shape.fill(theme.surface))
         }
         return AnyView(shape.fill(.clear))
+    }
+
+    private func isForegroundToken(_ token: WidgetStyleToken) -> Bool {
+        switch token {
+        case .textPrimary, .textSecondary, .textTertiary, .accent, .accentMuted, .danger, .success, .mono:
+            return true
+        case .surface, .surfaceElevated, .surfacePanel, .surfaceControl, .surfaceStatus, .borderSubtle:
+            return false
+        }
+    }
+
+    private func isSurfaceToken(_ token: WidgetStyleToken) -> Bool {
+        switch token {
+        case .surface, .surfaceElevated, .surfacePanel, .surfaceControl, .surfaceStatus:
+            return true
+        case .textPrimary, .textSecondary, .textTertiary, .borderSubtle, .accent, .accentMuted, .danger, .success, .mono:
+            return false
+        }
     }
 
     private var borderShape: some View {
         let border = tree.style?.border
         return RoundedRectangle(cornerRadius: CGFloat(border?.radius ?? tree.style?.radius ?? 0))
-            .stroke(nativeColor(border?.color) ?? .clear, lineWidth: CGFloat(border?.width ?? 0))
+            .stroke(nativeColor(border?.color) ?? (border?.width == nil ? .clear : theme.border), lineWidth: CGFloat(border?.width ?? 0))
     }
 
     private var shadowColor: Color {
@@ -433,6 +465,72 @@ private struct WidgetListView: View {
             if case .boolean(let value) = object["completed"] { completed = value } else { completed = false }
             return WidgetListItem(id: id, title: title, subtitle: subtitle, completed: completed)
         }
+    }
+}
+
+private struct WidgetVisualizerView: View {
+    let provider: ProviderValue?
+    let mode: String
+    let tempo: Double
+    let theme: RenderTheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        Group {
+            if let provider, provider.state != .available {
+                Text(provider.state == .loading ? "Loading visualizer…" : "Visualizer unavailable")
+                    .font(.caption)
+                    .foregroundColor(theme.secondaryText)
+                    .accessibilityLabel(provider.message ?? "Visualizer unavailable")
+            } else {
+                TimelineView(.periodic(from: .now, by: 0.08)) { context in
+                    visualizer(at: isPlaying && !reduceMotion ? context.date.timeIntervalSinceReferenceDate : 0)
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Audio visualizer")
+            }
+        }
+        .frame(minHeight: 48)
+    }
+
+    @ViewBuilder
+    private func visualizer(at time: TimeInterval) -> some View {
+        switch mode {
+        case "rings":
+            ZStack {
+                ForEach(0..<3, id: \.self) { index in
+                    Circle()
+                        .stroke(theme.accent.opacity(0.36 - Double(index) * 0.08), lineWidth: 2)
+                        .scaleEffect(0.45 + CGFloat(index) * 0.22 + CGFloat(pulse(at: time, index: index)) * 0.06)
+                }
+            }
+        case "waveform":
+            HStack(alignment: .center, spacing: 3) {
+                ForEach(0..<20, id: \.self) { index in
+                    Capsule()
+                        .fill(theme.accent.opacity(0.50 + Double(index % 3) * 0.15))
+                        .frame(width: 3, height: CGFloat(10 + pulse(at: time, index: index) * 28))
+                }
+            }
+        default:
+            HStack(alignment: .bottom, spacing: 4) {
+                ForEach(0..<16, id: \.self) { index in
+                    RoundedRectangle(cornerRadius: 2, style: .continuous)
+                        .fill(theme.accent.opacity(0.52 + Double(index % 4) * 0.10))
+                        .frame(width: 5, height: CGFloat(8 + pulse(at: time, index: index) * 36))
+                }
+            }
+        }
+    }
+
+    private func pulse(at time: TimeInterval, index: Int) -> Double {
+        let phase = time * max(tempo, 0.01) * 2.4 + Double(index) * 0.62
+        return (sin(phase) + 1) / 2
+    }
+
+    private var isPlaying: Bool {
+        guard let text = provider?.text else { return true }
+        return text.caseInsensitiveCompare("playing") == .orderedSame
     }
 }
 
