@@ -41,16 +41,11 @@ final class WidgetInteractionStore: ObservableObject {
         }
     }
 
-    func timerState(path: String, durationSeconds: Int, now: Date = Date()) -> (remaining: Int, running: Bool, endsAt: Date?) {
-        guard var stored = state.timers[path] else {
-            return (durationSeconds, false, nil)
+    func timerState(path: String, defaultDurationSeconds: Int, now: Date = Date()) -> (durationSeconds: Int, remaining: Int, running: Bool, endsAt: Date?) {
+        guard let stored = state.timers[path] else {
+            return (defaultDurationSeconds, defaultDurationSeconds, false, nil)
         }
-        if stored.durationSeconds != durationSeconds {
-            stored = StoredTimer(durationSeconds: durationSeconds, remainingSeconds: durationSeconds, running: false, updatedAt: nil, endsAt: nil)
-            state.timers[path] = stored
-            persist()
-            return (durationSeconds, false, nil)
-        }
+        let durationSeconds = stored.durationSeconds > 0 ? stored.durationSeconds : defaultDurationSeconds
         var remaining = stored.remainingSeconds
         if stored.running, let endsAt = stored.endsAt {
             remaining = max(0, Int(ceil(endsAt.timeIntervalSince(now))))
@@ -61,7 +56,7 @@ final class WidgetInteractionStore: ObservableObject {
         let running = stored.running && remaining > 0
         if remaining != stored.remainingSeconds || running != stored.running {
             state.timers[path] = StoredTimer(
-                durationSeconds: stored.durationSeconds,
+                durationSeconds: durationSeconds,
                 remainingSeconds: remaining,
                 running: running,
                 updatedAt: running ? now : nil,
@@ -69,7 +64,7 @@ final class WidgetInteractionStore: ObservableObject {
             )
             persist()
         }
-        return (remaining, running, running ? stored.endsAt : nil)
+        return (durationSeconds, remaining, running, running ? stored.endsAt : nil)
     }
 
     func saveTimer(path: String, durationSeconds: Int, remaining: Int, running: Bool, endsAt: Date? = nil, now: Date = Date()) {

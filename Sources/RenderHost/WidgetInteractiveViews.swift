@@ -3,21 +3,23 @@ import RenderHostCore
 
 struct WidgetTimerView: View {
     let path: String
-    let durationSeconds: Int
     @ObservedObject var store: WidgetInteractionStore
 
+    @State private var configuredDurationSeconds: Int
     @State private var remainingSeconds: Int
     @State private var running: Bool
     @State private var endsAt: Date?
+    @State private var durationText: String
 
     init(path: String, durationSeconds: Int, store: WidgetInteractionStore) {
         self.path = path
-        self.durationSeconds = durationSeconds
         self.store = store
-        let state = store.timerState(path: path, durationSeconds: durationSeconds)
+        let state = store.timerState(path: path, defaultDurationSeconds: durationSeconds)
+        _configuredDurationSeconds = State(initialValue: state.durationSeconds)
         _remainingSeconds = State(initialValue: state.remaining)
         _running = State(initialValue: state.running)
         _endsAt = State(initialValue: state.endsAt)
+        _durationText = State(initialValue: Self.durationText(for: state.durationSeconds))
     }
 
     var body: some View {
@@ -38,7 +40,7 @@ struct WidgetTimerView: View {
                     save()
                 }
                 Button("Reset") {
-                    remainingSeconds = durationSeconds
+                    remainingSeconds = configuredDurationSeconds
                     running = false
                     endsAt = nil
                     save()
@@ -46,6 +48,13 @@ struct WidgetTimerView: View {
             }
             .buttonStyle(.bordered)
             .frame(maxWidth: .infinity)
+            HStack(spacing: 8) {
+                TextField("MM:SS", text: $durationText)
+                    .textFieldStyle(.roundedBorder)
+                Button("Set") { applyDuration() }
+                    .buttonStyle(.bordered)
+                    .disabled(parsedDuration == nil)
+            }
         }
         .onReceive(Timer.publish(every: 0.25, on: .main, in: .common).autoconnect()) { _ in
             guard running else { return }
@@ -68,11 +77,37 @@ struct WidgetTimerView: View {
     private func save() {
         store.saveTimer(
             path: path,
-            durationSeconds: durationSeconds,
+            durationSeconds: configuredDurationSeconds,
             remaining: remainingSeconds,
             running: running,
             endsAt: endsAt
         )
+    }
+
+    private var parsedDuration: Int? {
+        let parts = durationText.split(separator: ":", omittingEmptySubsequences: false)
+        if parts.count == 1, let minutes = Int(parts[0]), minutes > 0 {
+            return minutes * 60
+        }
+        guard parts.count == 2, let minutes = Int(parts[0]), let seconds = Int(parts[1]), minutes >= 0, seconds >= 0, seconds < 60 else {
+            return nil
+        }
+        let duration = minutes * 60 + seconds
+        return duration > 0 ? duration : nil
+    }
+
+    private func applyDuration() {
+        guard let duration = parsedDuration else { return }
+        configuredDurationSeconds = duration
+        remainingSeconds = duration
+        running = false
+        endsAt = nil
+        durationText = Self.durationText(for: duration)
+        save()
+    }
+
+    private static func durationText(for durationSeconds: Int) -> String {
+        String(format: "%02d:%02d", durationSeconds / 60, durationSeconds % 60)
     }
 
     private func syncFromDeadline(now: Date = Date()) {
@@ -105,6 +140,8 @@ struct WidgetTaskListView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
             ForEach($tasks) { $task in
+                let taskID = $task.wrappedValue.id
+                let taskIndex = tasks.firstIndex { $0.id == taskID } ?? 0
                 HStack(spacing: 8) {
                     Toggle("", isOn: $task.completed)
                         .labelsHidden()
@@ -116,7 +153,19 @@ struct WidgetTaskListView: View {
                         .buttonStyle(.plain)
                         .foregroundColor(.secondary)
                         .accessibilityLabel("Remove task")
+                    Button("↑") { move(taskID, by: -1) }
+                        .buttonStyle(.plain)
+                        .disabled(taskIndex == 0)
+                        .accessibilityLabel("Move task up")
+                    Button("↓") { move(taskID, by: 1) }
+                        .buttonStyle(.plain)
+                        .disabled(taskIndex == tasks.count - 1)
+                        .accessibilityLabel("Move task down")
                 }
+            }
+            if tasks.contains(where: { $0.completed }) {
+                Button("Clear completed") { tasks.removeAll { $0.completed } }
+                    .buttonStyle(.bordered)
             }
             HStack(spacing: 8) {
                 TextField("Add a task", text: $newTask)
@@ -143,6 +192,13 @@ struct WidgetTaskListView: View {
 
     private func remove(_ id: String) {
         tasks.removeAll { $0.id == id }
+    }
+
+    private func move(_ id: String, by offset: Int) {
+        guard let index = tasks.firstIndex(where: { $0.id == id }) else { return }
+        let destination = index + offset
+        guard tasks.indices.contains(destination) else { return }
+        tasks.swapAt(index, destination)
     }
 
     private func save() {

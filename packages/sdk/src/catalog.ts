@@ -181,7 +181,7 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     inputs: ["durationSeconds", "style"],
     example: "Timer(1500, { color: \"#ffffff\" })",
     status: "implemented",
-    notes: ["The native renderer owns timer controls, wall-clock recovery, and persistence."]
+    notes: ["The native renderer owns timer controls, duration editing, wall-clock recovery, and persistence. Users can enter minutes or MM:SS directly in the widget."]
   },
   {
     name: "TaskList",
@@ -192,7 +192,7 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     inputs: ["items", "style"],
     example: 'TaskList([{ id: "read", text: "Read chapter 3" }])',
     status: "implemented",
-    notes: ["The native renderer owns task editing, completion, adding, and persistence."]
+    notes: ["The native renderer owns task editing, completion, adding, removal, reordering, clear-completed, and persistence."]
   },
   {
     name: "Shape",

@@ -117,7 +117,7 @@ Do not add a primitive only because it is easy to expose. A primitive is ready w
 
 This is the prioritized SDK strategy established for the next implementation cycle. Every item remains subject to the full vertical-slice rule: TypeScript interface, catalog entry, runtime validation, native implementation, persistence semantics where relevant, accessibility behavior, tests, agent documentation, and a performance receipt.
 
-1. **Productivity foundation** — `ScrollView`, persistent multiline `TextEditor`, stable state keys, richer `TaskList` editing, configurable timer durations, date/time controls, and Reminders connector/actions.
+1. **Productivity foundation** — `ScrollView`, persistent multiline `TextEditor`, stable state keys, richer `TaskList` editing, configurable timer durations, date/time controls, and Reminders connector/actions. The scroll/editor/keyed-state slice and core task/timer editing slice are shipped on the active branch; date/time and Reminders remain next.
 2. **Media and system** — native audio/media controls, Spotify playback, CPU/RAM/network/battery providers, weather, artwork loading, app actions, and stale-data handling.
 3. **Domain connectors** — curated sports, finance, transit, and other host-owned providers using the shared authentication, permissions, freshness, caching, and error-state contracts.
 4. **Native visual system** — Liquid Glass/material surfaces, semantic themes, charts, async images, accessible transitions, and reduced-motion behavior.
