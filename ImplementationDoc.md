@@ -260,6 +260,7 @@ The first native renderer implements:
 - Host-owned adjustable sizing and responsive render context (`WidgetAdjustable`, `WidgetRenderContext`).
 - Host-owned stateful controls (`Timer`, `TaskList`, `WidgetTaskItem`) with persisted runtime interaction state.
 - Productivity foundation slice: native `ScrollView`, persistent multiline `TextEditor`, and stable keyed interaction state for future editable primitives.
+- Stateful editing deepening: `Timer` duration entry and persistence plus `TaskList` reorder and clear-completed operations are host-owned and survive relaunches.
 
 This is the first slice of a larger Render SDK. Agents compose from the SDK; they do not invent ad-hoc primitives or bypass the native renderer.
 

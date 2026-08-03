@@ -73,7 +73,7 @@ export default widget({
 
 The scaffold above is the canonical CPU/RAM example. It is also the canonical example for the first provider-backed widget path. For another composition, inspect every primitive with `render sdk describe <name> --json` and copy its documented signature and example. The current runtime supports all cataloged layout, content, control, task-list, timer, scroll, editor, and progress primitives, plus constrained typed styles and automatic TSX. `useTimer` remains cataloged for a future host-scheduled update binding; use `Timer` for a visible host-owned countdown surface. Image URL/provider sources are cataloged gaps and `render check` rejects them until their capability-backed providers ship. Every future primitive must ship as SDK type, JSX/runtime contract, catalog entry, native renderer, validation, agent documentation, focused tests, and performance evidence before the skill may use it.
 
-For stateful study or planning widgets, inspect the exact contracts before authoring:
+For stateful study or planning widgets, inspect the exact contracts before authoring. `Timer` includes an in-widget duration editor; `TaskList` includes direct editing, completion, add/remove, reorder, and clear-completed controls:
 
 ```bash
 render sdk describe Timer --json
