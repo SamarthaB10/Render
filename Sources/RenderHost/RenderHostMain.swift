@@ -105,7 +105,10 @@ private final class RenderHostDelegate: NSObject, NSApplicationDelegate {
                             }
                         }
                     },
-                    onStop: { NSApp.terminate(nil) }
+                    onStop: { [weak self] in
+                        self?.markIntentionalStop(workspace: workspace)
+                        NSApp.terminate(nil)
+                    }
                 )
             )
         )
@@ -279,6 +282,25 @@ private final class RenderHostDelegate: NSObject, NSApplicationDelegate {
     private func savePreferences(_ preferences: WidgetPreferences, workspace: String?) {
         guard let workspace, let data = try? JSONEncoder().encode(preferences) else { return }
         try? data.write(to: preferencesURL(workspace: workspace), options: .atomic)
+    }
+
+    private func markIntentionalStop(workspace: String?) {
+        guard let workspace else { return }
+        let metadataURL = URL(fileURLWithPath: workspace).appendingPathComponent(".render/metadata.json")
+        guard
+            let data = try? Data(contentsOf: metadataURL),
+            var metadata = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+        else { return }
+
+        metadata["status"] = "stopped"
+        metadata["running"] = false
+        metadata["stopRequested"] = true
+        metadata["processId"] = NSNull()
+        metadata["workerProcessId"] = NSNull()
+        metadata["workerStatePath"] = NSNull()
+        metadata["lastTransitionAt"] = ISO8601DateFormatter().string(from: Date())
+        guard let nextData = try? JSONSerialization.data(withJSONObject: metadata, options: [.prettyPrinted, .sortedKeys]) else { return }
+        try? nextData.write(to: metadataURL, options: .atomic)
     }
 
     private func renderSize(preferences: WidgetPreferences, panel: DesktopWidgetPanel?, manifest: RuntimeManifest) -> NSSize {

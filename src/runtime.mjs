@@ -157,6 +157,7 @@ export function runWorkspace(workspace, requestId = randomUUID(), options = {}) 
     ...promotion.state,
     status: "running",
     running: true,
+    stopRequested: false,
     processId: child.pid,
     workerProcessId: null,
     hostLogPath,
@@ -221,6 +222,7 @@ function runSupervisedWorkspace(root, requestId, hostPath) {
     ...promotion.state,
     status: "running",
     running: true,
+    stopRequested: false,
     processId: launched.processId,
     workerProcessId: launched.worker?.processId ?? null,
     workerStatePath: launched.workerStatePath,
@@ -553,6 +555,7 @@ export function rollbackWorkspace(workspace, version, requestId = randomUUID(), 
       ...restored.state,
       status: "running",
       running: true,
+      stopRequested: false,
       processId: launched.processId,
       workerProcessId: launched.worker?.processId ?? null,
       workerStatePath: launched.workerStatePath,
@@ -583,7 +586,7 @@ export function rollbackWorkspace(workspace, version, requestId = randomUUID(), 
     closeSync(logHandle);
   }
   child.unref();
-  updateState(root, { ...restored.state, status: "running", running: true, processId: child.pid, workerProcessId: null, hostLogPath, lastTransitionAt: new Date().toISOString() });
+  updateState(root, { ...restored.state, status: "running", running: true, stopRequested: false, processId: child.pid, workerProcessId: null, hostLogPath, lastTransitionAt: new Date().toISOString() });
   return { ...restored, running: true, processId: child.pid, hostLogPath };
 }
 
@@ -605,7 +608,7 @@ export function stopWorkspace(workspace, requestId = randomUUID()) {
     }
   }
 
-  const state = markWorkspaceStopped(root);
+  const state = markWorkspaceStopped(root, true);
   return {
     requestId,
     operation: "stop",

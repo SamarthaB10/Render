@@ -55,7 +55,7 @@ function main(args) {
 
 function monitor(options) {
   if (shuttingDown) return;
-  const registry = readRegistry(options.registryPath);
+  const registry = reconcileIntentionalStops(options, readRegistry(options.registryPath));
   const active = registry.widgets.filter((widget) => widget.running);
   if (active.length === 0) {
     writeState(options.statePath, {
@@ -93,6 +93,28 @@ function monitor(options) {
   setTimeout(() => monitor(options), options.monitorIntervalMs);
 }
 
+function reconcileIntentionalStops(options, registry) {
+  let changed = false;
+  const widgets = registry.widgets.map((widget) => {
+    if (!widget.running) return widget;
+    const status = statusWorkspace(widget.workspace, randomUUID());
+    if (!status.ok || status.state.stopRequested !== true) return widget;
+    changed = true;
+    return {
+      ...widget,
+      status: "stopped",
+      running: false,
+      processId: null,
+      workerProcessId: null,
+      updatedAt: new Date().toISOString()
+    };
+  });
+  if (!changed) return registry;
+  const next = { ...registry, widgets };
+  writeRegistry(options.registryPath, next);
+  return next;
+}
+
 function parseOptions(args) {
   const options = { monitorIntervalMs: DEFAULT_MONITOR_INTERVAL_MS };
   for (let index = 0; index < args.length; index += 1) {
@@ -112,6 +134,12 @@ function readRegistry(filePath) {
   } catch {
     return { widgets: [] };
   }
+}
+
+function writeRegistry(filePath, registry) {
+  const temporaryPath = `${filePath}.${randomUUID()}.tmp`;
+  writeFileSync(temporaryPath, `${JSON.stringify(registry, null, 2)}\n`, "utf8");
+  renameSync(temporaryPath, filePath);
 }
 
 function processIsAlive(processId) {
