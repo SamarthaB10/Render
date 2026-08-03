@@ -80,3 +80,16 @@ supported primitives, styles, providers, actions, capabilities, connectors,
 and compatibility rules. SDK, runtime, native, and agent documentation
 artifacts are generated or verified from this contract; they are not separate
 sources of truth.
+
+## Widget lifecycle state
+
+The policy state of an installed Widget: `stopped`, `candidate`, `starting`,
+`running`, `recovering`, or `quarantined`. Lifecycle state governs promotion,
+rollback, restart, and recovery while the older `status` field remains for
+compatibility.
+
+## Lifecycle receipt
+
+A durable JSONL evidence record for a lifecycle transition. It identifies the
+Widget, request, prior and next state, reason, active and last-known-good
+versions, process identity, and diagnostics.

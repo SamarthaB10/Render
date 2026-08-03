@@ -12,6 +12,7 @@ import { buildRuntimeTree } from "./runtime.mjs";
 import { transpileTsx } from "./tsx-runtime.mjs";
 import { CANONICAL_WIDGET_SOURCE } from "../packages/sdk/src/catalog.ts";
 import { readPreferences } from "./preferences.mjs";
+import { persistLifecycleState } from "./lifecycle.mjs";
 
 export function initWorkspace(workspace, requestId = randomUUID()) {
   return createWorkspace(workspace, requestId, "init");
@@ -47,13 +48,14 @@ function createWorkspace(workspace, requestId, operation) {
     processId: null,
     lastFailure: null
   };
-  writeFileSync(
-    path.join(renderRoot, "metadata.json"),
-    `${JSON.stringify(state, null, 2)}\n`,
-    "utf8"
-  );
+  const persistedState = persistLifecycleState(root, state, {
+    requestId,
+    event: "workspace.created",
+    reason: "workspace initialized",
+    to: "stopped"
+  });
 
-  return { requestId, operation, workspace: root, ok: true, state, diagnostics: [] };
+  return { requestId, operation, workspace: root, ok: true, state: persistedState, diagnostics: [] };
 }
 
 export function promoteSnapshot(workspace, requestId = randomUUID()) {
@@ -83,8 +85,13 @@ export function promoteSnapshot(workspace, requestId = randomUUID()) {
     successfulVersions: [...state.successfulVersions, version],
     lastFailure: null
   };
-  writeState(root, nextState);
-  return { requestId, operation: "promote", workspace: root, ok: true, version, snapshotPath, state: nextState, diagnostics: [] };
+  const persistedState = writeState(root, nextState, {
+    requestId,
+    event: "snapshot.promoted",
+    reason: "validated candidate snapshot was promoted",
+    to: "candidate"
+  });
+  return { requestId, operation: "promote", workspace: root, ok: true, version, snapshotPath, state: persistedState, diagnostics: [] };
 }
 
 export function restoreSnapshot(workspace, version, requestId = randomUUID()) {
@@ -110,11 +117,16 @@ export function restoreSnapshot(workspace, version, requestId = randomUUID()) {
     lastKnownGoodVersion: version,
     lastFailure: null
   };
-  writeState(root, nextState);
-  return { requestId, operation: "rollback", workspace: root, ok: true, version, state: nextState, diagnostics: [] };
+  const persistedState = writeState(root, nextState, {
+    requestId,
+    event: "snapshot.restored",
+    reason: "last-known-good snapshot restored",
+    to: "recovering"
+  });
+  return { requestId, operation: "rollback", workspace: root, ok: true, version, state: persistedState, diagnostics: [] };
 }
 
-export function recordFailure(workspace, diagnostics) {
+export function recordFailure(workspace, diagnostics, requestId = randomUUID()) {
   const root = path.resolve(workspace);
   if (!existsSync(path.join(root, ".render", "metadata.json"))) return null;
   const state = readState(root);
@@ -122,11 +134,16 @@ export function recordFailure(workspace, diagnostics) {
     ...state,
     lastFailure: { at: new Date().toISOString(), diagnostics }
   };
-  writeState(root, nextState);
-  return nextState;
+  return writeState(root, nextState, {
+    requestId,
+    event: "candidate.failed",
+    reason: "candidate validation or runtime failed",
+    to: "quarantined",
+    diagnostics
+  });
 }
 
-export function markWorkspaceStopped(workspace, intentional = false) {
+export function markWorkspaceStopped(workspace, intentional = false, requestId = randomUUID()) {
   const root = path.resolve(workspace);
   const metadataPath = path.join(root, ".render", "metadata.json");
   if (!existsSync(metadataPath)) return null;
@@ -141,8 +158,12 @@ export function markWorkspaceStopped(workspace, intentional = false) {
     workerStatePath: null,
     lastTransitionAt: new Date().toISOString()
   };
-  writeState(root, nextState);
-  return nextState;
+  return writeState(root, nextState, {
+    requestId,
+    event: intentional ? "widget.stop.requested" : "widget.stale.process",
+    reason: intentional ? "user requested widget stop" : "recorded widget process is no longer running",
+    to: "stopped"
+  });
 }
 
 export function checkWorkspace(workspace, requestId = randomUUID()) {
@@ -268,6 +289,8 @@ function readState(root) {
     stopRequested: false,
     processId: null,
     workerProcessId: null,
+    lifecycleState: "stopped",
+    lifecycleReceiptPath: null,
     hostLogPath: null,
     lastTransitionAt: null,
     lastFailure: null,
@@ -276,11 +299,8 @@ function readState(root) {
   };
 }
 
-function writeState(root, state) {
-  writeAtomically(
-    path.join(root, ".render", "metadata.json"),
-    `${JSON.stringify(state, null, 2)}\n`
-  );
+function writeState(root, state, transition = {}) {
+  return persistLifecycleState(root, state, transition);
 }
 
 function writeAtomically(filePath, data) {
