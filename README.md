@@ -325,10 +325,13 @@ Tests/                         Swift tests
 test/                          Node tests
 perf/receipts/                 Performance evidence and measured limits
 ImplementationDoc.md           Product and architecture roadmap
+FutureRoadmap.md               Post-prototype platform roadmap
 AGENTS.md                      Project rules for humans and agents
 ```
 
 Read [`ImplementationDoc.md`](ImplementationDoc.md) for the full product direction and phase history. The project is intentionally building toward crash-resistant, separately isolated widgets and a broad provider/action/capability system while keeping the first local path small and inspectable.
+
+The post-prototype platform plan is in [`FutureRoadmap.md`](FutureRoadmap.md). It covers the one-click installer, independent widget processes, seamless relaunch after login and wake, safe agent remixes, and the expansion of the native SDK primitive catalog.
 
 ## Contributing
 
