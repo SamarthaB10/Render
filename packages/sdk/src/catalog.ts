@@ -1,4 +1,4 @@
-export type SdkCatalogKind = "primitive" | "style" | "provider" | "capability" | "action" | "function" | "type";
+export type SdkCatalogKind = "primitive" | "style" | "provider" | "connector" | "capability" | "action" | "function" | "type";
 
 export const SDK_PACKAGE = "@render/sdk" as const;
 export const SDK_VERSION = "0.1.0" as const;
@@ -272,6 +272,56 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     notes: ["The native host accepts this descriptor through the explicit action boundary."]
   },
   {
+    name: "spotify.play",
+    kind: "action",
+    summary: "Request the host to resume Spotify playback",
+    importPath: SDK_PACKAGE,
+    signature: 'WidgetActionName = "spotify.play"',
+    example: 'Button("Play", { type: "invoke", name: "spotify.play" })',
+    status: "implemented",
+    notes: ["Requires the Spotify account scope user-modify-playback-state.", "The host reports authorization, Premium-account, device, rate-limit, and provider errors explicitly."]
+  },
+  {
+    name: "spotify.pause",
+    kind: "action",
+    summary: "Request the host to pause Spotify playback",
+    importPath: SDK_PACKAGE,
+    signature: 'WidgetActionName = "spotify.pause"',
+    example: 'Button("Pause", { type: "invoke", name: "spotify.pause" })',
+    status: "implemented",
+    notes: ["Requires the Spotify account scope user-modify-playback-state."]
+  },
+  {
+    name: "spotify.next",
+    kind: "action",
+    summary: "Request the host to skip to the next Spotify track",
+    importPath: SDK_PACKAGE,
+    signature: 'WidgetActionName = "spotify.next"',
+    example: 'Button("Next", { type: "invoke", name: "spotify.next" })',
+    status: "implemented",
+    notes: ["Requires the Spotify account scope user-modify-playback-state."]
+  },
+  {
+    name: "spotify.previous",
+    kind: "action",
+    summary: "Request the host to skip to the previous Spotify track",
+    importPath: SDK_PACKAGE,
+    signature: 'WidgetActionName = "spotify.previous"',
+    example: 'Button("Previous", { type: "invoke", name: "spotify.previous" })',
+    status: "implemented",
+    notes: ["Requires the Spotify account scope user-modify-playback-state."]
+  },
+  {
+    name: "spotify.set-volume",
+    kind: "action",
+    summary: "Request the host to set Spotify playback volume from 0 to 100",
+    importPath: SDK_PACKAGE,
+    signature: 'WidgetActionName = "spotify.set-volume"',
+    example: 'Button("Volume", { type: "set", name: "spotify.set-volume", value: 50 })',
+    status: "implemented",
+    notes: ["Values must be integers from 0 through 100.", "Requires the Spotify account scope user-modify-playback-state."]
+  },
+  {
     name: "WidgetStyle",
     kind: "style",
     summary: "Constrained native layout, typography, color, and surface styling",
@@ -302,11 +352,11 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     kind: "type",
     summary: "Supported host action names for the active SDK version",
     importPath: SDK_PACKAGE,
-    signature: 'type WidgetActionName = "widget.refresh" | "widget.reload"',
-    fields: ["widget.refresh", "widget.reload"],
+    signature: 'type WidgetActionName = "widget.refresh" | "widget.reload" | "spotify.play" | "spotify.pause" | "spotify.next" | "spotify.previous" | "spotify.set-volume"',
+    fields: ["widget.refresh", "widget.reload", "spotify.play", "spotify.pause", "spotify.next", "spotify.previous", "spotify.set-volume"],
     example: 'const action: WidgetActionName = "widget.refresh"',
     status: "implemented",
-    notes: ["Media, account, network, and filesystem operations are not available until their provider and permission contracts ship."]
+    notes: ["Spotify action names are contract-only until the host connector and permission UI are implemented.", "Actions are descriptors and never executable callbacks."]
   },
   {
     name: "ImageSource",
@@ -365,10 +415,66 @@ const SDK_CATALOG: SdkCatalogItem[] = [
       "size: { width: number; height: number }",
       'anchor: { corner: "top-left" | "top-right" | "bottom-left" | "bottom-right"; offset: { x: number; y: number } }',
       'capabilities: Array<"network" | "filesystem.read" | "filesystem.write">',
-      "subscribe: string[]"
+      "subscribe: string[]",
+      "accounts?: WidgetAccountRequirement[]"
     ],
-    example: 'widget({ "schemaVersion": 1, "name": "Example", "sdkVersion": "0.1.0", "size": { "width": 320, "height": 180 }, "anchor": { "corner": "top-left", "offset": { "x": 24, "y": 24 } }, "capabilities": [], "subscribe": [] }, render)',
+    example: 'widget({ "schemaVersion": 1, "name": "Example", "sdkVersion": "0.1.0", "size": { "width": 320, "height": 180 }, "anchor": { "corner": "top-left", "offset": { "x": 24, "y": 24 } }, "capabilities": [], "subscribe": [], "accounts": [] }, render)',
     notes: ["Keep manifest keys quoted so render check can provide source-oriented diagnostics."]
+  },
+  {
+    name: "WidgetAccountRequirement",
+    kind: "type",
+    summary: "Declarative request for a host-managed connector account and exact scopes",
+    importPath: SDK_PACKAGE,
+    signature: "interface WidgetAccountRequirement { connector: string; scopes: string[] }",
+    fields: ["connector", "scopes"],
+    example: 'const account: WidgetAccountRequirement = { connector: "spotify", scopes: ["user-read-playback-state"] }',
+    status: "implemented",
+    notes: ["The host owns authorization and token storage; widget code never receives raw credentials."]
+  },
+  {
+    name: "WidgetAccountState",
+    kind: "type",
+    summary: "Explicit host-owned account lifecycle state",
+    importPath: SDK_PACKAGE,
+    signature: 'type WidgetAccountState = "connected" | "needs-authorization" | "denied" | "expired" | "revoked" | "unavailable"',
+    fields: ["connected", "needs-authorization", "denied", "expired", "revoked", "unavailable"],
+    example: 'const state: WidgetAccountState = "needs-authorization"',
+    status: "implemented",
+    notes: ["A missing account must leave the widget alive with a clear host-owned connect state."]
+  },
+  {
+    name: "WidgetAccountBinding",
+    kind: "type",
+    summary: "Opaque reference to a host-managed connector account",
+    importPath: SDK_PACKAGE,
+    signature: 'interface WidgetAccountBinding { kind: "account"; connector: string }',
+    fields: ['kind: "account"', "connector"],
+    example: 'const spotify = useAccount("spotify")',
+    status: "implemented",
+    notes: ["Bindings identify a connector but never contain access or refresh tokens."]
+  },
+  {
+    name: "useAccount",
+    kind: "function",
+    summary: "Creates an opaque binding to a host-managed connector account",
+    importPath: SDK_PACKAGE,
+    signature: "useAccount(connector: string): WidgetAccountBinding",
+    inputs: ["connector"],
+    example: 'useAccount("spotify")',
+    status: "implemented",
+    notes: ["The connector must also be declared in manifest.accounts with its exact scopes."]
+  },
+  {
+    name: "spotify",
+    kind: "connector",
+    summary: "Trusted Spotify Web API connector for account identity and playback control",
+    importPath: SDK_PACKAGE,
+    signature: 'accounts: [{ connector: "spotify", scopes: string[] }]',
+    inputs: ["user-read-private", "user-read-playback-state", "user-read-currently-playing", "user-modify-playback-state"],
+    example: '"accounts": [{ "connector": "spotify", "scopes": ["user-read-private", "user-read-playback-state", "user-read-currently-playing", "user-modify-playback-state"] }]',
+    status: "implemented",
+    notes: ["Render owns OAuth, secure credential storage, refresh, and API calls.", "Raw tokens never enter widget.tsx, the worker, the declarative tree, or logs.", "Playback controls require Spotify Premium according to the provider API; unavailable states are explicit."]
   },
   {
     name: "WidgetDefinition",
@@ -404,11 +510,11 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     kind: "type",
     summary: "Serializable host-provider value envelope",
     importPath: SDK_PACKAGE,
-    signature: "interface ProviderValue { name: string; state: ProviderState; value?: number; message?: string }",
+    signature: "interface ProviderValue { name: string; state: ProviderState; value?: WidgetJsonValue; message?: string }",
     fields: ["name", "state", "value", "message"],
-    example: 'const value: ProviderValue = { name: "system.cpu", state: "loading" }',
+    example: 'const value: ProviderValue = { name: "spotify.track.title", state: "loading" }',
     status: "implemented",
-    notes: ["Available values contain a number; loading and unavailable values carry an actionable message when known."]
+    notes: ["Available values may be numeric, textual, boolean, or structured JSON; loading and unavailable values carry an actionable message when known.", "Provider payloads are host-owned and never contain credentials."]
   },
   {
     name: "WidgetCapability",
@@ -460,6 +566,72 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     example: 'Text(useProvider("system.time"))',
     status: "implemented",
     notes: ['Declare "system.time" in the widget manifest subscribe array.', "Text renders the host-local time from the provider value; use a Text node rather than Gauge or Progress.", "Render loading and unavailable states explicitly; do not substitute fake values."]
+  },
+  {
+    name: "spotify.account",
+    kind: "provider",
+    summary: "Redacted Spotify account connection state",
+    importPath: SDK_PACKAGE,
+    value: "string | loading | unavailable",
+    signature: 'useProvider("spotify.account"): ProviderBinding',
+    example: 'Text(useProvider("spotify.account"))',
+    status: "implemented",
+    notes: ['Declare "spotify.account" in the widget manifest subscribe array.', "The value is a redacted status such as Connected, Connect Spotify, or Authorization expired; raw tokens never appear."]
+  },
+  {
+    name: "spotify.track.title",
+    kind: "provider",
+    summary: "Currently playing Spotify track title",
+    importPath: SDK_PACKAGE,
+    value: "string | loading | unavailable",
+    signature: 'useProvider("spotify.track.title"): ProviderBinding',
+    example: 'Text(useProvider("spotify.track.title"))',
+    status: "implemented",
+    notes: ['Declare "spotify.track.title" in the widget manifest subscribe array.', "The host returns an explicit unavailable state when no playback is active."]
+  },
+  {
+    name: "spotify.track.artist",
+    kind: "provider",
+    summary: "Currently playing Spotify artist name",
+    importPath: SDK_PACKAGE,
+    value: "string | loading | unavailable",
+    signature: 'useProvider("spotify.track.artist"): ProviderBinding',
+    example: 'Text(useProvider("spotify.track.artist"))',
+    status: "implemented",
+    notes: ['Declare "spotify.track.artist" in the widget manifest subscribe array.']
+  },
+  {
+    name: "spotify.playback.isPlaying",
+    kind: "provider",
+    summary: "Whether Spotify playback is currently active",
+    importPath: SDK_PACKAGE,
+    value: "boolean | loading | unavailable",
+    signature: 'useProvider("spotify.playback.isPlaying"): ProviderBinding',
+    example: 'Text(useProvider("spotify.playback.isPlaying"))',
+    status: "implemented",
+    notes: ['Declare "spotify.playback.isPlaying" in the widget manifest subscribe array.']
+  },
+  {
+    name: "spotify.playback.progress",
+    kind: "provider",
+    summary: "Current Spotify track progress in milliseconds",
+    importPath: SDK_PACKAGE,
+    value: "number | loading | unavailable",
+    signature: 'useProvider("spotify.playback.progress"): ProviderBinding',
+    example: 'Progress(useProvider("spotify.playback.progress"), 100)',
+    status: "implemented",
+    notes: ['Declare "spotify.playback.progress" in the widget manifest subscribe array.', "The first host slice normalizes the displayed progress to the track duration before rendering."]
+  },
+  {
+    name: "spotify.playback.volume",
+    kind: "provider",
+    summary: "Current Spotify device volume percentage",
+    importPath: SDK_PACKAGE,
+    value: "number | loading | unavailable",
+    signature: 'useProvider("spotify.playback.volume"): ProviderBinding',
+    example: 'Progress(useProvider("spotify.playback.volume"), 100)',
+    status: "implemented",
+    notes: ['Declare "spotify.playback.volume" in the widget manifest subscribe array.', "The value is between 0 and 100 when the provider returns it."]
   },
   {
     name: "network",

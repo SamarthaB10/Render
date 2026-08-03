@@ -15,14 +15,33 @@ import { extractManifest, updateManifest, validateManifest } from "./manifest.mj
 
 // Receipt: perf/receipts/phase8-worker.json
 const SUPERVISOR_STARTUP_TIMEOUT_MS = 5000;
-const SUPPORTED_ACTIONS = new Set(["widget.refresh", "widget.reload"]);
-const SUPPORTED_PROVIDERS = new Set(["system.cpu", "system.memory", "system.time"]);
+const SUPPORTED_ACTIONS = new Set([
+  "widget.refresh",
+  "widget.reload",
+  "spotify.play",
+  "spotify.pause",
+  "spotify.next",
+  "spotify.previous",
+  "spotify.set-volume"
+]);
+const SUPPORTED_PROVIDERS = new Set([
+  "system.cpu",
+  "system.memory",
+  "system.time",
+  "spotify.account",
+  "spotify.track.title",
+  "spotify.track.artist",
+  "spotify.playback.isPlaying",
+  "spotify.playback.progress",
+  "spotify.playback.volume"
+]);
 
 export function buildRuntimeTree(source, filename = "widget.tsx") {
   const tree = buildTsxRuntimeTree(source, { sdk, filename });
   const manifest = extractManifest(source);
   const subscriptions = new Set(manifest.subscribe);
-  validateRuntimeTree(tree, "root", subscriptions, new Set(manifest.capabilities));
+  const accounts = new Set((manifest.accounts ?? []).map((account) => account.connector));
+  validateRuntimeTree(tree, "root", subscriptions, new Set(manifest.capabilities), accounts);
   return JSON.parse(JSON.stringify(tree));
 }
 
@@ -458,7 +477,7 @@ export function watchWorkspace(workspace, requestId = randomUUID(), onResult = (
   };
 }
 
-function validateRuntimeTree(node, pathName, subscriptions, capabilities) {
+function validateRuntimeTree(node, pathName, subscriptions, capabilities, accounts) {
   if (!node || typeof node !== "object") {
     throw new Error(`${pathName}: render() must return a widget node`);
   }
@@ -481,7 +500,7 @@ function validateRuntimeTree(node, pathName, subscriptions, capabilities) {
   }
   if (node.children !== undefined) {
     if (!Array.isArray(node.children)) throw new Error(`${pathName}.children: must be an array`);
-    node.children.forEach((child, index) => validateRuntimeTree(child, `${pathName}.children[${index}]`, subscriptions, capabilities));
+    node.children.forEach((child, index) => validateRuntimeTree(child, `${pathName}.children[${index}]`, subscriptions, capabilities, accounts));
   }
   if (node.provider !== undefined && (typeof node.provider !== "string" || node.provider.length === 0)) {
     throw new Error(`${pathName}.provider: provider bindings require a name`);
@@ -491,6 +510,9 @@ function validateRuntimeTree(node, pathName, subscriptions, capabilities) {
   }
   if (node.provider !== undefined && !SUPPORTED_PROVIDERS.has(node.provider)) {
     throw new Error(`${pathName}.provider: unsupported provider '${node.provider}'; use render sdk list to choose a host provider`);
+  }
+  if (node.provider?.startsWith("spotify.") && !accounts.has("spotify")) {
+    throw new Error(`${pathName}.provider: ${node.provider} requires a spotify account requirement; add manifest.accounts and ask the user for permission`);
   }
   if (node.kind === "text" && (typeof node.text !== "string" || node.text.length === 0) && node.provider === undefined) {
     throw new Error(`${pathName}.text: text nodes require text or a provider`);
@@ -525,12 +547,12 @@ function validateRuntimeTree(node, pathName, subscriptions, capabilities) {
   }
   if (node.action !== undefined) {
     if (node.kind !== "button") throw new Error(`${pathName}.action: only button nodes may define an action`);
-    validateAction(node.action, `${pathName}.action`);
+    validateAction(node.action, `${pathName}.action`, accounts);
   }
   validateStyle(node.style, `${pathName}.style`);
 }
 
-function validateAction(action, pathName) {
+function validateAction(action, pathName, accounts) {
   if (!action || typeof action !== "object" || !["invoke", "set"].includes(action.type)) {
     throw new Error(`${pathName}: action type must be invoke or set`);
   }
@@ -539,6 +561,16 @@ function validateAction(action, pathName) {
   }
   if (!SUPPORTED_ACTIONS.has(action.name)) {
     throw new Error(`${pathName}.name: unsupported action '${action.name}'; use render sdk describe WidgetActionName`);
+  }
+  if (action.name.startsWith("spotify.") && !accounts.has("spotify")) {
+    throw new Error(`${pathName}.name: ${action.name} requires a spotify account requirement; add manifest.accounts and ask the user for permission`);
+  }
+  if (action.name === "spotify.set-volume") {
+    if (action.type !== "set" || typeof action.value !== "number" || !Number.isInteger(action.value) || action.value < 0 || action.value > 100) {
+      throw new Error(`${pathName}: spotify.set-volume requires an integer set value between 0 and 100`);
+    }
+  } else if (action.type !== "invoke") {
+    throw new Error(`${pathName}: ${action.name} requires an invoke action`);
   }
   if (action.type === "invoke" && action.payload !== undefined) validateJsonValue(action.payload, `${pathName}.payload`);
   if (action.type === "set") validateJsonValue(action.value, `${pathName}.value`);

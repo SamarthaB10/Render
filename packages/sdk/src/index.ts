@@ -44,11 +44,28 @@ export type WidgetStyleToken =
 
 export type WidgetCapability = "network" | "filesystem.read" | "filesystem.write";
 export type ProviderState = "loading" | "available" | "unavailable";
+export type WidgetAccountState =
+  | "connected"
+  | "needs-authorization"
+  | "denied"
+  | "expired"
+  | "revoked"
+  | "unavailable";
+
+export interface WidgetAccountRequirement {
+  connector: string;
+  scopes: string[];
+}
+
+export interface WidgetAccountBinding {
+  kind: "account";
+  connector: string;
+}
 
 export interface ProviderValue {
   name: string;
   state: ProviderState;
-  value?: number;
+  value?: WidgetJsonValue;
   message?: string;
 }
 
@@ -106,7 +123,14 @@ export type WidgetJsonValue =
   | WidgetJsonValue[]
   | { [key: string]: WidgetJsonValue };
 
-export type WidgetActionName = "widget.refresh" | "widget.reload";
+export type WidgetActionName =
+  | "widget.refresh"
+  | "widget.reload"
+  | "spotify.play"
+  | "spotify.pause"
+  | "spotify.next"
+  | "spotify.previous"
+  | "spotify.set-volume";
 export type WidgetAction =
   | { type: "invoke"; name: WidgetActionName; payload?: WidgetJsonValue }
   | { type: "set"; name: WidgetActionName; value: WidgetJsonValue };
@@ -194,6 +218,7 @@ export interface WidgetManifest {
   };
   capabilities: WidgetCapability[];
   subscribe: string[];
+  accounts?: WidgetAccountRequirement[];
 }
 
 export interface WidgetDefinition {
@@ -204,6 +229,14 @@ export interface WidgetDefinition {
 export interface ProviderBinding {
   kind: "provider";
   name: string;
+}
+
+export function useAccount(connector: string): WidgetAccountBinding {
+  return { kind: "account", connector };
+}
+
+export function widgetAccountRequirement(connector: string, scopes: string[]): WidgetAccountRequirement {
+  return { connector, scopes: [...scopes] };
 }
 
 export interface TimerBinding {

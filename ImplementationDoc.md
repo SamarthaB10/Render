@@ -65,7 +65,7 @@ The first proof is:
 - Separate widget worker processes in the first prototype.
 - Sharing, publishing, galleries, and marketplace workflows.
 - iPhone and iPad support.
-- Spotify and other third-party APIs or network integrations in the first CPU/RAM proof; the platform boundaries must leave room for them.
+- Third-party API execution in the first CPU/RAM proof. The generic account requirement and Spotify connector now have host authorization and playback execution; a local Spotify client ID and user consent are still required for live account data.
 - Editing unrelated user projects.
 - Developer ID notarization, installer, updater, and App Store distribution.
 
@@ -191,6 +191,42 @@ export default widget(
   },
 );
 ```
+
+Authenticated widgets extend the JSON-compatible manifest with an explicit
+connector requirement. This is a declaration, not a token container:
+
+```tsx
+"accounts": [{
+  "connector": "spotify",
+  "scopes": [
+    "user-read-private",
+    "user-read-playback-state",
+    "user-read-currently-playing",
+    "user-modify-playback-state"
+  ]
+}]
+```
+
+The current branch validates this contract and exposes it through the SDK
+catalog. Spotify authorization and playback execution are intentionally not
+called implemented until the native host owns the full lifecycle.
+
+### Phase 10 source contract
+
+The supplied Spotify OpenAPI document is used to cross-check endpoint paths,
+operation IDs, request parameters, response status codes, and required scopes.
+The authoritative provider documentation is:
+
+- [Authorization Code with PKCE](https://developer.spotify.com/documentation/web-api/tutorials/code-pkce-flow)
+- [Spotify scopes](https://developer.spotify.com/documentation/web-api/concepts/scopes)
+- [Get Playback State](https://developer.spotify.com/documentation/web-api/reference/get-information-about-the-users-current-playback)
+- [Start/Resume Playback](https://developer.spotify.com/documentation/web-api/reference/start-a-users-playback)
+- [Pause Playback](https://developer.spotify.com/documentation/web-api/reference/pause-a-users-playback)
+- [Set Playback Volume](https://developer.spotify.com/documentation/web-api/reference/set-volume-for-users-playback)
+
+The first connector slice is limited to current playback, current track,
+play/pause, previous/next, and volume. RenderHost must keep access and refresh
+tokens out of widget workers, trees, logs, and agent-visible diagnostics.
 
 The exact public API is finalized by the SDK implementation, but these rules are fixed:
 
@@ -499,14 +535,13 @@ TypeScript dependency, the native tree validates and renders every listed
 node kind, provider lifecycle values are explicit, and button actions cross a
 host-owned allowlist boundary. The measured JSX fixture is recorded in
 `perf/receipts/phase9-native-jsx.json`. Asset images are supported; URL and
-provider image sources, media playback, account authentication, and external
-network/filesystem operations remain explicit deferred capability gaps.
+provider image sources, artwork retrieval, and external filesystem operations
+remain explicit deferred capability gaps.
 
 #### Explicitly deferred from Phase 9
 
-- Spotify playback, account authentication, artwork retrieval, and transport
-  actions until their provider, account, capability, permission, and native
-  action contracts exist.
+- Artwork retrieval, playlists, search, library, history, and other Spotify
+  surfaces beyond the first playback connector.
 - Arbitrary CSS, DOM compatibility, webviews, raw screen coordinates, and
   escape hatches to private native views.
 - Unbounded custom drawing, arbitrary code-driven layout, and a general
@@ -530,6 +565,36 @@ part of the Widget. It must not invent a primitive, provider, action, browser
 fallback, fake data source, or hidden capability. If a supported request needs
 network, filesystem, app, account, or other machine access, the agent declares
 the narrowest capability and asks for the user's permission before running it.
+
+### Phase 10 - Host-owned account integrations
+
+Phase 10's first vertical slice is implemented on
+`feat/integrations-auth-spotify`:
+
+- `WidgetManifest.accounts` declares a trusted connector and exact scopes.
+- `RenderHostCore` carries redacted account status only; the worker boundary
+  cannot receive access or refresh tokens.
+- `KeychainCredentialStore` persists OAuth credentials in the macOS Keychain.
+- Spotify uses Authorization Code with PKCE and an explicit
+  `http://127.0.0.1:8080` loopback callback, then refreshes access
+  tokens before playback calls. The port can be overridden with
+  `RENDER_SPOTIFY_REDIRECT_PORT` when the default is occupied.
+- Spotify Web API requests are limited to the current playback, play, pause,
+  previous, next, and volume endpoints, with explicit 401/403/429/unavailable
+  errors.
+- The native host owns Spotify providers and actions. Widgets see only text,
+  numeric, loading, or unavailable provider envelopes.
+- Missing configuration or consent keeps the widget alive and shows a
+  Render-owned connect state.
+- The hover-only gear opens a native liquid-glass settings panel with account
+  state, workspace/process metadata, `kill <pid>`, and a confirmed stop flow.
+- `DraggableHostingView` forwards native control hits so settings and playback
+  buttons do not compete with widget dragging.
+
+The remaining Phase 10 verification is an authenticated run on the target Mac
+with a configured Spotify client ID, plus native visual and performance
+receipts. The implementation is not allowed to substitute fake playback data
+when that configuration is absent.
 
 ## Acceptance checklist
 

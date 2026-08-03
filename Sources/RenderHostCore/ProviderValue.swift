@@ -8,17 +8,23 @@ public struct ProviderValue: Codable, Equatable, Sendable {
     public let name: String
     public let state: ProviderState
     public let value: Double?
+    public let text: String?
     public let message: String?
 
-    public init(name: String, state: ProviderState, value: Double? = nil, message: String? = nil) {
+    public init(name: String, state: ProviderState, value: Double? = nil, text: String? = nil, message: String? = nil) {
         self.name = name
         self.state = state
         self.value = value
+        self.text = text
         self.message = message
     }
 
     public static func available(name: String, value: Double) -> ProviderValue {
         ProviderValue(name: name, state: .available, value: value)
+    }
+
+    public static func text(name: String, value: String) -> ProviderValue {
+        ProviderValue(name: name, state: .available, text: value)
     }
 
     public static func loading(name: String, message: String = "waiting for provider") -> ProviderValue {

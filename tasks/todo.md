@@ -55,3 +55,15 @@
 Phase 9 is complete for the first vertical slice. URL/provider image sources,
 media playback, account authentication, and filesystem/network operations
 remain explicit cataloged capability gaps until their host contracts ship.
+
+## Phase 10 - Host-owned authenticated integrations
+
+- [x] Define generic connector/account requirements with exact scope strings and serializable account states.
+- [x] Validate connector requirements at the SDK/CLI boundary and publish them through `render sdk list` / `render sdk describe`.
+- [x] Add host-owned auth lifecycle state and secure credential storage without exposing tokens to widget workers.
+- [x] Add Render-owned connect/denied/unavailable UI and retry from the settings panel.
+- [x] Add Spotify PKCE authorization, refresh, current playback, track metadata, progress, volume, and playback actions.
+- [x] Add allowlisted host networking, response validation, rate-limit/error handling, and structured action results.
+- [x] Add hover-only liquid-glass settings control with a confirmed stop flow and process metadata.
+- [x] Add a canonical Spotify widget and update the Render agent skill with exact integration guidance.
+- [ ] Verify the full authenticated widget workflow with a real Spotify account and record native visual/performance receipts.

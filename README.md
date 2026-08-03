@@ -19,6 +19,9 @@ The current reference implementation is a native CPU/RAM widget. It proves the a
 - Workspace-scoped validation, running, watch mode, logical movement, snapshots, rollback, and last-known-good recovery.
 - Host-owned CPU, memory, and local-time providers.
 - Native dragging and persisted placement for the first prototype.
+- Generic host-owned account requirements with secure macOS Keychain storage.
+- A Spotify connector for current playback, track metadata, play/pause, previous/next, and volume control.
+- Render-owned Spotify permission prompt and a liquid-glass widget settings panel with metadata and a confirmed stop control.
 
 MCP is not required for this prototype. The agent boundary is the deterministic local CLI plus the checked-in widget-authoring skill. MCP can wrap that stable contract later if broader interoperability requires it.
 
@@ -132,8 +135,88 @@ The manifest is explicit:
 - `anchor` uses `top-left`, `top-right`, `bottom-left`, or `bottom-right` plus offsets. Agents should use logical anchors, never raw screen coordinates.
 - `capabilities` declares machine access such as `network`, `filesystem.read`, or `filesystem.write`.
 - `subscribe` declares host providers used by the tree.
+- `accounts` declares a trusted connector and exact OAuth scopes. RenderHost owns the browser authorization flow, refresh, and tokens.
 
 A capability declaration is not user consent. If a widget needs network, filesystem, account, or other protected access, the agent must explain the need and ask the user before using it. Never put credentials or tokens in `widget.tsx`.
+
+### Configure Spotify for local development
+
+Spotify's desktop-safe Authorization Code with PKCE flow does not need a
+client secret. Create or use a Spotify developer app, add the loopback
+redirect URI `http://127.0.0.1:8080` to its allowlist, then export its client ID
+before launching Render:
+
+```bash
+export RENDER_SPOTIFY_CLIENT_ID="your-spotify-client-id"
+```
+
+Render listens on loopback port 8080, opens the system browser, validates the
+OAuth state and PKCE callback, and stores credentials in the macOS Keychain.
+If port 8080 is occupied, set `RENDER_SPOTIFY_REDIRECT_PORT` to another local
+port and register the matching `http://127.0.0.1:<port>` URI in Spotify.
+The widget never receives an access token. If this variable is absent, Spotify
+widgets remain visible but show an explicit unavailable/connect state.
+
+The first connector asks only for playback/account scopes:
+
+```tsx
+"accounts": [{
+  "connector": "spotify",
+  "scopes": [
+    "user-read-private",
+    "user-read-playback-state",
+    "user-read-currently-playing",
+    "user-modify-playback-state"
+  ]
+}]
+```
+
+The native host uses Spotify's current playback endpoints and returns explicit
+loading, unavailable, permission, Premium-account, and rate-limit states.
+
+## Spotify widget module
+
+This is the shape an agent can generate after discovering the catalog. It is a
+TypeScript module, not a web page:
+
+```tsx
+import { Button, Column, Progress, Text, useProvider, widget } from "@render/sdk";
+
+export default widget({
+  "schemaVersion": 1,
+  "name": "Spotify Mini Player",
+  "sdkVersion": "0.1.0",
+  "size": { "width": 320, "height": 180 },
+  "anchor": { "corner": "top-left", "offset": { "x": 24, "y": 24 } },
+  "capabilities": [],
+  "subscribe": [
+    "spotify.account",
+    "spotify.track.title",
+    "spotify.track.artist",
+    "spotify.playback.isPlaying",
+    "spotify.playback.progress",
+    "spotify.playback.volume"
+  ],
+  "accounts": [{
+    "connector": "spotify",
+    "scopes": [
+      "user-read-private",
+      "user-read-playback-state",
+      "user-read-currently-playing",
+      "user-modify-playback-state"
+    ]
+  }]
+}, () => Column([
+  Text(useProvider("spotify.track.title")),
+  Text(useProvider("spotify.track.artist")),
+  Text(useProvider("spotify.playback.isPlaying")),
+  Progress(useProvider("spotify.playback.progress"), 100),
+  Progress(useProvider("spotify.playback.volume"), 100),
+  Button("Play", { type: "invoke", name: "spotify.play" }),
+  Button("Pause", { type: "invoke", name: "spotify.pause" }),
+  Button("Next", { type: "invoke", name: "spotify.next" })
+]));
+```
 
 ## How an agent should build a widget
 
@@ -197,8 +280,8 @@ The catalog also marks contract-only and planned items. Current limitations are 
 
 - `system.cpu`, `system.memory`, and `system.time` are the implemented local providers.
 - URL/provider-backed images are rejected until capability-backed providers ship; native asset images are supported.
-- Only `widget.refresh` and `widget.reload` actions are implemented.
-- Spotify playback, media controls, account authentication, network providers, and filesystem-backed data are not shipped yet.
+- Spotify is the first implemented authenticated connector. It currently covers account status, current playback metadata, play/pause, previous/next, and volume; playlists, search, library, history, and artwork retrieval are separate future connector surfaces.
+- Spotify requires a local client ID and user consent; without either, the host reports the reason instead of using fake data.
 - One active widget, local development, and a locally built host are the current scope; packaging, notarization, and distribution are future work.
 
 If the catalog cannot express a requested feature, the agent should report the missing contract instead of generating a fake integration or falling back to web technology.
