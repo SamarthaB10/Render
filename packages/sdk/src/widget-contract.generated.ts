@@ -92,3 +92,27 @@ export const WIDGET_CONNECTOR_SCOPES = {
     "reminders.write"
   ]
 } as const;
+export const WIDGET_PROVIDER_CONNECTORS = {
+  "spotify.account": "spotify",
+  "spotify.track.title": "spotify",
+  "spotify.track.artist": "spotify",
+  "spotify.playback.isPlaying": "spotify",
+  "spotify.playback.progress": "spotify",
+  "spotify.playback.volume": "spotify",
+  "reminders.account": "reminders",
+  "reminders.items": "reminders",
+  "reminders.incompleteCount": "reminders",
+  "reminders.next.title": "reminders",
+  "reminders.next.dueDate": "reminders"
+} as const;
+export const WIDGET_ACTION_CONNECTORS = {
+  "spotify.play": "spotify",
+  "spotify.pause": "spotify",
+  "spotify.next": "spotify",
+  "spotify.previous": "spotify",
+  "spotify.set-volume": "spotify",
+  "reminders.create": "reminders",
+  "reminders.update": "reminders",
+  "reminders.complete": "reminders",
+  "reminders.delete": "reminders"
+} as const;

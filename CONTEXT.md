@@ -93,3 +93,10 @@ The native host session is the deep module that owns one Widget's loaded
 manifest and tree, providers, actions, preferences, placement, worker, and
 shutdown. The AppKit delegate starts the session and composes views; it does
 not duplicate those policies.
+
+## Provider and connector registry
+
+The host-owned lookup seam generated from the canonical contract. It maps
+provider and action names to their connector and maps connector IDs to their
+typed native adapters. Spotify and Reminders are current adapters; adding a
+new integration extends the registry and contract together.

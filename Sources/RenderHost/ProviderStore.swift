@@ -8,8 +8,7 @@ final class ProviderStore: ObservableObject {
 
     private let subscriptions: Set<String>
     private let accountRequirements: [String: WidgetAccountRequirement]
-    private let spotify: SpotifyConnector
-    private let reminders: RemindersConnector
+    private let registry: RenderRegistry
     private var sampler = SystemMetricsSampler()
     private var timer: Timer?
     private var spotifySampleTask: Task<Void, Never>?
@@ -19,12 +18,12 @@ final class ProviderStore: ObservableObject {
         subscriptions: Set<String>,
         accountRequirements: [WidgetAccountRequirement] = [],
         spotify: SpotifyConnector = SpotifyConnector(),
-        reminders: RemindersConnector = RemindersConnector()
+        reminders: RemindersConnector = RemindersConnector(),
+        registry: RenderRegistry? = nil
     ) {
         self.subscriptions = subscriptions
         self.accountRequirements = Dictionary(uniqueKeysWithValues: accountRequirements.map { ($0.connector, $0) })
-        self.spotify = spotify
-        self.reminders = reminders
+        self.registry = registry ?? RenderRegistry(spotify: spotify, reminders: reminders)
     }
 
     func start() {
@@ -41,13 +40,7 @@ final class ProviderStore: ObservableObject {
 
     func accountStatus(for connector: String) -> AccountStatus? {
         guard let requirement = accountRequirements[connector] else { return nil }
-        if connector == SpotifyConnector.connectorID {
-            return spotify.status(scopes: requirement.scopes)
-        }
-        if connector == RemindersConnector.connectorID {
-            return reminders.status(scopes: requirement.scopes)
-        }
-        return AccountStatus(connector: connector, state: .unavailable, scopes: requirement.scopes, message: "connector is not available in this host")
+        return registry.connectors.status(for: connector, scopes: requirement.scopes)
     }
 
     var accountConnector: String? {
@@ -63,14 +56,7 @@ final class ProviderStore: ObservableObject {
     }
 
     func authorize(connector: String, scopes: [String]) async throws {
-        switch connector {
-        case SpotifyConnector.connectorID:
-            _ = try await spotify.authorize(scopes: scopes)
-        case RemindersConnector.connectorID:
-            _ = try await reminders.authorize(scopes: scopes)
-        default:
-            throw RemindersConnectorError.unavailable("connector '\(connector)' is not available in this host")
-        }
+        _ = try await registry.connectors.authorize(connectorID: connector, scopes: scopes)
     }
 
     deinit {
@@ -81,8 +67,8 @@ final class ProviderStore: ObservableObject {
 
     private func sample() {
         var values = sampler.sample(subscriptions: subscriptions).values
-        let hasSpotify = subscriptions.contains(where: { $0.hasPrefix("spotify.") })
-        let hasReminders = subscriptions.contains(where: { $0.hasPrefix("reminders.") })
+        let hasSpotify = subscriptions.contains(where: { registry.providers.connectorID(for: $0) == SpotifyConnector.connectorID })
+        let hasReminders = subscriptions.contains(where: { registry.providers.connectorID(for: $0) == RemindersConnector.connectorID })
         guard hasSpotify || hasReminders else {
             snapshot = ProviderSnapshot(values: values)
             return
@@ -90,7 +76,7 @@ final class ProviderStore: ObservableObject {
 
         if hasSpotify {
             let requirement = accountRequirements[SpotifyConnector.connectorID]
-            let status = spotify.status(scopes: requirement?.scopes ?? [])
+            let status = registry.connectors.status(for: SpotifyConnector.connectorID, scopes: requirement?.scopes ?? [])
             values["spotify.account"] = .text(name: "spotify.account", value: accountDisplay(status))
             for provider in subscriptions where provider.hasPrefix("spotify.") && provider != "spotify.account" {
                 values[provider] = .loading(name: provider, message: "waiting for Spotify playback")
@@ -101,7 +87,7 @@ final class ProviderStore: ObservableObject {
                 spotifySampleTask?.cancel()
                 spotifySampleTask = Task { [weak self] in
                     do {
-                        let playback = try await self?.spotify.playback()
+                        let playback = try await self?.registry.connectors.spotify.playback()
                         guard let self, let playback else { return }
                         await MainActor.run { self.apply(playback: playback) }
                     } catch {
@@ -115,9 +101,9 @@ final class ProviderStore: ObservableObject {
     }
 
     private func sampleRemindersIfNeeded() {
-        guard subscriptions.contains(where: { $0.hasPrefix("reminders.") }) else { return }
+        guard subscriptions.contains(where: { registry.providers.connectorID(for: $0) == RemindersConnector.connectorID }) else { return }
         let requirement = accountRequirements[RemindersConnector.connectorID]
-        let status = reminders.status(scopes: requirement?.scopes ?? [])
+        let status = registry.connectors.status(for: RemindersConnector.connectorID, scopes: requirement?.scopes ?? [])
         var values = snapshot.values
         values["reminders.account"] = .text(name: "reminders.account", value: accountDisplay(status))
         for provider in subscriptions where provider.hasPrefix("reminders.") && provider != "reminders.account" {
@@ -129,7 +115,7 @@ final class ProviderStore: ObservableObject {
         remindersSampleTask?.cancel()
         remindersSampleTask = Task { [weak self] in
             do {
-                let reminders = try await self?.reminders.reminders()
+                let reminders = try await self?.registry.connectors.reminders.reminders()
                 guard let self, let reminders else { return }
                 self.apply(reminders: reminders)
             } catch {

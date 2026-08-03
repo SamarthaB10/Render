@@ -6,9 +6,11 @@ import { fileURLToPath } from "node:url";
 import {
   RENDER_WIDGET_CONTRACT_VERSION,
   WIDGET_ACTION_NAMES,
+  WIDGET_ACTION_CONNECTORS,
   WIDGET_CAPABILITIES,
   WIDGET_CONNECTOR_SCOPES,
   WIDGET_NODE_KINDS,
+  WIDGET_PROVIDER_CONNECTORS,
   WIDGET_PROVIDER_NAMES
 } from "../packages/sdk/src/widget-contract.generated.ts";
 
@@ -22,5 +24,7 @@ test("canonical widget contract exposes the generated SDK surface", () => {
   assert.deepEqual(contract["x-render"].providers.map((item) => item.name), [...WIDGET_PROVIDER_NAMES]);
   assert.deepEqual(contract["x-render"].actions.map((item) => item.name), [...WIDGET_ACTION_NAMES]);
   assert.deepEqual(contract["x-render"].connectorScopes, WIDGET_CONNECTOR_SCOPES);
+  assert.deepEqual(Object.fromEntries(contract["x-render"].actions.filter((item) => item.connector).map((item) => [item.name, item.connector])), WIDGET_ACTION_CONNECTORS);
+  assert.deepEqual(Object.fromEntries(contract["x-render"].providers.filter((item) => item.connector).map((item) => [item.name, item.connector])), WIDGET_PROVIDER_CONNECTORS);
   assert.deepEqual(contract.$defs.WidgetNode.properties.kind.enum, [...WIDGET_NODE_KINDS]);
 });

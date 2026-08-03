@@ -9,6 +9,7 @@ final class WidgetHostSession {
     let interactionStore: WidgetInteractionStore
     let providers: ProviderStore
     let actionDispatcher: WidgetActionDispatcher
+    let registry: RenderRegistry
     let preferences: WidgetPreferencesModel
     let workerStatePath: String?
     private(set) var worker: WorkerSession?
@@ -30,19 +31,18 @@ final class WidgetHostSession {
 
         let spotify = SpotifyConnector()
         let reminders = RemindersConnector()
+        let registry = RenderRegistry(spotify: spotify, reminders: reminders)
+        self.registry = registry
         let providers = ProviderStore(
             subscriptions: Set(manifest.subscribe),
             accountRequirements: manifest.accounts,
-            spotify: spotify,
-            reminders: reminders
+            registry: registry
         )
         self.providers = providers
         self.actionDispatcher = WidgetActionDispatcher(
             capabilities: manifest.capabilities,
-            spotify: spotify,
-            reminders: reminders,
-            hasSpotifyAccount: manifest.accounts.contains(where: { $0.connector == SpotifyConnector.connectorID }),
-            hasRemindersAccount: manifest.accounts.contains(where: { $0.connector == RemindersConnector.connectorID && $0.scopes.contains("reminders.write") }),
+            registry: registry,
+            accountRequirements: manifest.accounts,
             onRemindersMutation: providers.refreshNow
         )
 

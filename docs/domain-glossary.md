@@ -100,3 +100,10 @@ The native host's per-Widget deep module. It owns the loaded manifest and
 tree, provider and action wiring, preferences, placement, worker, and
 shutdown. The AppKit delegate is an entrypoint and view composer, not a second
 owner of those policies.
+
+## Provider and connector registry
+
+The host-owned lookup seam generated from the canonical Widget contract. It
+maps provider and action names to their connector and connector IDs to typed
+native adapters. Spotify and Reminders are current adapters; a new
+integration extends the registry and contract together.

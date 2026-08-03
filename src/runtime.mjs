@@ -839,9 +839,7 @@ function validateAction(action, pathName, accounts) {
 
 function connectorForName(name) {
   if (typeof name !== "string") return undefined;
-  if (name.startsWith("spotify.")) return "spotify";
-  if (name.startsWith("reminders.")) return "reminders";
-  return undefined;
+  return sdk.WIDGET_PROVIDER_CONNECTORS[name] ?? sdk.WIDGET_ACTION_CONNECTORS[name];
 }
 
 function validateReminderAction(name, payload, pathName) {

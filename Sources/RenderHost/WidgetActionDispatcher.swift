@@ -5,14 +5,15 @@ import RenderHostCore
 /// the only place where a descriptor can become a host operation.
 final class WidgetActionDispatcher {
     private let capabilities: Set<String>
-    private let spotify: SpotifyConnector
-    private let reminders: RemindersConnector
+    private let registry: RenderRegistry
     private let hasSpotifyAccount: Bool
     private let hasRemindersAccount: Bool
     private let onRemindersMutation: (() -> Void)?
 
     init(
         capabilities: [String],
+        registry: RenderRegistry? = nil,
+        accountRequirements: [WidgetAccountRequirement] = [],
         spotify: SpotifyConnector = SpotifyConnector(),
         reminders: RemindersConnector = RemindersConnector(),
         hasSpotifyAccount: Bool = false,
@@ -20,10 +21,9 @@ final class WidgetActionDispatcher {
         onRemindersMutation: (() -> Void)? = nil
     ) {
         self.capabilities = Set(capabilities)
-        self.spotify = spotify
-        self.reminders = reminders
-        self.hasSpotifyAccount = hasSpotifyAccount
-        self.hasRemindersAccount = hasRemindersAccount
+        self.registry = registry ?? RenderRegistry(spotify: spotify, reminders: reminders)
+        self.hasSpotifyAccount = hasSpotifyAccount || accountRequirements.contains(where: { $0.connector == SpotifyConnector.connectorID })
+        self.hasRemindersAccount = hasRemindersAccount || accountRequirements.contains(where: { $0.connector == RemindersConnector.connectorID && $0.scopes.contains("reminders.write") })
         self.onRemindersMutation = onRemindersMutation
     }
 
@@ -38,7 +38,7 @@ final class WidgetActionDispatcher {
                 NSLog("Render action denied: unsupported invoke '%@'", name)
                 return
             }
-            if name.hasPrefix("spotify.") {
+            if registry.actions.connectorID(for: name) == SpotifyConnector.connectorID {
                 guard hasSpotifyAccount else {
                     NSLog("Render action denied: Spotify account requirement is missing")
                     return
@@ -58,7 +58,7 @@ final class WidgetActionDispatcher {
                 performSpotify(command)
                 return
             }
-            if name.hasPrefix("reminders.") {
+            if registry.actions.connectorID(for: name) == RemindersConnector.connectorID {
                 guard hasRemindersAccount else {
                     NSLog("Render action denied: Reminders account requirement is missing")
                     return
@@ -67,7 +67,7 @@ final class WidgetActionDispatcher {
                 Task { @MainActor [weak self] in
                     guard let self else { return }
                     do {
-                        try self.reminders.perform(command)
+                        try self.registry.connectors.reminders.perform(command)
                         self.onRemindersMutation?()
                         NSLog("Render Reminders action completed")
                     } catch {
@@ -86,7 +86,7 @@ final class WidgetActionDispatcher {
                 NSLog("Render action denied: unsupported set '%@'", name)
                 return
             }
-            if name == "spotify.set-volume" {
+            if registry.actions.connectorID(for: name) == SpotifyConnector.connectorID, name == "spotify.set-volume" {
                 guard hasSpotifyAccount, case .number(let number) = value, number.isFinite, (0...100).contains(number) else {
                     NSLog("Render action denied: Spotify volume must be a number from 0 through 100 and require an account")
                     return
@@ -99,13 +99,13 @@ final class WidgetActionDispatcher {
     }
 
     private func isKnownAction(_ name: String) -> Bool {
-        ["widget.refresh", "widget.reload", "spotify.play", "spotify.pause", "spotify.next", "spotify.previous", "spotify.set-volume", "reminders.create", "reminders.update", "reminders.complete", "reminders.delete"].contains(name)
+        registry.actions.contains(name)
     }
 
     private func performSpotify(_ command: SpotifyPlaybackCommand) {
         Task {
             do {
-                try await spotify.perform(command)
+                try await registry.connectors.spotify.perform(command)
                 NSLog("Render Spotify action completed")
             } catch {
                 NSLog("Render Spotify action unavailable: %@", error.localizedDescription)
