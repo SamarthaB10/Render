@@ -93,3 +93,10 @@ compatibility.
 A durable JSONL evidence record for a lifecycle transition. It identifies the
 Widget, request, prior and next state, reason, active and last-known-good
 versions, process identity, and diagnostics.
+
+## Widget host session
+
+The native host's per-Widget deep module. It owns the loaded manifest and
+tree, provider and action wiring, preferences, placement, worker, and
+shutdown. The AppKit delegate is an entrypoint and view composer, not a second
+owner of those policies.

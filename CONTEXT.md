@@ -86,3 +86,10 @@ rollback, restart, and failure recovery become explicit.
 A durable JSONL record at `.render/logs/lifecycle.jsonl` for each lifecycle
 transition. It names the Widget, request, prior and next state, reason,
 active and last-known-good versions, process identity, and diagnostics.
+
+## Widget host session
+
+The native host session is the deep module that owns one Widget's loaded
+manifest and tree, providers, actions, preferences, placement, worker, and
+shutdown. The AppKit delegate starts the session and composes views; it does
+not duplicate those policies.
