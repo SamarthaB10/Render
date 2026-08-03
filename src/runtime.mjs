@@ -482,7 +482,7 @@ function validateRuntimeTree(node, pathName, subscriptions, capabilities, accoun
     throw new Error(`${pathName}: render() must return a widget node`);
   }
   const kinds = new Set([
-    "column", "row", "stack", "box", "spacer", "divider", "text", "textField", "shape",
+    "column", "row", "stack", "box", "spacer", "divider", "text", "textField", "toggle", "shape",
     "icon", "image", "button", "gauge", "progress", "grid"
   ]);
   if (!kinds.has(node.kind)) {
@@ -516,6 +516,9 @@ function validateRuntimeTree(node, pathName, subscriptions, capabilities, accoun
   }
   if ((node.kind === "text" || node.kind === "textField") && (typeof node.text !== "string" || node.text.length === 0) && node.provider === undefined) {
     throw new Error(`${pathName}.text: text nodes require text or a provider`);
+  }
+  if (node.kind === "toggle" && node.value !== 0 && node.value !== 1) {
+    throw new Error(`${pathName}.value: toggle value must be boolean`);
   }
   if ((node.kind === "gauge" || node.kind === "progress")) {
     const hasProvider = typeof node.provider === "string" && node.provider.length > 0;

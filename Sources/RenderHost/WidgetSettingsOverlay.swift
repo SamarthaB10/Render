@@ -33,6 +33,14 @@ struct WidgetSettingsOverlay: View {
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
+            Color.clear
+                .frame(width: 58, height: 58)
+                .contentShape(Rectangle())
+                .onHover { hovering in
+                    withAnimation(.easeOut(duration: 0.16)) { isHovered = hovering }
+                }
+                .zIndex(1)
+
             if showPermissionPrompt, let accountStatus {
                 permissionPrompt(for: accountStatus)
                     .transition(.opacity.combined(with: .scale(scale: 0.98)))
@@ -47,9 +55,6 @@ struct WidgetSettingsOverlay: View {
                 }
             }
             .padding(10)
-            .onHover { hovering in
-                withAnimation(.easeOut(duration: 0.16)) { isHovered = hovering }
-            }
             .allowsHitTesting(isHovered || isOpen)
             .zIndex(3)
         }

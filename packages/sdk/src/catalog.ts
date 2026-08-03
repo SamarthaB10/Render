@@ -137,6 +137,20 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     ]
   },
   {
+    name: "Toggle",
+    kind: "primitive",
+    summary: "Native interactive checkbox control",
+    importPath: SDK_PACKAGE,
+    signature: "Toggle(checked: boolean, style?: WidgetStyle): WidgetNode",
+    inputs: ["checked", "style"],
+    example: "Toggle(false, { color: \"#8be9a8\" })",
+    status: "implemented",
+    notes: [
+      "The native renderer keeps the checked value interactive for the current widget session.",
+      "Shared state between controls and persistent widget-owned state are separate planned contracts."
+    ]
+  },
+  {
     name: "Shape",
     kind: "primitive",
     summary: "Rounded shape; the current native host renders it blue",
@@ -390,7 +404,7 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     importPath: SDK_PACKAGE,
     signature: "interface WidgetNode { kind: WidgetNodeKind; children?: WidgetNode[]; style?: WidgetStyle; ... }",
     fields: [
-      'kind: "column" | "row" | "stack" | "box" | "spacer" | "divider" | "text" | "textField" | "shape" | "icon" | "image" | "button" | "gauge" | "progress" | "grid"',
+      'kind: "column" | "row" | "stack" | "box" | "spacer" | "divider" | "text" | "textField" | "toggle" | "shape" | "icon" | "image" | "button" | "gauge" | "progress" | "grid"',
       "children?: WidgetNode[]",
       "text?: string",
       "provider?: string",
@@ -412,7 +426,7 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     kind: "type",
     summary: "Allowed discriminators for declarative widget nodes",
     importPath: SDK_PACKAGE,
-    signature: 'type WidgetNodeKind = "column" | "row" | "stack" | "box" | "spacer" | "divider" | "text" | "textField" | "shape" | "icon" | "image" | "button" | "gauge" | "progress" | "grid"',
+    signature: 'type WidgetNodeKind = "column" | "row" | "stack" | "box" | "spacer" | "divider" | "text" | "textField" | "toggle" | "shape" | "icon" | "image" | "button" | "gauge" | "progress" | "grid"',
     example: 'const kind: WidgetNodeKind = "box"',
     status: "implemented"
   },

@@ -9,6 +9,7 @@ public enum WidgetNodeKind: String, Codable, Sendable {
     case divider
     case text
     case textField
+    case toggle
     case shape
     case icon
     case image
@@ -438,6 +439,9 @@ public struct WidgetTree: Codable, Equatable, Sendable {
             if kind == .textField && provider != nil {
                 issues.append(.init(path: "\(path).provider", message: "textField nodes cannot bind to a provider"))
             }
+        }
+        if kind == .toggle && value != 0 && value != 1 {
+            issues.append(.init(path: "\(path).value", message: "toggle value must be zero or one"))
         }
         if let provider, provider.isEmpty {
             issues.append(.init(path: "\(path).provider", message: "provider name must be non-empty"))
