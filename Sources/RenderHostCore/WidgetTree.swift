@@ -8,6 +8,7 @@ public enum WidgetNodeKind: String, Codable, Sendable {
     case spacer
     case divider
     case text
+    case textField
     case shape
     case icon
     case image
@@ -430,8 +431,13 @@ public struct WidgetTree: Codable, Equatable, Sendable {
         if !isContainer && !children.isEmpty {
             issues.append(.init(path: path, message: "leaf nodes cannot define children"))
         }
-        if kind == .text && ((text == nil || text?.isEmpty == true) && provider == nil) {
-            issues.append(.init(path: path, message: "text nodes require non-empty text or a provider"))
+        if kind == .text || kind == .textField {
+            if (text == nil || text?.isEmpty == true) && provider == nil {
+                issues.append(.init(path: path, message: "\(kind.rawValue) nodes require non-empty text"))
+            }
+            if kind == .textField && provider != nil {
+                issues.append(.init(path: "\(path).provider", message: "textField nodes cannot bind to a provider"))
+            }
         }
         if let provider, provider.isEmpty {
             issues.append(.init(path: "\(path).provider", message: "provider name must be non-empty"))

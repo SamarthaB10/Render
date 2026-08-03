@@ -482,7 +482,7 @@ function validateRuntimeTree(node, pathName, subscriptions, capabilities, accoun
     throw new Error(`${pathName}: render() must return a widget node`);
   }
   const kinds = new Set([
-    "column", "row", "stack", "box", "spacer", "divider", "text", "shape",
+    "column", "row", "stack", "box", "spacer", "divider", "text", "textField", "shape",
     "icon", "image", "button", "gauge", "progress", "grid"
   ]);
   if (!kinds.has(node.kind)) {
@@ -514,7 +514,7 @@ function validateRuntimeTree(node, pathName, subscriptions, capabilities, accoun
   if (node.provider?.startsWith("spotify.") && !accounts.has("spotify")) {
     throw new Error(`${pathName}.provider: ${node.provider} requires a spotify account requirement; add manifest.accounts and ask the user for permission`);
   }
-  if (node.kind === "text" && (typeof node.text !== "string" || node.text.length === 0) && node.provider === undefined) {
+  if ((node.kind === "text" || node.kind === "textField") && (typeof node.text !== "string" || node.text.length === 0) && node.provider === undefined) {
     throw new Error(`${pathName}.text: text nodes require text or a provider`);
   }
   if ((node.kind === "gauge" || node.kind === "progress")) {

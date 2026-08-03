@@ -41,6 +41,11 @@ test("Phase 9 primitives produce serializable native nodes", async () => {
     children: [{ kind: "text", text: "Refresh" }],
     action: { type: "invoke", name: "widget.refresh" }
   });
+  assert.deepEqual(sdk.TextField("Write a task", { color: "#ffffff" }), {
+    kind: "textField",
+    text: "Write a task",
+    style: { color: "#ffffff" }
+  });
   assert.deepEqual(sdk.Progress(sdk.useProvider("media.progress"), 100), {
     kind: "progress",
     provider: "media.progress",
@@ -87,7 +92,7 @@ test("Phase 9 catalog is exact and exported runtime primitives are discoverable"
   const sdk = await import("../packages/sdk/src/index.ts");
   const catalog = await import("../packages/sdk/src/catalog.ts");
   const names = catalog.listSdkCatalog().map((item) => item.name);
-  const primitives = ["Box", "Spacer", "Divider", "Icon", "Image", "Button", "Progress", "Grid"];
+  const primitives = ["Box", "Spacer", "Divider", "Icon", "Image", "Button", "TextField", "Progress", "Grid"];
 
   for (const name of primitives) {
     assert.equal(typeof sdk[name], "function", `${name} must be exported`);
@@ -99,8 +104,8 @@ test("Phase 9 catalog is exact and exported runtime primitives are discoverable"
     assert.ok(item.notes.some((note) => note.includes("native renderer")));
   }
 
-  assert.deepEqual(names.slice(1, 15), [
-    "Column", "Row", "Stack", "Box", "Spacer", "Divider", "Text", "Shape", "Icon", "Image", "Button", "Gauge", "Progress", "Grid"
+  assert.deepEqual(names.slice(1, 16), [
+    "Column", "Row", "Stack", "Box", "Spacer", "Divider", "Text", "TextField", "Shape", "Icon", "Image", "Button", "Gauge", "Progress", "Grid"
   ]);
   assert.equal(catalog.describeSdkCatalog("WidgetStyle").status, "implemented");
   assert.equal(catalog.describeSdkCatalog("WidgetAction").status, "implemented");

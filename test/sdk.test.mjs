@@ -54,6 +54,7 @@ test("SDK catalog exposes canonical primitives, providers, styles, and capabilit
     "Spacer",
     "Divider",
     "Text",
+    "TextField",
     "Shape",
     "Icon",
     "Image",
@@ -160,7 +161,7 @@ test("CLI exposes SDK catalog list and describe operations", () => {
 
   assert.equal(listed.ok, true);
   assert.equal(listed.operation, "sdk.list");
-  assert.equal(listed.items.length, 57);
+  assert.equal(listed.items.length, 58);
   assert.equal(listed.sdkVersion, "0.1.0");
   assert.deepEqual(described.item, {
     name: "system.cpu",

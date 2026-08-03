@@ -6,6 +6,7 @@ export type WidgetNodeKind =
   | "spacer"
   | "divider"
   | "text"
+  | "textField"
   | "shape"
   | "icon"
   | "image"
@@ -170,6 +171,10 @@ export interface TextProps extends WidgetComponentProps {
   text?: string | ProviderBinding;
 }
 
+export interface TextFieldProps extends WidgetComponentProps {
+  text?: string;
+}
+
 export interface ShapeProps extends WidgetComponentProps {}
 
 export interface GaugeProps extends WidgetComponentProps {
@@ -310,6 +315,16 @@ export function Text(input: string | ProviderBinding | TextProps, style?: Widget
     return nodeWithOptionalStyle(textNode(value), props.style);
   }
   return nodeWithOptionalStyle(textNode(input as string), style);
+}
+
+export function TextField(text: string, style?: WidgetStyle): WidgetNode;
+export function TextField(props: TextFieldProps): WidgetNode;
+export function TextField(input: string | TextFieldProps, style?: WidgetStyle): WidgetNode {
+  if (isProps(input)) {
+    const props = input as TextFieldProps;
+    return nodeWithOptionalStyle({ kind: "textField", text: String(props.text ?? firstChild(props.children) ?? "") }, props.style);
+  }
+  return nodeWithOptionalStyle({ kind: "textField", text: input as string }, style);
 }
 
 export function Shape(style?: WidgetStyle): WidgetNode;
