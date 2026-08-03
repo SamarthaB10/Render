@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
-import { existsSync, readFileSync, renameSync, unlinkSync, watch, writeFileSync } from "node:fs";
+import { closeSync, existsSync, openSync, readFileSync, renameSync, unlinkSync, watch, writeFileSync } from "node:fs";
 import path from "node:path";
 import * as sdk from "../packages/sdk/src/index.ts";
 import { buildTsxRuntimeTree } from "./tsx-runtime.mjs";
@@ -140,22 +140,34 @@ export function runWorkspace(workspace, requestId = randomUUID(), options = {}) 
 
   const promotion = promoteSnapshot(root, requestId);
   stopPreviousHost(root);
-  const child = spawn(hostPath, ["--workspace", root], {
-    detached: true,
-    stdio: "ignore",
-    env: { ...process.env, RENDER_WORKSPACE: root }
-  });
+  const hostLogPath = createHostLogPath(root);
+  const logHandle = openSync(hostLogPath, "a");
+  let child;
+  try {
+    child = spawn(hostPath, ["--workspace", root], {
+      detached: true,
+      stdio: ["ignore", logHandle, logHandle],
+      env: { ...process.env, RENDER_WORKSPACE: root }
+    });
+  } finally {
+    closeSync(logHandle);
+  }
   child.unref();
   const state = {
     ...promotion.state,
+    status: "running",
     running: true,
-    processId: child.pid
+    processId: child.pid,
+    workerProcessId: null,
+    hostLogPath,
+    lastTransitionAt: new Date().toISOString()
   };
   updateState(root, state);
   return {
     ...prepared,
     running: true,
     processId: child.pid,
+    hostLogPath,
     activeVersion: promotion.version,
     lastKnownGoodVersion: promotion.version
   };
@@ -207,9 +219,13 @@ function runSupervisedWorkspace(root, requestId, hostPath) {
   const promotion = promoteSnapshot(root, requestId);
   const state = {
     ...promotion.state,
+    status: "running",
     running: true,
     processId: launched.processId,
-    workerStatePath: launched.workerStatePath
+    workerProcessId: launched.worker?.processId ?? null,
+    workerStatePath: launched.workerStatePath,
+    hostLogPath: launched.hostLogPath,
+    lastTransitionAt: new Date().toISOString()
   };
   updateState(root, state);
   return {
@@ -219,10 +235,12 @@ function runSupervisedWorkspace(root, requestId, hostPath) {
     ok: true,
     running: true,
     processId: launched.processId,
+    workerProcessId: launched.worker?.processId ?? null,
     activeVersion: promotion.version,
     lastKnownGoodVersion: promotion.version,
     worker: launched.worker,
-    workerStatePath: launched.workerStatePath
+    workerStatePath: launched.workerStatePath,
+    hostLogPath: launched.hostLogPath
   };
 }
 
@@ -239,17 +257,24 @@ function launchNativeSupervisor(root, hostPath) {
   }
 
   const workerScript = process.env.RENDER_WORKER_SCRIPT ?? path.resolve("src/worker.mjs");
-  const child = spawn(hostPath, [
-    "--workspace", root,
-    "--worker-script", workerScript,
-    "--worker-source-path", workerSourcePath,
-    "--worker-state-path", workerStatePath,
-    "--worker-tree-path", workerTreePath
-  ], {
-    detached: true,
-    stdio: "ignore",
-    env: { ...process.env, RENDER_WORKER_SCRIPT: workerScript }
-  });
+  const hostLogPath = path.join(root, ".render", "logs", `host-${supervisorID}.log`);
+  const logHandle = openSync(hostLogPath, "a");
+  let child;
+  try {
+    child = spawn(hostPath, [
+      "--workspace", root,
+      "--worker-script", workerScript,
+      "--worker-source-path", workerSourcePath,
+      "--worker-state-path", workerStatePath,
+      "--worker-tree-path", workerTreePath
+    ], {
+      detached: true,
+      stdio: ["ignore", logHandle, logHandle],
+      env: { ...process.env, RENDER_WORKER_SCRIPT: workerScript }
+    });
+  } finally {
+    closeSync(logHandle);
+  }
   child.unref();
 
   const worker = waitForWorkerState(workerStatePath, SUPERVISOR_STARTUP_TIMEOUT_MS);
@@ -287,7 +312,7 @@ function launchNativeSupervisor(root, hostPath) {
     path.join(root, ".render/runtime/tree.json"),
     readFileSync(workerTreePath)
   );
-  return { ok: true, processId: child.pid, worker, workerSourcePath, workerStatePath, workerTreePath };
+  return { ok: true, processId: child.pid, worker, workerSourcePath, workerStatePath, workerTreePath, hostLogPath };
 }
 
 function waitForWorkerState(workerStatePath, timeoutMs) {
@@ -526,27 +551,44 @@ export function rollbackWorkspace(workspace, version, requestId = randomUUID(), 
     stopPreviousHost(root);
     updateState(root, {
       ...restored.state,
+      status: "running",
       running: true,
       processId: launched.processId,
-      workerStatePath: launched.workerStatePath
+      workerProcessId: launched.worker?.processId ?? null,
+      workerStatePath: launched.workerStatePath,
+      hostLogPath: launched.hostLogPath,
+      lastTransitionAt: new Date().toISOString()
     });
     return {
       ...restored,
       running: true,
       processId: launched.processId,
+      workerProcessId: launched.worker?.processId ?? null,
       worker: launched.worker,
-      workerStatePath: launched.workerStatePath
+      workerStatePath: launched.workerStatePath,
+      hostLogPath: launched.hostLogPath
     };
   }
   stopPreviousHost(root);
-  const child = spawn(hostPath, ["--workspace", root], {
-    detached: true,
-    stdio: "ignore",
-    env: { ...process.env, RENDER_WORKSPACE: root }
-  });
+  const hostLogPath = createHostLogPath(root);
+  const logHandle = openSync(hostLogPath, "a");
+  let child;
+  try {
+    child = spawn(hostPath, ["--workspace", root], {
+      detached: true,
+      stdio: ["ignore", logHandle, logHandle],
+      env: { ...process.env, RENDER_WORKSPACE: root }
+    });
+  } finally {
+    closeSync(logHandle);
+  }
   child.unref();
-  updateState(root, { ...restored.state, running: true, processId: child.pid });
-  return { ...restored, running: true, processId: child.pid };
+  updateState(root, { ...restored.state, status: "running", running: true, processId: child.pid, workerProcessId: null, hostLogPath, lastTransitionAt: new Date().toISOString() });
+  return { ...restored, running: true, processId: child.pid, hostLogPath };
+}
+
+function createHostLogPath(root) {
+  return path.join(root, ".render", "logs", `host-${randomUUID()}.log`);
 }
 
 export function stopWorkspace(workspace, requestId = randomUUID()) {

@@ -110,16 +110,18 @@ node bin/render.mjs fleet stop \
   --workspace "$HOME/RenderWidgets/system-monitor" \
   --workspace "$HOME/RenderWidgets/study-timer" \
   --json
+node bin/render.mjs fleet logs \
+  --workspace "$HOME/RenderWidgets/system-monitor" \
+  --json
 node bin/render.mjs fleet relaunch --json
 ```
 
-This is the first fleet slice, not the final crash-isolated architecture: the
-commands now keep a detached fleet supervisor over the existing per-widget
-host boundary. It monitors each widget independently and relaunches a dead
-host without replacing the other widgets. The future XPC-backed supervisor
-will preserve this contract while moving each widget behind its own native
-worker process and restart policy. `fleet relaunch` consumes the persisted
-registry, which is the lifecycle seam a future login item will call.
+The completed F1 fleet lifecycle keeps a detached supervisor over the existing
+per-widget host boundary. It monitors each widget independently, records its
+host/worker PIDs and log path, and relaunches a dead host without replacing the
+other widgets. The future XPC transport can replace the supervisor plumbing
+without changing this widget-facing contract. `fleet relaunch` consumes the
+persisted registry, which is the lifecycle seam a future login item will call.
 
 The status response should report a running widget and, when the native supervisor is active, `worker.status` as `ready`. The widget appears on the desktop at its logical anchor. The first prototype can be dragged by the user, and its placement is persisted by the native host.
 

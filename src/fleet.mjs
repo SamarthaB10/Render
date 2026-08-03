@@ -54,6 +54,55 @@ export function fleetStop(workspaces, requestId = randomUUID(), options = {}) {
   return withSupervisor(requestId, "fleet.stop", widgets, stopSupervisorIfIdle(options));
 }
 
+export function fleetLogs(workspaces, requestId = randomUUID(), options = {}) {
+  const roots = normalizeWorkspaces(workspaces);
+  if (roots.length === 0) return invalidFleetResult(requestId, "fleet.logs", "at least one --workspace is required");
+
+  const widgets = roots.map((root) => {
+    const status = statusWorkspace(root, requestId);
+    if (!status.ok) return status;
+    const logPath = status.state.hostLogPath ?? null;
+    const diagnostics = [];
+    let exists = false;
+    let content = "";
+    if (!logPath) {
+      diagnostics.push({
+        code: "missing-log-path",
+        path: ".render/metadata.json",
+        message: "widget has not recorded a host log path yet"
+      });
+    } else if (!existsSync(logPath)) {
+      diagnostics.push({
+        code: "missing-log-file",
+        path: logPath,
+        message: "widget host log path is recorded, but the log file does not exist"
+      });
+    } else {
+      exists = true;
+      try {
+        content = readFileSync(logPath, "utf8");
+      } catch (error) {
+        diagnostics.push({
+          code: "unreadable-log-file",
+          path: logPath,
+          message: `widget host log could not be read: ${error.message}`
+        });
+      }
+    }
+    return {
+      requestId,
+      operation: "logs",
+      workspace: root,
+      ok: diagnostics.length === 0,
+      logPath,
+      exists,
+      content,
+      diagnostics
+    };
+  });
+  return fleetResult(requestId, "fleet.logs", widgets);
+}
+
 function runOne(root, requestId, options) {
   try {
     return runWorkspace(root, requestId, options);
@@ -246,8 +295,12 @@ function persistRegistry(options, widgets) {
     entries.set(widget.workspace, {
       workspace: widget.workspace,
       widgetId: state?.widgetId ?? null,
+      status: state?.status ?? (state?.running ? "running" : "stopped"),
       running: state?.running ?? false,
       processId: state?.processId ?? null,
+      workerProcessId: state?.workerProcessId ?? null,
+      logPath: state?.hostLogPath ?? null,
+      hostLogPath: state?.hostLogPath ?? null,
       activeVersion: state?.activeVersion ?? null,
       lastKnownGoodVersion: state?.lastKnownGoodVersion ?? null,
       lastFailure: state?.lastFailure ?? null,

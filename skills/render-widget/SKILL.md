@@ -207,15 +207,18 @@ render fleet stop \
   --workspace "$HOME/RenderWidgets/system-monitor" \
   --workspace "$HOME/RenderWidgets/study-timer" \
   --json
+render fleet logs \
+  --workspace "$HOME/RenderWidgets/system-monitor" \
+  --json
 render fleet relaunch --json
 ```
 
 Fleet status reconciles stale process records and marks a workspace stopped
 instead of reporting a dead process as running. Native fleet runs keep a
 detached supervisor over the per-widget host processes; a dead widget host is
-restarted without replacing another widget. This is the first independent
-runtime slice; the future XPC-backed supervisor will retain this workspace and
-last-known-good contract while moving each widget behind its own worker.
+restarted without replacing another widget. Each workspace exposes its host
+and worker process records and a widget-scoped log stream. The future XPC
+transport may replace the supervisor plumbing without changing this contract.
 `fleet relaunch` consumes the persisted registry, so a future login item can
 restore registered widgets without reconstructing workspace paths.
 

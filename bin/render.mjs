@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describeSdkCatalog, listSdkCatalog, SDK_PACKAGE, SDK_VERSION } from "../packages/sdk/src/catalog.ts";
 import { checkWorkspace, initWorkspace, scaffoldWorkspace, statusWorkspace } from "../src/workspace.mjs";
-import { fleetRelaunch, fleetRun, fleetStatus, fleetStop } from "../src/fleet.mjs";
+import { fleetLogs, fleetRelaunch, fleetRun, fleetStatus, fleetStop } from "../src/fleet.mjs";
 import { moveWorkspace, resetWidgetSize, resizeWorkspace, rollbackWorkspace, runWorkspace, setWidgetMode, watchWorkspace } from "../src/runtime.mjs";
 
 export function execute(argv, cwd = process.cwd()) {
@@ -38,7 +38,7 @@ export function execute(argv, cwd = process.cwd()) {
     diagnostics: [{
       code: "unknown-command",
       path: "command",
-      message: "use render init, render scaffold, render check, render run, render resize, render mode, render reset-size, render status, render move, render rollback, render fleet run/status/stop, or render sdk list/describe"
+      message: "use render init, render scaffold, render check, render run, render resize, render mode, render reset-size, render status, render move, render rollback, render fleet run/status/stop/logs/relaunch, or render sdk list/describe"
     }]
   };
 }
@@ -49,13 +49,14 @@ function executeFleet(action, options) {
   if (action === "run") return fleetRun(workspaces, undefined, fleetOptions);
   if (action === "status") return fleetStatus(workspaces, undefined, fleetOptions);
   if (action === "stop") return fleetStop(workspaces, undefined, fleetOptions);
+  if (action === "logs") return fleetLogs(workspaces, undefined, fleetOptions);
   if (action === "relaunch") return fleetRelaunch(undefined, fleetOptions);
   return {
     requestId: "unassigned",
     operation: "fleet",
     ok: false,
     widgets: [],
-    diagnostics: [{ code: "unknown-fleet-command", path: "command", message: "use render fleet run, render fleet status, render fleet stop, or render fleet relaunch" }]
+    diagnostics: [{ code: "unknown-fleet-command", path: "command", message: "use render fleet run, render fleet status, render fleet stop, render fleet logs, or render fleet relaunch" }]
   };
 }
 
