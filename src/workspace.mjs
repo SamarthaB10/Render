@@ -38,7 +38,9 @@ function createWorkspace(workspace, requestId, operation) {
     schemaVersion: 1,
     widgetId: randomUUID(),
     workspace: root,
+    status: "stopped",
     running: false,
+    stopRequested: false,
     activeVersion: null,
     lastKnownGoodVersion: null,
     successfulVersions: [],
@@ -124,7 +126,7 @@ export function recordFailure(workspace, diagnostics) {
   return nextState;
 }
 
-export function markWorkspaceStopped(workspace) {
+export function markWorkspaceStopped(workspace, intentional = false) {
   const root = path.resolve(workspace);
   const metadataPath = path.join(root, ".render", "metadata.json");
   if (!existsSync(metadataPath)) return null;
@@ -133,6 +135,7 @@ export function markWorkspaceStopped(workspace) {
     ...state,
     status: "stopped",
     running: false,
+    stopRequested: intentional,
     processId: null,
     workerProcessId: null,
     workerStatePath: null,
@@ -262,6 +265,7 @@ function readState(root) {
   return {
     successfulVersions: [],
     status: "stopped",
+    stopRequested: false,
     processId: null,
     workerProcessId: null,
     hostLogPath: null,

@@ -217,8 +217,11 @@ Fleet status reconciles stale process records and marks a workspace stopped
 instead of reporting a dead process as running. Native fleet runs keep a
 detached supervisor over the per-widget host processes; a dead widget host is
 restarted without replacing another widget. Each workspace exposes its host
-and worker process records and a widget-scoped log stream. The future XPC
-transport may replace the supervisor plumbing without changing this contract.
+and worker process records and a widget-scoped log stream. The Settings
+button's Stop Widget action records an intentional stop for that workspace
+before terminating it, so it does not get relaunched as a crash while sibling
+widgets continue running. The future XPC transport may replace the supervisor
+plumbing without changing this contract.
 `fleet relaunch` consumes the persisted registry, so a future login item can
 restore registered widgets without reconstructing workspace paths.
 

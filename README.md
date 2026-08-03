@@ -80,7 +80,10 @@ node bin/render.mjs check --workspace "$HOME/RenderWidgets/system-monitor" --jso
 node bin/render.mjs run --workspace "$HOME/RenderWidgets/system-monitor" --json
 ```
 
-`run` automatically prefers `.build/debug/RenderHost.app/Contents/MacOS/RenderHost` and falls back to the raw SwiftPM executable. To select a specific host binary, set `RENDER_HOST_PATH`:
+`run` prefers the packaged app when it is at least as new as the raw SwiftPM
+executable, and automatically falls back to the newer raw executable after a
+plain `swift build` so an old app bundle cannot silently run stale native code.
+To select a specific host binary, set `RENDER_HOST_PATH`:
 
 ```bash
 RENDER_HOST_PATH="$PWD/.build/debug/RenderHost" \

@@ -117,7 +117,7 @@ function reconcileStatus(root, requestId) {
     if (!status.ok || !status.state.running || !status.state.processId) return status;
     if (processIsAlive(status.state.processId)) return status;
 
-    const state = markWorkspaceStopped(root);
+    const state = markWorkspaceStopped(root, false);
     return {
       ...status,
       state,

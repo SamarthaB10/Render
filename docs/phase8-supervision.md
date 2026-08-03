@@ -54,8 +54,10 @@ The fleet supervisor persists its own process state beside the fleet registry,
 reconciles each widget's recorded host PID independently, and relaunches only
 the workspace whose host disappeared. `render fleet stop` stops the widget
 hosts first and then shuts down the fleet supervisor once no registered widget
-remains active. A supervisor state of `stopped` or a stale PID is explicit in
-`fleet status --json`.
+remains active. The native Settings button records an intentional stop for its
+own workspace before terminating, so the fleet supervisor does not mistake a
+user action for a crash or relaunch that widget. A supervisor state of
+`stopped` or a stale PID is explicit in `fleet status --json`.
 
 ## Resource receipt
 

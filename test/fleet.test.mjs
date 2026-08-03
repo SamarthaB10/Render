@@ -138,7 +138,57 @@ test("fleet supervisor restarts one crashed widget without replacing another", a
     assert.equal(recovered.widgets[1].state.processId, secondProcessID);
   } finally {
     fleetStop([first, second], "request-fleet-stop", { statePath });
-    rmSync(root, { recursive: true, force: true });
+    rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 25 });
+  }
+});
+
+test("fleet supervisor honors an intentional widget stop without relaunching its sibling", async () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "render-fleet-intentional-stop-"));
+  const statePath = path.join(root, "fleet.json");
+  const hostPath = path.join(root, "hold-host.sh");
+  const first = path.join(root, "first");
+  const second = path.join(root, "second");
+
+  try {
+    writeFileSync(hostPath, "#!/bin/sh\nexec sleep 30\n");
+    chmodSync(hostPath, 0o755);
+    initWorkspace(first, "request-first");
+    initWorkspace(second, "request-second");
+    writeFileSync(path.join(first, "widget.tsx"), widgetSource("First"));
+    writeFileSync(path.join(second, "widget.tsx"), widgetSource("Second"));
+
+    const started = fleetRun([first, second], "request-fleet-run", {
+      hostPath,
+      statePath,
+      supervise: true,
+      monitorIntervalMs: 25
+    });
+    const firstProcessID = started.widgets[0].processId;
+    const secondProcessID = started.widgets[1].processId;
+    const firstMetadataPath = path.join(first, ".render/metadata.json");
+    const firstState = JSON.parse(readFileSync(firstMetadataPath, "utf8"));
+    writeFileSync(firstMetadataPath, `${JSON.stringify({
+      ...firstState,
+      status: "stopped",
+      running: false,
+      processId: null,
+      stopRequested: true
+    }, null, 2)}\n`);
+    process.kill(firstProcessID);
+
+    await waitFor(() => {
+      const registry = JSON.parse(readFileSync(statePath, "utf8"));
+      return registry.widgets.find((item) => item.workspace === path.resolve(first))?.running === false;
+    });
+
+    const registry = JSON.parse(readFileSync(statePath, "utf8"));
+    const sibling = registry.widgets.find((item) => item.workspace === path.resolve(second));
+    assert.equal(sibling.running, true);
+    assert.equal(sibling.processId, secondProcessID);
+    assert.equal(JSON.parse(readFileSync(firstMetadataPath, "utf8")).processId, null);
+  } finally {
+    fleetStop([first, second], "request-fleet-stop", { statePath });
+    rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 25 });
   }
 });
 

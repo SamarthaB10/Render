@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
-import { closeSync, existsSync, openSync, readFileSync, renameSync, unlinkSync, watch, writeFileSync } from "node:fs";
+import { closeSync, existsSync, openSync, readFileSync, renameSync, statSync, unlinkSync, watch, writeFileSync } from "node:fs";
 import path from "node:path";
 import * as sdk from "../packages/sdk/src/index.ts";
 import { buildTsxRuntimeTree } from "./tsx-runtime.mjs";
@@ -157,6 +157,7 @@ export function runWorkspace(workspace, requestId = randomUUID(), options = {}) 
     ...promotion.state,
     status: "running",
     running: true,
+    stopRequested: false,
     processId: child.pid,
     workerProcessId: null,
     hostLogPath,
@@ -221,6 +222,7 @@ function runSupervisedWorkspace(root, requestId, hostPath) {
     ...promotion.state,
     status: "running",
     running: true,
+    stopRequested: false,
     processId: launched.processId,
     workerProcessId: launched.worker?.processId ?? null,
     workerStatePath: launched.workerStatePath,
@@ -553,6 +555,7 @@ export function rollbackWorkspace(workspace, version, requestId = randomUUID(), 
       ...restored.state,
       status: "running",
       running: true,
+      stopRequested: false,
       processId: launched.processId,
       workerProcessId: launched.worker?.processId ?? null,
       workerStatePath: launched.workerStatePath,
@@ -583,7 +586,7 @@ export function rollbackWorkspace(workspace, version, requestId = randomUUID(), 
     closeSync(logHandle);
   }
   child.unref();
-  updateState(root, { ...restored.state, status: "running", running: true, processId: child.pid, workerProcessId: null, hostLogPath, lastTransitionAt: new Date().toISOString() });
+  updateState(root, { ...restored.state, status: "running", running: true, stopRequested: false, processId: child.pid, workerProcessId: null, hostLogPath, lastTransitionAt: new Date().toISOString() });
   return { ...restored, running: true, processId: child.pid, hostLogPath };
 }
 
@@ -605,7 +608,7 @@ export function stopWorkspace(workspace, requestId = randomUUID()) {
     }
   }
 
-  const state = markWorkspaceStopped(root);
+  const state = markWorkspaceStopped(root, true);
   return {
     requestId,
     operation: "stop",
@@ -961,14 +964,28 @@ function validateSpacing(value, pathName) {
 }
 
 function findHostPath() {
-  const candidates = [
-    process.env.RENDER_HOST_PATH,
+  const configured = process.env.RENDER_HOST_PATH;
+  if (configured && existsSync(configured)) return configured;
+
+  const packaged = [
     path.resolve(".build/debug/RenderHost.app/Contents/MacOS/RenderHost"),
-    path.resolve(".build/arm64-apple-macosx/debug/RenderHost.app/Contents/MacOS/RenderHost"),
+    path.resolve(".build/arm64-apple-macosx/debug/RenderHost.app/Contents/MacOS/RenderHost")
+  ].find((candidate) => existsSync(candidate)) ?? null;
+  const raw = [
     path.resolve(".build/debug/RenderHost"),
     path.resolve(".build/arm64-apple-macosx/debug/RenderHost")
-  ].filter(Boolean);
-  return candidates.find((candidate) => existsSync(candidate)) ?? null;
+  ].find((candidate) => existsSync(candidate)) ?? null;
+
+  return selectHostPath(packaged, raw);
+}
+
+export function selectHostPath(packaged, raw) {
+  if (!packaged || !raw) return packaged ?? raw;
+  try {
+    return statSync(packaged).mtimeMs >= statSync(raw).mtimeMs ? packaged : raw;
+  } catch {
+    return packaged;
+  }
 }
 
 function isNativeHost(hostPath) {
