@@ -1,3 +1,4 @@
+import Combine
 import SwiftUI
 import RenderHostCore
 
@@ -6,6 +7,7 @@ struct WidgetSettingsOverlay: View {
     let workspace: String?
     let themeConfig: RuntimeManifest.Theme?
     let theme: RenderTheme
+    let workerStatePath: String?
     let adjustable: RuntimeManifest.Adjustable?
     let defaultSize: RuntimeManifest.Size
     let preferences: WidgetPreferences
@@ -26,12 +28,14 @@ struct WidgetSettingsOverlay: View {
     @State private var heightText: String
     @State private var youtubeLinkInputEnabled: Bool
     @State private var youtubeLinkText: String
+    @State private var workerState: WorkerRuntimeState?
 
     init(
         widgetName: String,
         workspace: String?,
         themeConfig: RuntimeManifest.Theme?,
         theme: RenderTheme,
+        workerStatePath: String?,
         adjustable: RuntimeManifest.Adjustable?,
         defaultSize: RuntimeManifest.Size,
         preferences: WidgetPreferences,
@@ -48,6 +52,7 @@ struct WidgetSettingsOverlay: View {
         self.workspace = workspace
         self.themeConfig = themeConfig
         self.theme = theme
+        self.workerStatePath = workerStatePath
         self.adjustable = adjustable
         self.defaultSize = defaultSize
         self.preferences = preferences
@@ -99,6 +104,11 @@ struct WidgetSettingsOverlay: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
         .animation(.easeOut(duration: 0.16), value: isOpen)
+        .onAppear { refreshWorkerState() }
+        .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { _ in
+            guard isOpen else { return }
+            refreshWorkerState()
+        }
         .onChange(of: preferences.width) { width in
             widthText = width.map(Self.format) ?? Self.format(defaultSize.width)
         }
@@ -145,8 +155,25 @@ struct WidgetSettingsOverlay: View {
             metadataRow("Name", widgetName)
             metadataRow("Process", "\(ProcessInfo.processInfo.processIdentifier)")
             metadataRow("Kill command", "kill \(ProcessInfo.processInfo.processIdentifier)")
+            metadataRow("Worker", workerState?.status ?? "unknown")
             if let workspace {
                 metadataRow("Workspace", URL(fileURLWithPath: workspace).lastPathComponent)
+            }
+
+            if workerState?.status == "quarantined" {
+                VStack(alignment: .leading, spacing: 5) {
+                    Label("Worker paused after five restart failures", systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption.weight(.semibold))
+                        .foregroundColor(.orange)
+                    Text("The last-known-good widget tree remains visible. Repair the widget, then run it again from its Render workspace.")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                    if let diagnostic = workerState?.diagnostics?.last?.message {
+                        Text(diagnostic)
+                            .font(.caption2.monospaced())
+                            .foregroundColor(.secondary)
+                    }
+                }
             }
 
             Divider().opacity(0.35)
@@ -278,6 +305,16 @@ struct WidgetSettingsOverlay: View {
     private func loadYouTubeLink(_ youtube: YouTubePlayerSettings) {
         guard YouTubeLinkParser.extractVideoID(from: youtubeLinkText) != nil else { return }
         interactionStore.saveYouTubeURL(path: youtube.path, value: youtubeLinkText)
+    }
+
+    private func refreshWorkerState() {
+        guard let workerStatePath,
+              let data = try? Data(contentsOf: URL(fileURLWithPath: workerStatePath))
+        else {
+            workerState = nil
+            return
+        }
+        workerState = try? JSONDecoder().decode(WorkerRuntimeState.self, from: data)
     }
 
     private func metadataRow(_ label: String, _ value: String) -> some View {
@@ -426,6 +463,12 @@ struct WidgetSettingsOverlay: View {
         case .needsAuthorization, .expired, .revoked: return .orange
         case .denied, .unavailable: return .red
         }
+    }
+
+    private struct WorkerRuntimeState: Decodable {
+        let status: String
+        let restartCount: Int?
+        let diagnostics: [WorkerDiagnostic]?
     }
 }
 

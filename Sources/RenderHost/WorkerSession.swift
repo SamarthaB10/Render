@@ -16,6 +16,7 @@ final class WorkerSession {
     private var restartWorkItem: DispatchWorkItem?
     private var shuttingDown = false
     private var restartCount = 0
+    private var restartPolicy = RestartPolicy()
     private var resourceTimer: DispatchSourceTimer?
     private var currentStatus = "starting"
     private var currentDiagnostics: [WorkerDiagnostic]?
@@ -185,16 +186,22 @@ final class WorkerSession {
         return try decoder.decode(WorkerMessage.self, from: data)
     }
 
-    private func workerTerminated(status: Int32) {
+    private func workerTerminated(status: Int32, additionalDiagnostics: [WorkerDiagnostic] = []) {
         guard !shuttingDown else { return }
         restartCount += 1
-        let diagnostics = (currentDiagnostics ?? []) + [WorkerDiagnostic(
+        let diagnostics = (currentDiagnostics ?? []) + additionalDiagnostics + [WorkerDiagnostic(
             code: "worker-exited",
             path: "worker",
             message: "worker exited with status \(status); retaining the last-known-good tree"
         )]
-        writeState(status: "restarting", diagnostics: diagnostics)
-        onFailure?(diagnostics)
+        let decision = restartPolicy.recordFailure()
+        let userVisibleDiagnostics = self.userVisibleDiagnostics(for: decision, diagnostics: diagnostics)
+        if case .userVisibleFailure = decision {
+            writeState(status: "quarantined", diagnostics: userVisibleDiagnostics)
+            if let userVisibleDiagnostics { onFailure?(userVisibleDiagnostics) }
+            return
+        }
+        writeState(status: "restarting", diagnostics: nil)
 
         let delay = min(pow(2.0, Double(max(0, restartCount - 1)) - 2.0), 4.0)
         let work = DispatchWorkItem { [weak self] in
@@ -202,22 +209,30 @@ final class WorkerSession {
             do {
                 let tree = try self.launchAndRender()
                 self.restartCount = 0
+                self.restartPolicy.recordSuccess()
                 self.writeTree(tree)
                 self.writeState(status: "ready", diagnostics: nil)
                 self.onTree?(tree)
             } catch {
-                let diagnostics = [WorkerDiagnostic(
+                let failure = WorkerDiagnostic(
                     code: "worker-restart-failed",
                     path: "worker",
                     message: error.localizedDescription
-                )]
-                self.writeState(status: "restarting", diagnostics: diagnostics)
-                self.onFailure?(diagnostics)
-                self.workerTerminated(status: 1)
+                )
+                self.workerTerminated(status: 1, additionalDiagnostics: [failure])
             }
         }
         restartWorkItem = work
         DispatchQueue.global().asyncAfter(deadline: .now() + delay, execute: work)
+    }
+
+    private func userVisibleDiagnostics(for decision: RestartDecision, diagnostics: [WorkerDiagnostic]) -> [WorkerDiagnostic]? {
+        guard case .userVisibleFailure(let count) = decision else { return nil }
+        return diagnostics + [WorkerDiagnostic(
+            code: "worker-restart-threshold",
+            path: "worker.restartCount",
+            message: "worker has failed \(count) consecutive restarts; the widget remains on its last-known-good tree and needs repair"
+        )]
     }
 
     private func writeState(status: String, diagnostics: [WorkerDiagnostic]?) {

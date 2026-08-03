@@ -58,6 +58,7 @@ private final class RenderHostDelegate: NSObject, NSApplicationDelegate {
                         defaultTheme: RenderThemeName.darkGlass.rawValue,
                         options: RenderThemeName.allCases.map(\.rawValue)
                     ),
+                    workerStatePath: workerStatePath(),
                     adjustable: manifest.adjustable,
                     defaultSize: manifest.size,
                     preferences: preferencesModel,
@@ -108,7 +109,10 @@ private final class RenderHostDelegate: NSObject, NSApplicationDelegate {
                             }
                         }
                     },
-                    onStop: { NSApp.terminate(nil) }
+                    onStop: { [weak self] in
+                        self?.markIntentionalStop(workspace: workspace)
+                        NSApp.terminate(nil)
+                    }
                 )
             )
         )
@@ -284,6 +288,25 @@ private final class RenderHostDelegate: NSObject, NSApplicationDelegate {
         try? data.write(to: preferencesURL(workspace: workspace), options: .atomic)
     }
 
+    private func markIntentionalStop(workspace: String?) {
+        guard let workspace else { return }
+        let metadataURL = URL(fileURLWithPath: workspace).appendingPathComponent(".render/metadata.json")
+        guard
+            let data = try? Data(contentsOf: metadataURL),
+            var metadata = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+        else { return }
+
+        metadata["status"] = "stopped"
+        metadata["running"] = false
+        metadata["stopRequested"] = true
+        metadata["processId"] = NSNull()
+        metadata["workerProcessId"] = NSNull()
+        metadata["workerStatePath"] = NSNull()
+        metadata["lastTransitionAt"] = ISO8601DateFormatter().string(from: Date())
+        guard let nextData = try? JSONSerialization.data(withJSONObject: metadata, options: [.prettyPrinted, .sortedKeys]) else { return }
+        try? nextData.write(to: metadataURL, options: .atomic)
+    }
+
     private func renderSize(preferences: WidgetPreferences, panel: DesktopWidgetPanel?, manifest: RuntimeManifest) -> NSSize {
         if let panel {
             return panel.contentRect(forFrameRect: panel.frame).size
@@ -372,6 +395,7 @@ private struct WidgetTreeContainer: View {
     let widgetName: String
     let workspace: String?
     let themeConfig: RuntimeManifest.Theme?
+    let workerStatePath: String?
     let adjustable: RuntimeManifest.Adjustable?
     let defaultSize: RuntimeManifest.Size
     @ObservedObject var preferences: WidgetPreferencesModel
@@ -389,6 +413,7 @@ private struct WidgetTreeContainer: View {
                 workspace: workspace,
                 themeConfig: themeConfig,
                 theme: RenderTheme(name: selectedTheme),
+                workerStatePath: workerStatePath,
                 adjustable: adjustable,
                 defaultSize: defaultSize,
                 preferences: preferences.value,

@@ -30,6 +30,7 @@ The current reference implementation is a native CPU/RAM widget. It proves the a
 - A generic native `List` primitive for static rows or structured provider-backed rows such as `reminders.items`.
 - A native `YouTubePlayer` primitive backed by an isolated WebKit surface, with explicit network capability, validated video IDs, and an optional persisted link-input toggle.
 - Render-owned Spotify permission prompt and a liquid-glass widget settings panel with metadata and a confirmed stop control.
+- Worker crash loops remain quiet while they recover and become a visible liquid-glass settings diagnostic only after five consecutive restart failures; the last-known-good tree remains visible.
 
 MCP is not required for this prototype. The agent boundary is the deterministic local CLI plus the checked-in widget-authoring skill. MCP can wrap that stable contract later if broader interoperability requires it.
 
@@ -79,7 +80,10 @@ node bin/render.mjs check --workspace "$HOME/RenderWidgets/system-monitor" --jso
 node bin/render.mjs run --workspace "$HOME/RenderWidgets/system-monitor" --json
 ```
 
-`run` automatically prefers `.build/debug/RenderHost.app/Contents/MacOS/RenderHost` and falls back to the raw SwiftPM executable. To select a specific host binary, set `RENDER_HOST_PATH`:
+`run` prefers the packaged app when it is at least as new as the raw SwiftPM
+executable, and automatically falls back to the newer raw executable after a
+plain `swift build` so an old app bundle cannot silently run stale native code.
+To select a specific host binary, set `RENDER_HOST_PATH`:
 
 ```bash
 RENDER_HOST_PATH="$PWD/.build/debug/RenderHost" \
@@ -109,13 +113,17 @@ node bin/render.mjs fleet stop \
   --workspace "$HOME/RenderWidgets/system-monitor" \
   --workspace "$HOME/RenderWidgets/study-timer" \
   --json
+node bin/render.mjs fleet logs \
+  --workspace "$HOME/RenderWidgets/system-monitor" \
+  --json
 node bin/render.mjs fleet relaunch --json
 ```
 
-This is the first fleet slice, not the final crash-isolated architecture: the
-commands orchestrate the existing per-widget host boundary. The future
-host-managed supervisor will preserve this contract while giving every widget
-its own worker process and restart policy. `fleet relaunch` consumes the
+The completed F1 fleet lifecycle keeps a detached supervisor over the existing
+per-widget host boundary. It monitors each widget independently, records its
+host/worker PIDs and log path, and relaunches a dead host without replacing the
+other widgets. The future XPC transport can replace the supervisor plumbing
+without changing this widget-facing contract. `fleet relaunch` consumes the
 persisted registry, which is the lifecycle seam a future login item will call.
 
 The status response should report a running widget and, when the native supervisor is active, `worker.status` as `ready`. The widget appears on the desktop at its logical anchor. The first prototype can be dragged by the user, and its placement is persisted by the native host.

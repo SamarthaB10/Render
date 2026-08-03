@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "measuredAt": "2026-08-03T00:00:00Z",
+  "measurement": {
+    "platform": "darwin",
+    "fixture": "test/fleet.test.mjs",
+    "monitorIntervalMs": 25,
+    "recovery": "one terminated host was relaunched while the second host PID remained unchanged"
+  },
+  "tripwires": {
+    "defaultMonitorIntervalMs": 1000,
+    "rationale": "The fleet monitor cadence reuses the existing one-second host observation cadence. It is a polling interval, not a resource budget or a widget limit; the focused test uses 25ms only to keep crash recovery verification short."
+  }
+}

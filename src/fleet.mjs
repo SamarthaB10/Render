@@ -1,11 +1,15 @@
 import { randomUUID } from "node:crypto";
+import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { runWorkspace, stopWorkspace } from "./runtime.mjs";
 import { markWorkspaceStopped, statusWorkspace } from "./workspace.mjs";
 
 const REGISTRY_SCHEMA_VERSION = 1;
+const FLEET_SUPERVISOR_SCHEMA_VERSION = 1;
+const FLEET_SUPERVISOR_SCRIPT = fileURLToPath(new URL("./fleet-supervisor.mjs", import.meta.url));
 
 export function fleetRun(workspaces, requestId = randomUUID(), options = {}) {
   const roots = normalizeWorkspaces(workspaces);
@@ -13,7 +17,7 @@ export function fleetRun(workspaces, requestId = randomUUID(), options = {}) {
 
   const widgets = roots.map((root) => runOne(root, requestId, options));
   persistRegistry(options, widgets);
-  return fleetResult(requestId, "fleet.run", widgets);
+  return withSupervisor(requestId, "fleet.run", widgets, ensureSupervisor(options, widgets));
 }
 
 export function fleetStatus(workspaces, requestId = randomUUID(), options = {}) {
@@ -23,7 +27,7 @@ export function fleetStatus(workspaces, requestId = randomUUID(), options = {}) 
 
   const widgets = targets.map((root) => reconcileStatus(root, requestId));
   persistRegistry(options, widgets);
-  return fleetResult(requestId, "fleet.status", widgets);
+  return withSupervisor(requestId, "fleet.status", widgets, readSupervisorState(options));
 }
 
 export function fleetRelaunch(requestId = randomUUID(), options = {}) {
@@ -32,7 +36,7 @@ export function fleetRelaunch(requestId = randomUUID(), options = {}) {
 
   const widgets = roots.map((root) => runOne(root, requestId, options));
   persistRegistry(options, widgets);
-  return fleetResult(requestId, "fleet.relaunch", widgets);
+  return withSupervisor(requestId, "fleet.relaunch", widgets, ensureSupervisor(options, widgets));
 }
 
 export function fleetStop(workspaces, requestId = randomUUID(), options = {}) {
@@ -47,7 +51,56 @@ export function fleetStop(workspaces, requestId = randomUUID(), options = {}) {
     }
   });
   persistRegistry(options, widgets);
-  return fleetResult(requestId, "fleet.stop", widgets);
+  return withSupervisor(requestId, "fleet.stop", widgets, stopSupervisorIfIdle(options));
+}
+
+export function fleetLogs(workspaces, requestId = randomUUID(), options = {}) {
+  const roots = normalizeWorkspaces(workspaces);
+  if (roots.length === 0) return invalidFleetResult(requestId, "fleet.logs", "at least one --workspace is required");
+
+  const widgets = roots.map((root) => {
+    const status = statusWorkspace(root, requestId);
+    if (!status.ok) return status;
+    const logPath = status.state.hostLogPath ?? null;
+    const diagnostics = [];
+    let exists = false;
+    let content = "";
+    if (!logPath) {
+      diagnostics.push({
+        code: "missing-log-path",
+        path: ".render/metadata.json",
+        message: "widget has not recorded a host log path yet"
+      });
+    } else if (!existsSync(logPath)) {
+      diagnostics.push({
+        code: "missing-log-file",
+        path: logPath,
+        message: "widget host log path is recorded, but the log file does not exist"
+      });
+    } else {
+      exists = true;
+      try {
+        content = readFileSync(logPath, "utf8");
+      } catch (error) {
+        diagnostics.push({
+          code: "unreadable-log-file",
+          path: logPath,
+          message: `widget host log could not be read: ${error.message}`
+        });
+      }
+    }
+    return {
+      requestId,
+      operation: "logs",
+      workspace: root,
+      ok: diagnostics.length === 0,
+      logPath,
+      exists,
+      content,
+      diagnostics
+    };
+  });
+  return fleetResult(requestId, "fleet.logs", widgets);
 }
 
 function runOne(root, requestId, options) {
@@ -64,7 +117,7 @@ function reconcileStatus(root, requestId) {
     if (!status.ok || !status.state.running || !status.state.processId) return status;
     if (processIsAlive(status.state.processId)) return status;
 
-    const state = markWorkspaceStopped(root);
+    const state = markWorkspaceStopped(root, false);
     return {
       ...status,
       state,
@@ -103,6 +156,11 @@ function fleetResult(requestId, operation, widgets) {
   };
 }
 
+function withSupervisor(requestId, operation, widgets, supervisor) {
+  const result = fleetResult(requestId, operation, widgets);
+  return supervisor ? { ...result, supervisor } : result;
+}
+
 function invalidFleetResult(requestId, operation, message) {
   return {
     requestId,
@@ -139,9 +197,96 @@ function registryPath(options) {
     : path.resolve(process.env.RENDER_FLEET_STATE_PATH ?? path.join(os.homedir(), ".render", "fleet.json"));
 }
 
+function supervisorStatePath(options) {
+  return `${registryPath(options)}.supervisor.json`;
+}
+
+function ensureSupervisor(options, widgets) {
+  const eligible = widgets.some((widget) => widget.ok) && (
+    options.supervise === true ||
+    (options.supervise !== false && widgets.some((widget) => widget.worker))
+  );
+  if (!eligible) return readSupervisorState(options);
+
+  const statePath = supervisorStatePath(options);
+  const current = readSupervisorState(options);
+  if (current && processIsAlive(current.processId)) return current;
+
+  const args = [FLEET_SUPERVISOR_SCRIPT, "--registry-path", registryPath(options), "--state-path", statePath];
+  if (typeof options.hostPath === "string" && options.hostPath.length > 0) args.push("--host-path", options.hostPath);
+  if (Number.isFinite(options.monitorIntervalMs)) args.push("--interval-ms", String(options.monitorIntervalMs));
+  const child = spawn(process.execPath, args, {
+    detached: true,
+    stdio: "ignore",
+    cwd: process.cwd(),
+    env: { ...process.env, RENDER_FLEET_STATE_PATH: registryPath(options) }
+  });
+  child.unref();
+  const starting = {
+    schemaVersion: FLEET_SUPERVISOR_SCHEMA_VERSION,
+    status: "starting",
+    processId: child.pid,
+    updatedAt: new Date().toISOString()
+  };
+  const observed = readSupervisorState(options);
+  if (!observed || observed.processId !== child.pid) {
+    writeFileAtomically(statePath, `${JSON.stringify(starting, null, 2)}\n`);
+    return starting;
+  }
+  return observed;
+}
+
+function stopSupervisorIfIdle(options) {
+  const registry = readRegistry(registryPath(options));
+  if (registry.widgets.some((widget) => widget.running)) return readSupervisorState(options);
+
+  const statePath = supervisorStatePath(options);
+  const current = readSupervisorState(options);
+  if (!current) return null;
+  if (processIsAlive(current.processId) && current.processId !== process.pid) {
+    try {
+      process.kill(current.processId);
+    } catch (error) {
+      if (error.code !== "ESRCH") throw error;
+    }
+  }
+  const stopped = { ...current, status: "stopped", updatedAt: new Date().toISOString() };
+  writeFileAtomically(statePath, `${JSON.stringify(stopped, null, 2)}\n`);
+  return stopped;
+}
+
+function readSupervisorState(options) {
+  const statePath = supervisorStatePath(options);
+  if (!existsSync(statePath)) return null;
+  try {
+    const state = JSON.parse(readFileSync(statePath, "utf8"));
+    if (state.status !== "stopped" && !processIsAlive(state.processId)) {
+      return {
+        ...state,
+        status: "stopped",
+        diagnostics: [{
+          code: "stale-supervisor",
+          path: statePath,
+          message: "fleet supervisor process is no longer running"
+        }]
+      };
+    }
+    return state;
+  } catch {
+    return {
+      schemaVersion: FLEET_SUPERVISOR_SCHEMA_VERSION,
+      status: "invalid",
+      diagnostics: [{
+        code: "invalid-supervisor-state",
+        path: statePath,
+        message: "fleet supervisor state must be valid JSON"
+      }]
+    };
+  }
+}
+
 function persistRegistry(options, widgets) {
   const filePath = registryPath(options);
-  const directory = path.dirname(filePath);
   const existing = readRegistry(filePath);
   const entries = new Map((existing.widgets ?? []).map((entry) => [entry.workspace, entry]));
   for (const widget of widgets) {
@@ -150,8 +295,12 @@ function persistRegistry(options, widgets) {
     entries.set(widget.workspace, {
       workspace: widget.workspace,
       widgetId: state?.widgetId ?? null,
+      status: state?.status ?? (state?.running ? "running" : "stopped"),
       running: state?.running ?? false,
       processId: state?.processId ?? null,
+      workerProcessId: state?.workerProcessId ?? null,
+      logPath: state?.hostLogPath ?? null,
+      hostLogPath: state?.hostLogPath ?? null,
       activeVersion: state?.activeVersion ?? null,
       lastKnownGoodVersion: state?.lastKnownGoodVersion ?? null,
       lastFailure: state?.lastFailure ?? null,

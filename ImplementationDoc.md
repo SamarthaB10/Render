@@ -38,10 +38,9 @@ The first proof is:
 - Codex or another coding agent is the primary interface.
 - The user does not need to operate a separate builder UI.
 - Generated code runs automatically after the agent updates the workspace.
-- The first prototype supports one active widget through the original
-  workspace-scoped path; the initial fleet lifecycle slice now supports
-  explicit multi-workspace run/status/stop orchestration while the final
-  host-managed multi-worker supervisor remains in Phase F1.
+- The first prototype retains its original one-widget workspace-scoped path;
+  the completed F1 fleet lifecycle now supports explicit multi-workspace
+  run/status/logs/stop/relaunch orchestration under a detached supervisor.
 - Remixing updates that widget in place rather than creating a second widget.
 - The user can drag the generated first-prototype widget, and its screen placement persists.
 - A widget may declare host-owned adjustable sizing. Native resize handles, lock state, responsive mode selection, and size preferences persist separately from widget source.
@@ -320,6 +319,8 @@ The first CLI uses explicit workspace-scoped subcommands:
 | `render reset-size` | Clear the local size override and return to manifest defaults. |
 | `render rollback` | Select and relaunch a known-good snapshot. |
 | `render fleet run/status/stop` | Run, inspect, reconcile, or stop multiple isolated widget workspaces with repeated `--workspace` flags. |
+| `render fleet logs` | Read the host log stream for one or more widget workspaces. |
+| `render fleet relaunch` | Restore all registered widget workspaces through the detached fleet supervisor. |
 | `render sdk list` | List primitives, providers, styles, actions, and capabilities. |
 | `render sdk describe <name>` | Show the exact current SDK contract for one catalog item. |
 
@@ -469,7 +470,10 @@ The CLI lifecycle is covered by the deterministic end-to-end fixture in
 - [x] Add measured worker resource tripwires and actionable diagnostics.
 - [x] Test worker crash, restart, backoff, and last-known-good recovery.
 
-Phase 8 is implemented on the current branch. The native host remains a single supervisor process for the first prototype, while the widget execution boundary is now disposable and ready to expand to one worker per widget when multiple active widgets are introduced.
+Phase 8 is implemented on the current branch. The original native host remains
+one supervisor per workspace, while completed F1 adds a fleet supervisor over
+multiple isolated hosts and their disposable workers. Each workspace keeps its
+own process record, worker state, log stream, snapshots, and recovery path.
 
 ### Phase 9 - Native JSX and SDK surface contract
 
