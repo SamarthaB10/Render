@@ -4,6 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describeSdkCatalog, listSdkCatalog, SDK_PACKAGE, SDK_VERSION } from "../packages/sdk/src/catalog.ts";
 import { checkWorkspace, initWorkspace, scaffoldWorkspace, statusWorkspace } from "../src/workspace.mjs";
+import { fleetRelaunch, fleetRun, fleetStatus, fleetStop } from "../src/fleet.mjs";
 import { moveWorkspace, resetWidgetSize, resizeWorkspace, rollbackWorkspace, runWorkspace, setWidgetMode, watchWorkspace } from "../src/runtime.mjs";
 
 export function execute(argv, cwd = process.cwd()) {
@@ -12,6 +13,7 @@ export function execute(argv, cwd = process.cwd()) {
   const workspace = options.workspace;
 
   if (command === "sdk") return executeSdk(argv[1], argv[2]);
+  if (command === "fleet") return executeFleet(argv[1], options);
   if (command === "init") return initWorkspace(workspace);
   if (command === "scaffold") return scaffoldWorkspace(workspace);
   if (command === "check") return checkWorkspace(workspace);
@@ -36,8 +38,24 @@ export function execute(argv, cwd = process.cwd()) {
     diagnostics: [{
       code: "unknown-command",
       path: "command",
-      message: "use render init, render scaffold, render check, render run, render resize, render mode, render reset-size, render status, render move, render rollback, or render sdk list/describe"
+      message: "use render init, render scaffold, render check, render run, render resize, render mode, render reset-size, render status, render move, render rollback, render fleet run/status/stop, or render sdk list/describe"
     }]
+  };
+}
+
+function executeFleet(action, options) {
+  const workspaces = options.workspaces;
+  const fleetOptions = { statePath: options.statePath };
+  if (action === "run") return fleetRun(workspaces, undefined, fleetOptions);
+  if (action === "status") return fleetStatus(workspaces, undefined, fleetOptions);
+  if (action === "stop") return fleetStop(workspaces, undefined, fleetOptions);
+  if (action === "relaunch") return fleetRelaunch(undefined, fleetOptions);
+  return {
+    requestId: "unassigned",
+    operation: "fleet",
+    ok: false,
+    widgets: [],
+    diagnostics: [{ code: "unknown-fleet-command", path: "command", message: "use render fleet run, render fleet status, render fleet stop, or render fleet relaunch" }]
   };
 }
 
@@ -89,6 +107,8 @@ export function parseOptions(args, cwd = process.cwd()) {
   let width = null;
   let height = null;
   let mode = null;
+  const workspaces = [];
+  let statePath = null;
   for (let index = 0; index < args.length; index += 1) {
     if (args[index] === "--json") {
       json = true;
@@ -117,10 +137,14 @@ export function parseOptions(args, cwd = process.cwd()) {
       index += 1;
     } else if (args[index] === "--workspace" && args[index + 1]) {
       workspace = path.resolve(cwd, args[index + 1]);
+      workspaces.push(workspace);
+      index += 1;
+    } else if (args[index] === "--state-path" && args[index + 1]) {
+      statePath = path.resolve(cwd, args[index + 1]);
       index += 1;
     }
   }
-  return { workspace, json, watch, version, corner, offsetX, offsetY, width, height, mode };
+  return { workspace, workspaces, statePath, json, watch, version, corner, offsetX, offsetY, width, height, mode };
 }
 
 function printResult(result, json) {
@@ -130,6 +154,10 @@ function printResult(result, json) {
   }
 
   if (result.ok) {
+    if (Array.isArray(result.widgets)) {
+      console.log(`${result.operation} ok: ${result.widgets.length} widget(s)`);
+      return;
+    }
     if (result.operation === "sdk.list") {
       for (const item of result.items) console.log(`${item.name}\t${item.kind}\t${item.summary}`);
       return;

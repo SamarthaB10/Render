@@ -28,12 +28,21 @@ The phases below are ordered by dependency. Each phase is marked `Planned` until
 
 ### Phase F1 — Independent widget runtimes
 
-Status: Planned. Highest priority.
+Status: In progress. The first fleet lifecycle slice is implemented on
+`feat/roadmap-completion`; the host-managed multi-worker supervisor remains.
+Highest priority.
 
 Change the current single-widget lifecycle into a supervisor that owns a separate native worker process for every running widget. Keep the existing serializable tree and worker protocol as the contract boundary. Use XPC where it provides reliable macOS process identity and lifecycle management; keep transport details behind the protocol so the widget contract does not depend on one IPC implementation.
 
 Implementation steps:
 
+- [x] Define a fleet lifecycle seam with explicit `run`, `status`, and `stop`
+  operations over repeated isolated workspaces, plus a persisted registry and
+  stale-process reconciliation.
+- [x] Add registry-backed `relaunch` so a lifecycle owner can restore all
+  registered workspaces without reconstructing their paths.
+- [x] Add a detached fleet supervisor that monitors each registered host and
+  restarts a dead widget host without touching the other workspace processes.
 - Define a stable widget identity, runtime directory, state file, log stream, and process record for each widget.
 - Move launch, readiness, stop, restart, health checks, and crash classification into the supervisor.
 - Ensure each worker has an independent process lifetime and that worker failure is isolated from the host and every other worker.
@@ -43,7 +52,13 @@ Implementation steps:
 
 Acceptance criteria:
 
-- Multiple widgets can run concurrently under one host-managed supervisor.
+- [x] Multiple isolated workspaces can be run, inspected, reconciled, and
+  stopped through one machine-readable fleet operation.
+- [x] Multiple widgets can run concurrently under one detached fleet
+  supervisor, with each workspace retaining its own host and worker state.
+- [x] Quarantine a native worker after five consecutive restart failures and
+  expose the repair diagnostic through worker state and the widget settings
+  panel.
 - Killing or crashing one worker leaves the host and other widgets running.
 - A failed candidate leaves the previous version visible and actionable diagnostics identify the repair path.
 - Stop, restart, status, and logs address one widget without ambiguous global process state.

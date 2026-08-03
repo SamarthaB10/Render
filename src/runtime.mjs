@@ -6,6 +6,7 @@ import * as sdk from "../packages/sdk/src/index.ts";
 import { buildTsxRuntimeTree } from "./tsx-runtime.mjs";
 import {
   checkWorkspace,
+  markWorkspaceStopped,
   promoteSnapshot,
   recordFailure,
   restoreSnapshot,
@@ -546,6 +547,32 @@ export function rollbackWorkspace(workspace, version, requestId = randomUUID(), 
   child.unref();
   updateState(root, { ...restored.state, running: true, processId: child.pid });
   return { ...restored, running: true, processId: child.pid };
+}
+
+export function stopWorkspace(workspace, requestId = randomUUID()) {
+  const root = path.resolve(workspace);
+  const status = statusWorkspace(root, requestId);
+  if (!status.ok) return { ...status, operation: "stop" };
+
+  const processId = status.state.processId;
+  if (processId && processId !== process.pid) {
+    try {
+      process.kill(processId);
+    } catch (error) {
+      if (error.code !== "ESRCH") throw error;
+    }
+  }
+
+  const state = markWorkspaceStopped(root);
+  return {
+    requestId,
+    operation: "stop",
+    workspace: root,
+    ok: true,
+    stopped: Boolean(processId),
+    state,
+    diagnostics: []
+  };
 }
 
 export function watchWorkspace(workspace, requestId = randomUUID(), onResult = () => {}, options = {}) {

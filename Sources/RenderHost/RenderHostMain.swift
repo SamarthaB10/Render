@@ -54,6 +54,7 @@ private final class RenderHostDelegate: NSObject, NSApplicationDelegate {
                     interactionStore: interactionStore,
                     widgetName: manifest.name,
                     workspace: workspace,
+                    workerStatePath: workerStatePath(),
                     adjustable: manifest.adjustable,
                     defaultSize: manifest.size,
                     preferences: preferencesModel,
@@ -367,6 +368,7 @@ private struct WidgetTreeContainer: View {
     @ObservedObject var interactionStore: WidgetInteractionStore
     let widgetName: String
     let workspace: String?
+    let workerStatePath: String?
     let adjustable: RuntimeManifest.Adjustable?
     let defaultSize: RuntimeManifest.Size
     @ObservedObject var preferences: WidgetPreferencesModel
@@ -382,6 +384,7 @@ private struct WidgetTreeContainer: View {
             WidgetSettingsOverlay(
                 widgetName: widgetName,
                 workspace: workspace,
+                workerStatePath: workerStatePath,
                 adjustable: adjustable,
                 defaultSize: defaultSize,
                 preferences: preferences.value,

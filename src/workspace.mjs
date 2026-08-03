@@ -124,6 +124,21 @@ export function recordFailure(workspace, diagnostics) {
   return nextState;
 }
 
+export function markWorkspaceStopped(workspace) {
+  const root = path.resolve(workspace);
+  const metadataPath = path.join(root, ".render", "metadata.json");
+  if (!existsSync(metadataPath)) return null;
+  const state = readState(root);
+  const nextState = {
+    ...state,
+    running: false,
+    processId: null,
+    workerStatePath: null
+  };
+  writeState(root, nextState);
+  return nextState;
+}
+
 export function checkWorkspace(workspace, requestId = randomUUID()) {
   const root = path.resolve(workspace);
   const widgetPath = path.join(root, "widget.tsx");

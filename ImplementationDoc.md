@@ -38,7 +38,10 @@ The first proof is:
 - Codex or another coding agent is the primary interface.
 - The user does not need to operate a separate builder UI.
 - Generated code runs automatically after the agent updates the workspace.
-- The first prototype supports one active widget.
+- The first prototype supports one active widget through the original
+  workspace-scoped path; the initial fleet lifecycle slice now supports
+  explicit multi-workspace run/status/stop orchestration while the final
+  host-managed multi-worker supervisor remains in Phase F1.
 - Remixing updates that widget in place rather than creating a second widget.
 - The user can drag the generated first-prototype widget, and its screen placement persists.
 - A widget may declare host-owned adjustable sizing. Native resize handles, lock state, responsive mode selection, and size preferences persist separately from widget source.
@@ -316,6 +319,8 @@ The first CLI uses explicit workspace-scoped subcommands:
 | `render mode` | Select `auto` or one of the widget's declared responsive modes. |
 | `render reset-size` | Clear the local size override and return to manifest defaults. |
 | `render rollback` | Select and relaunch a known-good snapshot. |
+| `render fleet run/status/stop` | Run, inspect, reconcile, or stop multiple isolated widget workspaces with repeated `--workspace` flags. |
+| `render fleet relaunch` | Restore all registered widget workspaces through the detached fleet supervisor. |
 | `render sdk list` | List primitives, providers, styles, actions, and capabilities. |
 | `render sdk describe <name>` | Show the exact current SDK contract for one catalog item. |
 

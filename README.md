@@ -17,6 +17,7 @@ The current reference implementation is a native CPU/RAM widget. It proves the a
 - Automatic TSX compilation to a serializable declarative tree; no DOM, HTML, CSS, browser runtime, or webview.
 - Agent-readable SDK discovery through `render sdk list --json` and `render sdk describe <name> --json`.
 - Workspace-scoped validation, running, watch mode, logical movement, snapshots, rollback, and last-known-good recovery.
+- An experimental fleet lifecycle seam can run, inspect, reconcile, and stop multiple isolated widget workspaces with repeated `--workspace` flags; each workspace keeps its own snapshots and runtime metadata.
 - Host-owned CPU, memory, and local-time providers.
 - Native dragging and persisted placement for the first prototype.
 - Host-owned adjustable sizing with native resize handles, persisted size and lock state, responsive modes, and a settings-panel mode selector.
@@ -29,6 +30,7 @@ The current reference implementation is a native CPU/RAM widget. It proves the a
 - A generic native `List` primitive for static rows or structured provider-backed rows such as `reminders.items`.
 - A native `YouTubePlayer` primitive backed by an isolated WebKit surface, with explicit network capability, validated video IDs, and an optional persisted link-input toggle.
 - Render-owned Spotify permission prompt and a liquid-glass widget settings panel with metadata and a confirmed stop control.
+- Worker crash loops remain quiet while they recover and become a visible liquid-glass settings diagnostic only after five consecutive restart failures; the last-known-good tree remains visible.
 
 MCP is not required for this prototype. The agent boundary is the deterministic local CLI plus the checked-in widget-authoring skill. MCP can wrap that stable contract later if broader interoperability requires it.
 
@@ -90,6 +92,34 @@ Confirm that the native worker is ready:
 ```bash
 node bin/render.mjs status --workspace "$HOME/RenderWidgets/system-monitor" --json
 ```
+
+For multiple widgets, use the fleet commands. They persist a local registry at
+`~/.render/fleet.json` (or the path supplied with `--state-path`) and keep each
+workspace's lifecycle state separate:
+
+```bash
+node bin/render.mjs fleet run \
+  --workspace "$HOME/RenderWidgets/system-monitor" \
+  --workspace "$HOME/RenderWidgets/study-timer" \
+  --json
+node bin/render.mjs fleet status \
+  --workspace "$HOME/RenderWidgets/system-monitor" \
+  --workspace "$HOME/RenderWidgets/study-timer" \
+  --json
+node bin/render.mjs fleet stop \
+  --workspace "$HOME/RenderWidgets/system-monitor" \
+  --workspace "$HOME/RenderWidgets/study-timer" \
+  --json
+node bin/render.mjs fleet relaunch --json
+```
+
+This is the first fleet slice, not the final crash-isolated architecture: the
+commands now keep a detached fleet supervisor over the existing per-widget
+host boundary. It monitors each widget independently and relaunches a dead
+host without replacing the other widgets. The future XPC-backed supervisor
+will preserve this contract while moving each widget behind its own native
+worker process and restart policy. `fleet relaunch` consumes the persisted
+registry, which is the lifecycle seam a future login item will call.
 
 The status response should report a running widget and, when the native supervisor is active, `worker.status` as `ready`. The widget appears on the desktop at its logical anchor. The first prototype can be dragged by the user, and its placement is persisted by the native host.
 
