@@ -113,6 +113,20 @@ Initial primitive families:
 
 Do not add a primitive only because it is easy to expose. A primitive is ready when an agent can discover when to use it, compose it with the existing catalog, receive actionable diagnostics, and run it without a hidden web dependency.
 
+### Agreed primitive expansion roadmap
+
+This is the prioritized SDK strategy established for the next implementation cycle. Every item remains subject to the full vertical-slice rule: TypeScript interface, catalog entry, runtime validation, native implementation, persistence semantics where relevant, accessibility behavior, tests, agent documentation, and a performance receipt.
+
+1. **Productivity foundation** — `ScrollView`, persistent multiline `TextEditor`, stable state keys, richer `TaskList` editing, configurable timer durations, date/time controls, and Reminders connector/actions.
+2. **Media and system** — native audio/media controls, Spotify playback, CPU/RAM/network/battery providers, weather, artwork loading, app actions, and stale-data handling.
+3. **Domain connectors** — curated sports, finance, transit, and other host-owned providers using the shared authentication, permissions, freshness, caching, and error-state contracts.
+4. **Native visual system** — Liquid Glass/material surfaces, semantic themes, charts, async images, accessible transitions, and reduced-motion behavior.
+5. **Composable layout and components** — constraint measurement, safe-area/multi-display layout, reusable typed components, sections, virtualized collections, and adaptive responsive rules.
+6. **Runtime resilience** — independent widget workers, automatic last-known-good recovery, five-restart crash-loop quarantine, repair cards, and state-preserving remixes.
+7. **Agent discovery** — categorized catalog queries, capability/permission metadata, validated recipes, current-state inspection, and agent-readable repair guidance.
+
+The first slice in progress is the productivity foundation: `ScrollView` keeps content inside a resized widget, while `TextEditor` stores user content by stable key or path. Generated text remains a default; user edits survive relaunches and source remixes.
+
 ### Phase F5 — Agent-first SDK discovery and generation
 
 Status: Planned. Evolves alongside F4.

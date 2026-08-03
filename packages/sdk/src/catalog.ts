@@ -79,6 +79,17 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     status: "implemented"
   },
   {
+    name: "ScrollView",
+    kind: "primitive",
+    summary: "Native vertically scrollable content container",
+    importPath: SDK_PACKAGE,
+    signature: "ScrollView(children: WidgetNode[], style?: WidgetStyle): WidgetNode",
+    inputs: ["children", "style"],
+    example: "ScrollView([Text(\"Long notes\")], { height: 320 })",
+    status: "implemented",
+    notes: ["The native renderer owns scrolling and keeps overflowing content inside the widget frame."]
+  },
+  {
     name: "Box",
     kind: "primitive",
     summary: "General native container for grouping and styling children",
@@ -135,6 +146,17 @@ const SDK_CATALOG: SdkCatalogItem[] = [
       "The native renderer keeps the edited value interactive for the current widget session.",
       "Persistent widget-owned state is a separate storage contract; do not put filesystem writes in widget source."
     ]
+  },
+  {
+    name: "TextEditor",
+    kind: "primitive",
+    summary: "Native persistent multiline text editor",
+    importPath: SDK_PACKAGE,
+    signature: "TextEditor(text?: string, style?: WidgetStyle): WidgetNode",
+    inputs: ["text", "style"],
+    example: 'TextEditor({ key: "notes", text: "", placeholder: "Write a note…" })',
+    status: "implemented",
+    notes: ["The native renderer persists editor content by stable key or node path; widget source supplies the default text."]
   },
   {
     name: "Toggle",
@@ -426,7 +448,7 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     importPath: SDK_PACKAGE,
     signature: "interface WidgetNode { kind: WidgetNodeKind; children?: WidgetNode[]; style?: WidgetStyle; ... }",
     fields: [
-      'kind: "column" | "row" | "stack" | "box" | "spacer" | "divider" | "text" | "textField" | "toggle" | "timer" | "taskList" | "shape" | "icon" | "image" | "button" | "gauge" | "progress" | "grid"',
+      'kind: "column" | "row" | "stack" | "box" | "scrollView" | "spacer" | "divider" | "text" | "textField" | "textEditor" | "toggle" | "timer" | "taskList" | "shape" | "icon" | "image" | "button" | "gauge" | "progress" | "grid"',
       "children?: WidgetNode[]",
       "text?: string",
       "provider?: string",
@@ -439,7 +461,8 @@ const SDK_CATALOG: SdkCatalogItem[] = [
       "action?: WidgetAction",
       "columns?: number",
       "durationSeconds?: number",
-      "tasks?: WidgetTaskItem[]"
+      "tasks?: WidgetTaskItem[]",
+      "placeholder?: string"
     ],
     example: 'Column([Text("CPU")])',
     status: "implemented",
@@ -450,7 +473,7 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     kind: "type",
     summary: "Allowed discriminators for declarative widget nodes",
     importPath: SDK_PACKAGE,
-    signature: 'type WidgetNodeKind = "column" | "row" | "stack" | "box" | "spacer" | "divider" | "text" | "textField" | "toggle" | "timer" | "taskList" | "shape" | "icon" | "image" | "button" | "gauge" | "progress" | "grid"',
+    signature: 'type WidgetNodeKind = "column" | "row" | "stack" | "box" | "scrollView" | "spacer" | "divider" | "text" | "textField" | "textEditor" | "toggle" | "timer" | "taskList" | "shape" | "icon" | "image" | "button" | "gauge" | "progress" | "grid"',
     example: 'const kind: WidgetNodeKind = "box"',
     status: "implemented"
   },

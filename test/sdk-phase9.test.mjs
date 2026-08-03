@@ -4,6 +4,17 @@ import test from "node:test";
 test("Phase 9 primitives produce serializable native nodes", async () => {
   const sdk = await import("../packages/sdk/src/index.ts");
 
+  assert.deepEqual(sdk.ScrollView([sdk.Text("Long notes")], { height: 320 }), {
+    kind: "scrollView",
+    children: [{ kind: "text", text: "Long notes" }],
+    style: { height: 320 }
+  });
+  assert.deepEqual(sdk.TextEditor({ key: "notes", text: "", placeholder: "Write a note…" }), {
+    kind: "textEditor",
+    key: "notes",
+    text: "",
+    placeholder: "Write a note…"
+  });
   assert.deepEqual(sdk.Box([sdk.Text("Now playing")], {
     backgroundColor: "#111827",
     padding: 12,
@@ -111,7 +122,7 @@ test("Phase 9 catalog is exact and exported runtime primitives are discoverable"
   const sdk = await import("../packages/sdk/src/index.ts");
   const catalog = await import("../packages/sdk/src/catalog.ts");
   const names = catalog.listSdkCatalog().map((item) => item.name);
-  const primitives = ["Box", "Spacer", "Divider", "Icon", "Image", "Button", "TextField", "Toggle", "Timer", "TaskList", "Progress", "Grid"];
+  const primitives = ["Box", "Spacer", "Divider", "Icon", "Image", "Button", "TextField", "TextEditor", "Toggle", "Timer", "TaskList", "ScrollView", "Progress", "Grid"];
 
   for (const name of primitives) {
     assert.equal(typeof sdk[name], "function", `${name} must be exported`);
@@ -123,8 +134,8 @@ test("Phase 9 catalog is exact and exported runtime primitives are discoverable"
     assert.ok(item.notes.some((note) => note.includes("native renderer")));
   }
 
-  assert.deepEqual(names.slice(1, 19), [
-    "Column", "Row", "Stack", "Box", "Spacer", "Divider", "Text", "TextField", "Toggle", "Timer", "TaskList", "Shape", "Icon", "Image", "Button", "Gauge", "Progress", "Grid"
+  assert.deepEqual(names.slice(1, 21), [
+    "Column", "Row", "Stack", "ScrollView", "Box", "Spacer", "Divider", "Text", "TextField", "TextEditor", "Toggle", "Timer", "TaskList", "Shape", "Icon", "Image", "Button", "Gauge", "Progress", "Grid"
   ]);
   assert.equal(catalog.describeSdkCatalog("WidgetStyle").status, "implemented");
   assert.equal(catalog.describeSdkCatalog("WidgetAction").status, "implemented");

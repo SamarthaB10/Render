@@ -14,9 +14,14 @@ private struct StoredTaskList: Codable {
     var items: [WidgetTaskItem]
 }
 
+private struct StoredTextEditor: Codable {
+    var text: String
+}
+
 private struct StoredInteractionState: Codable {
     var timers: [String: StoredTimer] = [:]
     var taskLists: [String: StoredTaskList] = [:]
+    var textEditors: [String: StoredTextEditor]? = nil
 }
 
 final class WidgetInteractionStore: ObservableObject {
@@ -89,6 +94,17 @@ final class WidgetInteractionStore: ObservableObject {
 
     func saveTaskItems(path: String, items: [WidgetTaskItem]) {
         state.taskLists[path] = StoredTaskList(items: items)
+        persist()
+    }
+
+    func textEditorValue(path: String, defaultText: String) -> String {
+        state.textEditors?[path]?.text ?? defaultText
+    }
+
+    func saveTextEditor(path: String, text: String) {
+        var editors = state.textEditors ?? [:]
+        editors[path] = StoredTextEditor(text: text)
+        state.textEditors = editors
         persist()
     }
 

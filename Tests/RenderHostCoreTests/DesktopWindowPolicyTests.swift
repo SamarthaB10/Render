@@ -152,7 +152,8 @@ final class DesktopWindowPolicyTests: XCTestCase {
           "kind": "column",
           "children": [
             { "kind": "timer", "durationSeconds": 1500 },
-            { "kind": "taskList", "tasks": [{ "id": "read", "text": "Read chapter 3", "completed": false }] }
+            { "kind": "taskList", "tasks": [{ "id": "read", "text": "Read chapter 3", "completed": false }] },
+            { "kind": "scrollView", "children": [{ "kind": "textEditor", "key": "notes", "text": "", "placeholder": "Write a note…" }] }
           ]
         }
         """#.utf8)
@@ -161,6 +162,9 @@ final class DesktopWindowPolicyTests: XCTestCase {
 
         XCTAssertEqual(tree.children[0].durationSeconds, 1500)
         XCTAssertEqual(tree.children[1].tasks?.first?.id, "read")
+        XCTAssertEqual(tree.children[2].kind, .scrollView)
+        XCTAssertEqual(tree.children[2].children.first?.key, .string("notes"))
+        XCTAssertEqual(tree.children[2].children.first?.placeholder, "Write a note…")
         XCTAssertTrue(tree.validationIssues().isEmpty)
     }
 

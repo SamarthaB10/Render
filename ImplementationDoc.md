@@ -259,6 +259,7 @@ The first native renderer implements:
 - `Gauge`
 - Host-owned adjustable sizing and responsive render context (`WidgetAdjustable`, `WidgetRenderContext`).
 - Host-owned stateful controls (`Timer`, `TaskList`, `WidgetTaskItem`) with persisted runtime interaction state.
+- Productivity foundation slice: native `ScrollView`, persistent multiline `TextEditor`, and stable keyed interaction state for future editable primitives.
 
 This is the first slice of a larger Render SDK. Agents compose from the SDK; they do not invent ad-hoc primitives or bypass the native renderer.
 

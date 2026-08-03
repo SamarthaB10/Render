@@ -72,6 +72,15 @@ struct WidgetTreeView: View {
                     WidgetTreeView(tree: tree.children[index], providers: providers, interactionStore: interactionStore, nodePath: childPath(index), fillsAvailableSpace: false, onAction: onAction)
                 }
             })
+        case .scrollView:
+            return AnyView(SwiftUI.ScrollView(.vertical) {
+                VStack(alignment: horizontalAlignment, spacing: gap) {
+                    ForEach(tree.children.indices, id: \.self) { index in
+                        WidgetTreeView(tree: tree.children[index], providers: providers, interactionStore: interactionStore, nodePath: childPath(index), fillsAvailableSpace: false, onAction: onAction)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: frameAlignment)
+            })
         case .grid:
             return AnyView(LazyVGrid(
                 columns: Array(repeating: GridItem(.flexible(), spacing: gap), count: max(tree.columns ?? 1, 1)),
@@ -97,6 +106,8 @@ struct WidgetTreeView: View {
             return AnyView(Text(displayedText))
         case .textField:
             return AnyView(EditableTextField(initialText: tree.text ?? "", style: tree.style))
+        case .textEditor:
+            return AnyView(EditableTextEditor(path: nodePath, initialText: tree.text ?? "", placeholder: tree.placeholder, store: interactionStore, style: tree.style))
         case .toggle:
             return AnyView(EditableToggle(initialValue: (tree.value ?? 0) == 1))
         case .timer:
@@ -196,7 +207,12 @@ struct WidgetTreeView: View {
     private var gap: CGFloat { CGFloat(tree.style?.gap ?? ((tree.kind == .column || tree.kind == .row) ? 8 : 0)) }
 
     private func childPath(_ index: Int) -> String {
-        "\(nodePath).children[\(index)]"
+        let child = tree.children[index]
+        guard let key = child.key else { return "\(nodePath).children[\(index)]" }
+        switch key {
+        case .string(let value): return "\(nodePath).key.string:\(value)"
+        case .number(let value): return "\(nodePath).key.number:\(value)"
+        }
     }
 
     private var horizontalAlignment: HorizontalAlignment {
@@ -349,6 +365,45 @@ private struct EditableTextField: View {
             .padding(8)
             .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: CGFloat(style?.radius ?? 8)))
             .foregroundColor(.primary)
+    }
+}
+
+private struct EditableTextEditor: View {
+    let path: String
+    let initialText: String
+    let placeholder: String?
+    @ObservedObject var store: WidgetInteractionStore
+    let style: WidgetStyle?
+    @State private var value: String
+
+    init(path: String, initialText: String, placeholder: String?, store: WidgetInteractionStore, style: WidgetStyle?) {
+        self.path = path
+        self.initialText = initialText
+        self.placeholder = placeholder
+        self.store = store
+        self.style = style
+        _value = State(initialValue: store.textEditorValue(path: path, defaultText: initialText))
+    }
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            TextEditor(text: $value)
+                .scrollContentBackground(.hidden)
+                .padding(8)
+                .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: CGFloat(style?.radius ?? 8)))
+                .foregroundColor(.primary)
+                .onChange(of: value) { nextValue in
+                    store.saveTextEditor(path: path, text: nextValue)
+                }
+            if value.isEmpty, let placeholder, !placeholder.isEmpty {
+                Text(placeholder)
+                    .foregroundColor(.secondary)
+                    .padding(.leading, 13)
+                    .padding(.top, 16)
+                    .allowsHitTesting(false)
+            }
+        }
+        .onDisappear { store.saveTextEditor(path: path, text: value) }
     }
 }
 
