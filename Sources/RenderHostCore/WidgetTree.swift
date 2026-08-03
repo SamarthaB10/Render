@@ -5,6 +5,8 @@ public enum WidgetNodeKind: String, Codable, Sendable {
     case row
     case stack
     case box
+    case glassPanel
+    case mediaCard
     case spacer
     case divider
     case text
@@ -20,6 +22,7 @@ public enum WidgetNodeKind: String, Codable, Sendable {
     case timer
     case taskList
     case list
+    case visualizer
     case youtubePlayer
     case scrollView
     case textEditor
@@ -112,12 +115,37 @@ public enum WidgetFontWeight: String, Codable, Equatable, Sendable {
 public enum WidgetStyleToken: String, Codable, Equatable, Sendable {
     case surface
     case surfaceElevated = "surface.elevated"
+    case surfacePanel = "surface.panel"
+    case surfaceControl = "surface.control"
+    case surfaceStatus = "surface.status"
     case textPrimary = "text.primary"
     case textSecondary = "text.secondary"
+    case textTertiary = "text.tertiary"
+    case borderSubtle = "border.subtle"
     case accent
+    case accentMuted = "accent.muted"
     case danger
     case success
     case mono
+}
+
+public enum WidgetMaterial: String, Codable, Equatable, Sendable {
+    case solid
+    case thin
+    case thick
+}
+
+public enum WidgetSemanticRole: String, Codable, Equatable, Sendable {
+    case surface
+    case panel
+    case control
+    case status
+    case media
+}
+
+public enum WidgetDensity: String, Codable, Equatable, Sendable {
+    case compact
+    case comfortable
 }
 
 public struct WidgetFont: Codable, Equatable, Sendable {
@@ -177,6 +205,9 @@ public struct WidgetStyle: Codable, Equatable, Sendable {
     public let border: WidgetBorder?
     public let shadow: WidgetShadow?
     public let font: WidgetFont?
+    public let material: WidgetMaterial?
+    public let role: WidgetSemanticRole?
+    public let density: WidgetDensity?
     public let tokens: [WidgetStyleToken]?
 
     // Numeric initializers preserve the original native-host call sites.
@@ -195,6 +226,9 @@ public struct WidgetStyle: Codable, Equatable, Sendable {
         border: WidgetBorder? = nil,
         shadow: WidgetShadow? = nil,
         font: WidgetFont? = nil,
+        material: WidgetMaterial? = nil,
+        role: WidgetSemanticRole? = nil,
+        density: WidgetDensity? = nil,
         tokens: [WidgetStyleToken]? = nil
     ) {
         self.width = width.map(WidgetLength.points)
@@ -211,6 +245,9 @@ public struct WidgetStyle: Codable, Equatable, Sendable {
         self.border = border
         self.shadow = shadow
         self.font = font
+        self.material = material
+        self.role = role
+        self.density = density
         self.tokens = tokens
     }
 
@@ -229,6 +266,9 @@ public struct WidgetStyle: Codable, Equatable, Sendable {
         border: WidgetBorder? = nil,
         shadow: WidgetShadow? = nil,
         font: WidgetFont? = nil,
+        material: WidgetMaterial? = nil,
+        role: WidgetSemanticRole? = nil,
+        density: WidgetDensity? = nil,
         tokens: [WidgetStyleToken]? = nil
     ) {
         self.width = width
@@ -245,6 +285,9 @@ public struct WidgetStyle: Codable, Equatable, Sendable {
         self.border = border
         self.shadow = shadow
         self.font = font
+        self.material = material
+        self.role = role
+        self.density = density
         self.tokens = tokens
     }
 }
@@ -415,6 +458,8 @@ public struct WidgetTree: Codable, Equatable, Sendable {
     public let placeholder: String?
     public let dateTime: String?
     public let dateTimeMode: String?
+    public let visualizerMode: String?
+    public let visualizerTempo: Double?
 
     public init(
         kind: WidgetNodeKind,
@@ -440,7 +485,9 @@ public struct WidgetTree: Codable, Equatable, Sendable {
         startSeconds: Double? = nil,
         placeholder: String? = nil,
         dateTime: String? = nil,
-        dateTimeMode: String? = nil
+        dateTimeMode: String? = nil,
+        visualizerMode: String? = nil,
+        visualizerTempo: Double? = nil
     ) {
         self.kind = kind
         self.key = key
@@ -466,10 +513,12 @@ public struct WidgetTree: Codable, Equatable, Sendable {
         self.placeholder = placeholder
         self.dateTime = dateTime
         self.dateTimeMode = dateTimeMode
+        self.visualizerMode = visualizerMode
+        self.visualizerTempo = visualizerTempo
     }
 
     private enum CodingKeys: String, CodingKey {
-        case kind, key, children, text, provider, style, value, maximum, orientation, name, source, action, columns, durationSeconds, tasks, items, videoId, allowLinkInput, autoplay, controls, startSeconds, placeholder, dateTime, dateTimeMode
+        case kind, key, children, text, provider, style, value, maximum, orientation, name, source, action, columns, durationSeconds, tasks, items, videoId, allowLinkInput, autoplay, controls, startSeconds, placeholder, dateTime, dateTimeMode, visualizerMode, visualizerTempo
     }
 
     public init(from decoder: Decoder) throws {
@@ -498,11 +547,13 @@ public struct WidgetTree: Codable, Equatable, Sendable {
         placeholder = try container.decodeIfPresent(String.self, forKey: .placeholder)
         dateTime = try container.decodeIfPresent(String.self, forKey: .dateTime)
         dateTimeMode = try container.decodeIfPresent(String.self, forKey: .dateTimeMode)
+        visualizerMode = try container.decodeIfPresent(String.self, forKey: .visualizerMode)
+        visualizerTempo = try container.decodeIfPresent(Double.self, forKey: .visualizerTempo)
     }
 
     public func validationIssues(path: String = "root") -> [WidgetTreeValidationIssue] {
         var issues: [WidgetTreeValidationIssue] = []
-        let isContainer = [.column, .row, .stack, .box, .scrollView, .grid, .button].contains(kind)
+        let isContainer = [.column, .row, .stack, .box, .glassPanel, .mediaCard, .scrollView, .grid, .button].contains(kind)
 
         if isContainer && text != nil {
             issues.append(.init(path: path, message: "container nodes cannot define text"))
@@ -547,6 +598,18 @@ public struct WidgetTree: Codable, Equatable, Sendable {
                 if !ids.insert(item.id).inserted { issues.append(.init(path: "\(path).items[\(index)].id", message: "list item ids must be unique")) }
                 if item.title.isEmpty { issues.append(.init(path: "\(path).items[\(index)].title", message: "list item title must be non-empty")) }
             }
+        }
+        if kind == .visualizer {
+            if let visualizerMode, !["bars", "waveform", "rings"].contains(visualizerMode) {
+                issues.append(.init(path: "\(path).visualizerMode", message: "mode must be bars, waveform, or rings"))
+            }
+            if let visualizerTempo, !visualizerTempo.isFinite || visualizerTempo <= 0 {
+                issues.append(.init(path: "\(path).visualizerTempo", message: "tempo must be a positive number"))
+            }
+        }
+        if kind != .visualizer {
+            if visualizerMode != nil { issues.append(.init(path: "\(path).visualizerMode", message: "only visualizer nodes may define a visualizer mode")) }
+            if visualizerTempo != nil { issues.append(.init(path: "\(path).visualizerTempo", message: "only visualizer nodes may define a visualizer tempo")) }
         }
         if let provider, provider.isEmpty {
             issues.append(.init(path: "\(path).provider", message: "provider name must be non-empty"))

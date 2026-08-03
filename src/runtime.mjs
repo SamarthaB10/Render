@@ -603,8 +603,8 @@ function validateRuntimeTree(node, pathName, subscriptions, capabilities, accoun
     throw new Error(`${pathName}: render() must return a widget node`);
   }
   const kinds = new Set([
-    "column", "row", "stack", "box", "scrollView", "spacer", "divider", "text", "textField", "textEditor", "dateTime", "dateTimePicker", "toggle", "timer", "taskList", "shape",
-    "icon", "image", "button", "gauge", "progress", "grid", "list", "youtubePlayer"
+    "column", "row", "stack", "box", "glassPanel", "mediaCard", "scrollView", "spacer", "divider", "text", "textField", "textEditor", "dateTime", "dateTimePicker", "toggle", "timer", "taskList", "shape",
+    "icon", "image", "button", "gauge", "progress", "grid", "list", "visualizer", "youtubePlayer"
   ]);
   if (!kinds.has(node.kind)) {
     throw new Error(`${pathName}.kind: unknown widget primitive`);
@@ -612,7 +612,7 @@ function validateRuntimeTree(node, pathName, subscriptions, capabilities, accoun
   if (node.key !== undefined && !(["string", "number"].includes(typeof node.key))) {
     throw new Error(`${pathName}.key: keys must be strings or numbers`);
   }
-  const containers = new Set(["column", "row", "stack", "box", "scrollView", "grid", "button"]);
+  const containers = new Set(["column", "row", "stack", "box", "glassPanel", "mediaCard", "scrollView", "grid", "button"]);
   if (containers.has(node.kind) && node.text !== undefined) {
     throw new Error(`${pathName}.text: container nodes cannot define text`);
   }
@@ -693,6 +693,17 @@ function validateRuntimeTree(node, pathName, subscriptions, capabilities, accoun
       throw new Error(`${pathName}.items: list nodes require an array of items or a provider`);
     }
     if (node.items !== undefined) validateListItems(node.items, `${pathName}.items`);
+  }
+  if (node.kind === "visualizer") {
+    if (node.visualizerMode !== undefined && !new Set(["bars", "waveform", "rings"]).has(node.visualizerMode)) {
+      throw new Error(`${pathName}.visualizerMode: mode must be bars, waveform, or rings`);
+    }
+    if (node.visualizerTempo !== undefined && (typeof node.visualizerTempo !== "number" || !Number.isFinite(node.visualizerTempo) || node.visualizerTempo <= 0)) {
+      throw new Error(`${pathName}.visualizerTempo: tempo must be a positive number`);
+    }
+  }
+  if (node.kind !== "visualizer" && (node.visualizerMode !== undefined || node.visualizerTempo !== undefined)) {
+    throw new Error(`${pathName}: visualizer fields may only be used by visualizer nodes`);
   }
   if (node.kind !== "list" && node.items !== undefined) {
     throw new Error(`${pathName}.items: only list nodes may define items`);
@@ -860,7 +871,7 @@ function validateStyle(style, pathName) {
   if (!style || typeof style !== "object" || Array.isArray(style)) throw new Error(`${pathName}: style must be an object`);
   const allowed = new Set([
     "width", "height", "color", "backgroundColor", "opacity", "padding", "margin", "gap",
-    "alignItems", "justifyContent", "radius", "border", "shadow", "font", "tokens"
+    "alignItems", "justifyContent", "radius", "border", "shadow", "font", "material", "role", "density", "tokens"
   ]);
   for (const key of Object.keys(style)) if (!allowed.has(key)) throw new Error(`${pathName}.${key}: unknown style property`);
   for (const key of ["width", "height"]) {
@@ -900,7 +911,10 @@ function validateStyle(style, pathName) {
     if (style.font.family !== undefined && typeof style.font.family !== "string") throw new Error(`${pathName}.font.family: family must be a string`);
     if (style.font.monospace !== undefined && typeof style.font.monospace !== "boolean") throw new Error(`${pathName}.font.monospace: must be boolean`);
   }
-  if (style.tokens !== undefined && (!Array.isArray(style.tokens) || style.tokens.some((token) => !new Set(["surface", "surface.elevated", "text.primary", "text.secondary", "accent", "danger", "success", "mono"]).has(token)))) throw new Error(`${pathName}.tokens: contains an unsupported style token`);
+  if (style.material !== undefined && !new Set(["solid", "thin", "thick"]).has(style.material)) throw new Error(`${pathName}.material: unsupported material`);
+  if (style.role !== undefined && !new Set(["surface", "panel", "control", "status", "media"]).has(style.role)) throw new Error(`${pathName}.role: unsupported semantic role`);
+  if (style.density !== undefined && !new Set(["compact", "comfortable"]).has(style.density)) throw new Error(`${pathName}.density: unsupported density`);
+  if (style.tokens !== undefined && (!Array.isArray(style.tokens) || style.tokens.some((token) => !new Set(["surface", "surface.elevated", "surface.panel", "surface.control", "surface.status", "text.primary", "text.secondary", "text.tertiary", "border.subtle", "accent", "accent.muted", "danger", "success", "mono"]).has(token)))) throw new Error(`${pathName}.tokens: contains an unsupported style token`);
 }
 
 function validateObjectKeys(value, allowed, pathName) {

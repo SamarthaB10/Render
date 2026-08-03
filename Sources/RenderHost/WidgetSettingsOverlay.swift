@@ -4,6 +4,8 @@ import RenderHostCore
 struct WidgetSettingsOverlay: View {
     let widgetName: String
     let workspace: String?
+    let themeConfig: RuntimeManifest.Theme?
+    let theme: RenderTheme
     let adjustable: RuntimeManifest.Adjustable?
     let defaultSize: RuntimeManifest.Size
     let preferences: WidgetPreferences
@@ -28,6 +30,8 @@ struct WidgetSettingsOverlay: View {
     init(
         widgetName: String,
         workspace: String?,
+        themeConfig: RuntimeManifest.Theme?,
+        theme: RenderTheme,
         adjustable: RuntimeManifest.Adjustable?,
         defaultSize: RuntimeManifest.Size,
         preferences: WidgetPreferences,
@@ -42,6 +46,8 @@ struct WidgetSettingsOverlay: View {
     ) {
         self.widgetName = widgetName
         self.workspace = workspace
+        self.themeConfig = themeConfig
+        self.theme = theme
         self.adjustable = adjustable
         self.defaultSize = defaultSize
         self.preferences = preferences
@@ -117,9 +123,9 @@ struct WidgetSettingsOverlay: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .foregroundColor(.primary)
-        .background(.ultraThinMaterial, in: Circle())
-        .overlay(Circle().stroke(Color.white.opacity(0.24), lineWidth: 0.5))
+        .foregroundColor(theme.primaryText)
+        .background(theme.control, in: Circle())
+        .overlay(Circle().stroke(theme.border, lineWidth: 0.5))
         .opacity(isHovered || isOpen ? 1 : 0)
         .accessibilityLabel("Widget settings")
         .accessibilityHint("Opens widget metadata, connection settings, and the stop control")
@@ -176,6 +182,11 @@ struct WidgetSettingsOverlay: View {
                 youtubeControls(for: youtube)
             }
 
+            if let themeConfig, themeConfig.options.count > 1 {
+                Divider().opacity(0.35)
+                themeControls(themeConfig)
+            }
+
             if adjustable?.enabled == true {
                 Divider().opacity(0.35)
                 adjustableControls
@@ -189,7 +200,8 @@ struct WidgetSettingsOverlay: View {
         }
         .padding(14)
         .frame(minWidth: 250, alignment: .leading)
-        .liquidGlassSurface()
+        .foregroundColor(theme.primaryText)
+        .liquidGlassSurface(theme: theme)
     }
 
     private func permissionPrompt(for status: AccountStatus) -> some View {
@@ -229,7 +241,8 @@ struct WidgetSettingsOverlay: View {
         }
         .padding(16)
         .frame(maxWidth: 340, alignment: .leading)
-        .liquidGlassSurface()
+        .foregroundColor(theme.primaryText)
+        .liquidGlassSurface(theme: theme)
         .padding(12)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
     }
@@ -353,6 +366,30 @@ struct WidgetSettingsOverlay: View {
         }
     }
 
+    private func themeControls(_ config: RuntimeManifest.Theme) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Theme")
+                .font(.subheadline.weight(.semibold))
+            Picker("Theme", selection: Binding(
+                get: {
+                    let selected = preferences.theme ?? config.defaultTheme
+                    return config.options.contains(selected) ? selected : config.defaultTheme
+                },
+                set: { value in
+                    var next = preferences
+                    next.theme = value
+                    onPreferencesChange(next)
+                }
+            )) {
+                ForEach(config.options, id: \.self) { option in
+                    Text(option.replacingOccurrences(of: "-", with: " ").capitalized).tag(option)
+                }
+            }
+            .pickerStyle(.menu)
+            .accessibilityLabel("Widget theme")
+        }
+    }
+
     private func applySize() {
         guard let width = Double(widthText), let height = Double(heightText) else { return }
         var next = preferences
@@ -393,13 +430,13 @@ struct WidgetSettingsOverlay: View {
 }
 
 private extension View {
-    func liquidGlassSurface() -> some View {
-        background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+    func liquidGlassSurface(theme: RenderTheme) -> some View {
+        background(theme.panel.opacity(theme.name == .light ? 0.96 : 0.88), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .stroke(
                         LinearGradient(
-                            colors: [Color.white.opacity(0.38), Color.white.opacity(0.08)],
+                            colors: [theme.border, theme.border.opacity(0.25)],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         ),

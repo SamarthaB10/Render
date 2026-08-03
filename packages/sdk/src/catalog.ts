@@ -27,7 +27,8 @@ export const CANONICAL_WIDGET_SOURCE = [
   '  "size": { "width": 320, "height": 180 },',
   '  "anchor": { "corner": "top-left", "offset": { "x": 24, "y": 24 } },',
   '  "capabilities": [],',
-  '  "subscribe": ["system.cpu", "system.memory"]',
+  '  "subscribe": ["system.cpu", "system.memory"],',
+  '  "theme": { "default": "dark-glass", "options": ["dark-glass", "light", "monochrome", "retro"] }',
   "}, () => Column([",
   '  Text("CPU"),',
   '  Gauge(useProvider("system.cpu"), 100),',
@@ -99,6 +100,28 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     example: 'Box([Text("Now playing")], { padding: 12, radius: 8 })',
     status: "implemented",
     notes: ["The native renderer supports box layout and constrained style fields."]
+  },
+  {
+    name: "GlassPanel",
+    kind: "primitive",
+    summary: "Native material panel with the Render surface hierarchy and theme-aware borders",
+    importPath: SDK_PACKAGE,
+    signature: "GlassPanel(children: WidgetChildren, style?: WidgetStyle): WidgetNode",
+    inputs: ["children", "style"],
+    example: 'GlassPanel([Text("Now playing")])',
+    status: "implemented",
+    notes: ["The native renderer resolves material, semantic role, radius, and border tokens through the active Render theme."]
+  },
+  {
+    name: "MediaCard",
+    kind: "primitive",
+    summary: "Native media surface with compact theme-aware hierarchy",
+    importPath: SDK_PACKAGE,
+    signature: "MediaCard(children: WidgetChildren, style?: WidgetStyle): WidgetNode",
+    inputs: ["children", "style"],
+    example: 'MediaCard([Artwork({ kind: "asset", name: "album-art" }), Text("Track")])',
+    status: "implemented",
+    notes: ["MediaCard is a composable container; use Artwork and TransportControls inside it for a complete native media surface.", "The native renderer applies the media surface hierarchy and clips the child content to the declared curve."]
   },
   {
     name: "Spacer",
@@ -237,6 +260,39 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     example: 'YouTubePlayer({ videoId: "M7lc1UVf-VE", allowLinkInput: true, controls: true })',
     status: "implemented",
     notes: ["The native renderer owns the isolated WKWebView and official YouTube embed surface.", "The manifest must declare the network capability; source defaults use 11-character YouTube video IDs only.", "The SDK supplies a 480x270 neutral glass surface with a 16-point radius, clipped content, border, and shadow when style fields are omitted; explicit style fields override these defaults.", "Set allowLinkInput to true to expose a native persisted link editor in the widget's hover settings panel for pasted youtube.com or youtu.be links.", "Autoplay is opt-in and may still be restricted by macOS or YouTube playback policy."]
+  },
+  {
+    name: "Visualizer",
+    kind: "primitive",
+    summary: "Native animated visualizer that reacts to an optional provider without fabricating audio data",
+    importPath: SDK_PACKAGE,
+    signature: 'Visualizer(props?: { provider?: ProviderBinding; mode?: "bars" | "waveform" | "rings"; tempo?: number; style?: WidgetStyle }): WidgetNode',
+    inputs: ["provider", "mode", "tempo", "style"],
+    example: 'Visualizer({ provider: useProvider("spotify.playback.isPlaying"), mode: "bars" })',
+    status: "implemented",
+    notes: ["The native renderer uses a host animation clock and displays an explicit unavailable state when its provider is unavailable.", "Tempo controls visual response rate; it does not claim to change third-party playback speed."]
+  },
+  {
+    name: "Artwork",
+    kind: "primitive",
+    summary: "Theme-aware artwork composition with a bounded media surface",
+    importPath: SDK_PACKAGE,
+    signature: "Artwork(source: string | ImageSource, style?: WidgetStyle): WidgetNode",
+    inputs: ["source", "style"],
+    example: 'Artwork({ kind: "asset", name: "album-art" })',
+    status: "implemented",
+    notes: ["Artwork composes the native Image primitive with a media role and intentional radius; explicit style fields override the defaults.", "The native renderer resolves the artwork surface and clips it to the declared curve."]
+  },
+  {
+    name: "TransportControls",
+    kind: "primitive",
+    summary: "Composable native previous, play, pause, and next control row",
+    importPath: SDK_PACKAGE,
+    signature: "TransportControls(props: TransportControlsProps): WidgetNode",
+    inputs: ["previousAction", "playAction", "pauseAction", "nextAction", "style"],
+    example: 'TransportControls({ playAction: { type: "invoke", name: "spotify.play" } })',
+    status: "implemented",
+    notes: ["Controls remain explicit serialized actions and inherit the active Render theme.", "The native renderer supplies the accessible control row and dispatches actions through the host boundary.", "Supply only the operations supported by the provider; unavailable controls remain visibly disabled."]
   },
   {
     name: "Shape",
@@ -502,17 +558,38 @@ const SDK_CATALOG: SdkCatalogItem[] = [
   {
     name: "WidgetStyle",
     kind: "style",
-    summary: "Constrained native layout, typography, color, and surface styling",
+    summary: "Constrained native layout, typography, semantic surface, and theme styling",
     importPath: SDK_PACKAGE,
-    signature: "interface WidgetStyle { width?: WidgetLength; height?: WidgetLength; color?: string; backgroundColor?: string; opacity?: number; padding?: WidgetSpacing; margin?: WidgetSpacing; gap?: number; alignItems?: WidgetAlignment; justifyContent?: WidgetAlignment; radius?: number; border?: WidgetBorder; shadow?: WidgetShadow; font?: WidgetFont; tokens?: WidgetStyleToken[] }",
-    fields: ["width", "height", "color", "backgroundColor", "opacity", "padding", "margin", "gap", "alignItems", "justifyContent", "radius", "border", "shadow", "font", "tokens"],
-    example: 'Text("CPU", { color: "#1565c0", font: { size: 14, weight: "semibold" } })',
+    signature: "interface WidgetStyle { width?: WidgetLength; height?: WidgetLength; color?: string; backgroundColor?: string; opacity?: number; padding?: WidgetSpacing; margin?: WidgetSpacing; gap?: number; alignItems?: WidgetAlignment; justifyContent?: WidgetAlignment; radius?: number; border?: WidgetBorder; shadow?: WidgetShadow; font?: WidgetFont; material?: WidgetMaterial; role?: WidgetSemanticRole; density?: WidgetDensity; tokens?: WidgetStyleToken[] }",
+    fields: ["width", "height", "color", "backgroundColor", "opacity", "padding", "margin", "gap", "alignItems", "justifyContent", "radius", "border", "shadow", "font", "material", "role", "density", "tokens"],
+    example: 'Text("CPU", { tokens: ["text.primary"], font: { size: 14, weight: "semibold" } })',
     status: "implemented",
     notes: [
       "Values are serializable native style fields, not arbitrary CSS declarations.",
       "Width, height, and font sizes must be positive; spacing, opacity, radii, and border widths are non-negative when provided.",
-      "The native host applies layout, color, typography, surface, border, shadow, opacity, and token fields; radius also clips native child content to the rounded surface."
+      "The native host applies layout, color, typography, semantic role, material, density, surface, border, shadow, opacity, and token fields; radius also clips native child content to the rounded surface."
     ]
+  },
+  {
+    name: "WidgetThemeConfig",
+    kind: "type",
+    summary: "Declared default and user-selectable Render theme variants",
+    importPath: SDK_PACKAGE,
+    signature: 'interface WidgetThemeConfig { default: "dark-glass" | "light" | "monochrome" | "retro"; options?: WidgetThemeName[] }',
+    fields: ["default", "options"],
+    example: 'theme: { default: "dark-glass", options: ["dark-glass", "light", "monochrome"] }',
+    status: "implemented",
+    notes: ["The host persists a user-selected theme locally; source declares the available variants and default only."]
+  },
+  {
+    name: "WidgetThemeName",
+    kind: "type",
+    summary: "Supported Render semantic theme names",
+    importPath: SDK_PACKAGE,
+    signature: 'type WidgetThemeName = "dark-glass" | "light" | "monochrome" | "retro"',
+    fields: ["dark-glass", "light", "monochrome", "retro"],
+    example: 'const theme: WidgetThemeName = "dark-glass"',
+    status: "implemented"
   },
   {
     name: "WidgetAction",
@@ -596,7 +673,7 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     importPath: SDK_PACKAGE,
     signature: "interface WidgetNode { kind: WidgetNodeKind; children?: WidgetNode[]; style?: WidgetStyle; ... }",
     fields: [
-      'kind: "column" | "row" | "stack" | "box" | "scrollView" | "spacer" | "divider" | "text" | "textField" | "textEditor" | "toggle" | "timer" | "taskList" | "list" | "youtubePlayer" | "shape" | "icon" | "image" | "button" | "gauge" | "progress" | "grid"',
+      'kind: "column" | "row" | "stack" | "box" | "glassPanel" | "mediaCard" | "scrollView" | "spacer" | "divider" | "text" | "textField" | "textEditor" | "toggle" | "timer" | "taskList" | "list" | "visualizer" | "youtubePlayer" | "shape" | "icon" | "image" | "button" | "gauge" | "progress" | "grid"',
       "children?: WidgetNode[]",
       "text?: string",
       "provider?: string",
@@ -618,7 +695,9 @@ const SDK_CATALOG: SdkCatalogItem[] = [
       "startSeconds?: number",
       "placeholder?: string",
       "dateTime?: string",
-      'dateTimeMode?: "date" | "time" | "dateTime"'
+      'dateTimeMode?: "date" | "time" | "dateTime"',
+      'visualizerMode?: "bars" | "waveform" | "rings"',
+      "visualizerTempo?: number"
     ],
     example: 'Column([Text("CPU")])',
     status: "implemented",
@@ -629,7 +708,7 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     kind: "type",
     summary: "Allowed discriminators for declarative widget nodes",
     importPath: SDK_PACKAGE,
-    signature: 'type WidgetNodeKind = "column" | "row" | "stack" | "box" | "scrollView" | "spacer" | "divider" | "text" | "textField" | "textEditor" | "dateTime" | "dateTimePicker" | "toggle" | "timer" | "taskList" | "list" | "youtubePlayer" | "shape" | "icon" | "image" | "button" | "gauge" | "progress" | "grid"',
+    signature: 'type WidgetNodeKind = "column" | "row" | "stack" | "box" | "glassPanel" | "mediaCard" | "scrollView" | "spacer" | "divider" | "text" | "textField" | "textEditor" | "dateTime" | "dateTimePicker" | "toggle" | "timer" | "taskList" | "list" | "visualizer" | "youtubePlayer" | "shape" | "icon" | "image" | "button" | "gauge" | "progress" | "grid"',
     example: 'const kind: WidgetNodeKind = "box"',
     status: "implemented"
   },
@@ -648,7 +727,8 @@ const SDK_CATALOG: SdkCatalogItem[] = [
       "adjustable?: WidgetAdjustable",
       'capabilities: Array<"network" | "filesystem.read" | "filesystem.write">',
       "subscribe: string[]",
-      "accounts?: WidgetAccountRequirement[]"
+      "accounts?: WidgetAccountRequirement[]",
+      "theme?: WidgetThemeConfig"
     ],
     example: 'widget({ "schemaVersion": 1, "name": "Example", "sdkVersion": "0.1.0", "size": { "width": 320, "height": 180 }, "anchor": { "corner": "top-left", "offset": { "x": 24, "y": 24 } }, "capabilities": [], "subscribe": [], "accounts": [] }, render)',
     notes: ["Keep manifest keys quoted so render check can provide source-oriented diagnostics."]

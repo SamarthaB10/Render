@@ -54,6 +54,10 @@ private final class RenderHostDelegate: NSObject, NSApplicationDelegate {
                     interactionStore: interactionStore,
                     widgetName: manifest.name,
                     workspace: workspace,
+                    themeConfig: manifest.theme ?? RuntimeManifest.Theme(
+                        defaultTheme: RenderThemeName.darkGlass.rawValue,
+                        options: RenderThemeName.allCases.map(\.rawValue)
+                    ),
                     adjustable: manifest.adjustable,
                     defaultSize: manifest.size,
                     preferences: preferencesModel,
@@ -367,6 +371,7 @@ private struct WidgetTreeContainer: View {
     @ObservedObject var interactionStore: WidgetInteractionStore
     let widgetName: String
     let workspace: String?
+    let themeConfig: RuntimeManifest.Theme?
     let adjustable: RuntimeManifest.Adjustable?
     let defaultSize: RuntimeManifest.Size
     @ObservedObject var preferences: WidgetPreferencesModel
@@ -378,10 +383,12 @@ private struct WidgetTreeContainer: View {
 
     var body: some View {
         ZStack {
-            WidgetTreeView(tree: model.tree, providers: providers, interactionStore: interactionStore, nodePath: "root", fillsAvailableSpace: true, onAction: onAction)
+            WidgetTreeView(tree: model.tree, providers: providers, interactionStore: interactionStore, theme: RenderTheme(name: selectedTheme), nodePath: "root", fillsAvailableSpace: true, onAction: onAction)
             WidgetSettingsOverlay(
                 widgetName: widgetName,
                 workspace: workspace,
+                themeConfig: themeConfig,
+                theme: RenderTheme(name: selectedTheme),
                 adjustable: adjustable,
                 defaultSize: defaultSize,
                 preferences: preferences.value,
@@ -395,6 +402,13 @@ private struct WidgetTreeContainer: View {
                 onStop: onStop
             )
         }
+    }
+
+    private var selectedTheme: String {
+        let fallback = themeConfig?.defaultTheme ?? RenderThemeName.darkGlass.rawValue
+        let selected = preferences.value.theme ?? fallback
+        guard let themeConfig else { return selected }
+        return themeConfig.options.contains(selected) ? selected : fallback
     }
 
     private var youtubeSettings: YouTubePlayerSettings? {
@@ -426,8 +440,9 @@ struct RuntimeManifest: Decodable {
     let subscribe: [String]
     let accounts: [WidgetAccountRequirement]
     let adjustable: Adjustable?
+    let theme: Theme?
 
-    init(name: String, size: Size, anchor: Anchor, capabilities: [String], subscribe: [String], accounts: [WidgetAccountRequirement], adjustable: Adjustable? = nil) {
+    init(name: String, size: Size, anchor: Anchor, capabilities: [String], subscribe: [String], accounts: [WidgetAccountRequirement], adjustable: Adjustable? = nil, theme: Theme? = nil) {
         self.name = name
         self.size = size
         self.anchor = anchor
@@ -435,6 +450,7 @@ struct RuntimeManifest: Decodable {
         self.subscribe = subscribe
         self.accounts = accounts
         self.adjustable = adjustable
+        self.theme = theme
     }
 
     init(from decoder: Decoder) throws {
@@ -446,6 +462,7 @@ struct RuntimeManifest: Decodable {
         subscribe = try container.decode([String].self, forKey: .subscribe)
         accounts = try container.decodeIfPresent([WidgetAccountRequirement].self, forKey: .accounts) ?? []
         adjustable = try container.decodeIfPresent(Adjustable.self, forKey: .adjustable)
+        theme = try container.decodeIfPresent(Theme.self, forKey: .theme)
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -456,6 +473,7 @@ struct RuntimeManifest: Decodable {
         case subscribe
         case accounts
         case adjustable
+        case theme
     }
 
     struct Size: Decodable {
@@ -490,6 +508,24 @@ struct RuntimeManifest: Decodable {
     struct Mode: Decodable {
         let minWidth: Double
         let minHeight: Double
+    }
+
+    struct Theme: Decodable {
+        let defaultTheme: String
+        let options: [String]
+
+        init(defaultTheme: String, options: [String]) {
+            self.defaultTheme = defaultTheme
+            self.options = options
+        }
+
+        private enum CodingKeys: String, CodingKey { case defaultTheme = "default", options }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            defaultTheme = try container.decode(String.self, forKey: .defaultTheme)
+            options = try container.decodeIfPresent([String].self, forKey: .options) ?? [defaultTheme]
+        }
     }
 
     static let fallback = RuntimeManifest(

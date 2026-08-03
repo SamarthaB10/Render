@@ -357,13 +357,28 @@ node bin/render.mjs sdk describe system.memory --json
 
 The catalog currently exposes these implemented families:
 
-- Layout: `Column`, `Row`, `Stack`, `Box`, `Spacer`, `Divider`, `Grid`.
+- Layout: `Column`, `Row`, `Stack`, `Box`, `GlassPanel`, `MediaCard`, `Spacer`, `Divider`, `ScrollView`, `Grid`.
 - Collections: `List` for static rows or structured provider-backed rows; `TaskList` remains the editable task-specific primitive.
-- Media: `YouTubePlayer` for official embedded playback inside a native widget surface; use a valid 11-character video ID.
+- Media: `YouTubePlayer` for official embedded playback inside a native widget surface; `Artwork` for clipped media; `Visualizer` for honest clock-driven playback response; use a valid 11-character YouTube video ID.
 - Content and visuals: `Text`, editable native `TextField`, native `Toggle`, `Shape`, `Icon`, native asset `Image`.
-- Controls and progress: `Button`, `Gauge`, `Progress`.
+- Controls and progress: `Button`, `TransportControls`, `Gauge`, `Progress`.
 - Data and lifecycle: `useProvider`, typed provider states, `widget.refresh`, `widget.reload`, and the worker protocol types.
-- Styles: typed color, sizing, spacing, alignment, radius, border, shadow, font, opacity, and semantic tokens. `radius` clips child content as well as rounding the surface, so embedded media fits cleanly inside curved cards; `border` controls the stroke color, width, and optional corner radius.
+- Styles: typed color, sizing, spacing, alignment, radius, border, shadow, font, opacity, semantic tokens, materials, roles, density, and selectable themes (`dark-glass`, `light`, `monochrome`, `retro`). `radius` clips child content as well as rounding the surface, so embedded media fits cleanly inside curved cards; `border` controls the stroke color, width, and optional corner radius.
+
+### Native visual language
+
+The default Render surface is a restrained dark-glass system: rounded native cards, semantic hierarchy, quiet borders, and purposeful motion. Agents should start with `GlassPanel`, `MediaCard`, `Artwork`, `TransportControls`, and `Visualizer`, then use documented `WidgetStyle` fields for the requested visual direction. Explicit user styling wins over defaults, but arbitrary DOM/CSS and private native views are never widget primitives. Every widget also receives host-managed settings, resize, lock, and recovery chrome with keyboard-accessible focus behavior.
+
+For a theme-aware widget, declare the available variants in the manifest:
+
+```tsx
+theme: {
+  default: "dark-glass",
+  options: ["dark-glass", "light", "monochrome", "retro"]
+}
+```
+
+The host stores the selected theme, size, mode, lock state, and placement locally. Sharing or remixing a widget carries its declared defaults and responsive rules, not another user's desktop preferences. `Visualizer` is intentionally honest: it can respond to playback metadata and the host clock, but it does not invent audio data or change Spotify playback tempo.
 
 For a retro treatment, agents can layer `Box`, `Stack`, `Shape`, `Text`, and `Divider`, then use `radius`, `border`, `shadow`, monospace fonts, and explicit colors to build curved panels, inset frames, pill controls, and neon or CRT-like accents. The catalog intentionally does not expose arbitrary CSS or HTML.
 

@@ -9,10 +9,12 @@ const ROOT_FIELDS = new Set([
   "adjustable",
   "capabilities",
   "subscribe",
-  "accounts"
+  "accounts",
+  "theme"
 ]);
 const CAPABILITIES = new Set(["network", "filesystem.read", "filesystem.write"]);
 const CORNERS = new Set(["top-left", "top-right", "bottom-left", "bottom-right"]);
+const THEMES = new Set(["dark-glass", "light", "monochrome", "retro"]);
 
 export function extractManifest(source) {
   return readManifest(source).manifest;
@@ -84,6 +86,10 @@ export function validateManifest(manifest) {
 
   if (manifest.accounts !== undefined) {
     issues.push(...validateAccountRequirements(manifest.accounts));
+  }
+
+  if (manifest.theme !== undefined) {
+    validateTheme(manifest.theme, issues);
   }
 
   for (const field of Object.keys(manifest)) {
@@ -214,4 +220,33 @@ function validateModeBounds(value, path, issues) {
   }
   requirePositiveNumber(value, "minWidth", `${path}.minWidth`, issues);
   requirePositiveNumber(value, "minHeight", `${path}.minHeight`, issues);
+}
+
+function validateTheme(theme, issues) {
+  if (!isRecord(theme)) {
+    issues.push({ path: "theme", message: "must be an object" });
+    return;
+  }
+  if (!THEMES.has(theme.default)) {
+    issues.push({ path: "theme.default", message: "must be a supported Render theme" });
+  }
+  if (theme.options !== undefined) {
+    if (!Array.isArray(theme.options)) {
+      issues.push({ path: "theme.options", message: "must be an array of supported Render themes" });
+    } else {
+      theme.options.forEach((option, index) => {
+        if (!THEMES.has(option)) {
+          issues.push({ path: `theme.options[${index}]`, message: "must be a supported Render theme" });
+        }
+      });
+      if (typeof theme.default === "string" && !theme.options.includes(theme.default)) {
+        issues.push({ path: "theme.default", message: "must be included in theme.options" });
+      }
+    }
+  }
+  for (const field of Object.keys(theme)) {
+    if (!["default", "options"].includes(field)) {
+      issues.push({ path: `theme.${field}`, message: "unknown theme field" });
+    }
+  }
 }

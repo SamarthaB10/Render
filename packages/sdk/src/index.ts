@@ -18,6 +18,9 @@ export type WidgetNodeKind =
   | "timer"
   | "taskList"
   | "list"
+  | "glassPanel"
+  | "mediaCard"
+  | "visualizer"
   | "youtubePlayer"
   | "scrollView"
   | "textEditor"
@@ -42,12 +45,22 @@ export type WidgetAlignment =
   | "fill"
   | "space-between";
 export type WidgetFontWeight = "regular" | "medium" | "semibold" | "bold";
+export type WidgetThemeName = "dark-glass" | "light" | "monochrome" | "retro";
+export type WidgetDensity = "compact" | "comfortable";
+export type WidgetMaterial = "solid" | "thin" | "thick";
+export type WidgetSemanticRole = "surface" | "panel" | "control" | "status" | "media";
 export type WidgetStyleToken =
   | "surface"
   | "surface.elevated"
+  | "surface.panel"
+  | "surface.control"
+  | "surface.status"
   | "text.primary"
   | "text.secondary"
+  | "text.tertiary"
+  | "border.subtle"
   | "accent"
+  | "accent.muted"
   | "danger"
   | "success"
   | "mono";
@@ -149,6 +162,9 @@ export interface WidgetStyle {
   border?: WidgetBorder;
   shadow?: WidgetShadow;
   font?: WidgetFont;
+  material?: WidgetMaterial;
+  role?: WidgetSemanticRole;
+  density?: WidgetDensity;
   tokens?: WidgetStyleToken[];
 }
 
@@ -228,6 +244,8 @@ export interface WidgetNode {
   placeholder?: string;
   dateTime?: string;
   dateTimeMode?: WidgetDateTimeMode;
+  visualizerMode?: WidgetVisualizerMode;
+  visualizerTempo?: number;
 }
 
 export type WidgetChild = WidgetNode | string | number | null | boolean | undefined;
@@ -237,6 +255,29 @@ export interface WidgetComponentProps {
   key?: string | number;
   children?: WidgetChildren;
   style?: WidgetStyle;
+}
+
+export interface GlassPanelProps extends ContainerProps {}
+
+export interface MediaCardProps extends ContainerProps {}
+
+export type WidgetVisualizerMode = "bars" | "waveform" | "rings";
+
+export interface VisualizerProps extends WidgetComponentProps {
+  provider?: ProviderBinding;
+  mode?: WidgetVisualizerMode;
+  tempo?: number;
+}
+
+export interface ArtworkProps extends WidgetComponentProps {
+  source: string | ImageSource;
+}
+
+export interface TransportControlsProps extends WidgetComponentProps {
+  previousAction?: WidgetAction;
+  playAction?: WidgetAction;
+  pauseAction?: WidgetAction;
+  nextAction?: WidgetAction;
 }
 
 export interface ContainerProps extends WidgetComponentProps {}
@@ -355,6 +396,12 @@ export interface WidgetManifest {
   subscribe: string[];
   adjustable?: WidgetAdjustable;
   accounts?: WidgetAccountRequirement[];
+  theme?: WidgetThemeConfig;
+}
+
+export interface WidgetThemeConfig {
+  default: WidgetThemeName;
+  options?: WidgetThemeName[];
 }
 
 export interface WidgetDefinition {
@@ -415,6 +462,38 @@ export function Box(input: WidgetChildren | ContainerProps, style?: WidgetStyle)
     return nodeWithOptionalStyle({ kind: "box", children: childrenFrom(input.children) }, input.style);
   }
   return nodeWithOptionalStyle({ kind: "box", children: childrenFrom(input as WidgetChildren) }, style);
+}
+
+export function GlassPanel(children: WidgetChildren, style?: WidgetStyle): WidgetNode;
+export function GlassPanel(props: GlassPanelProps): WidgetNode;
+export function GlassPanel(input: WidgetChildren | GlassPanelProps, style?: WidgetStyle): WidgetNode {
+  if (isProps(input)) {
+    return nodeWithOptionalStyle(
+      { kind: "glassPanel", children: childrenFrom(input.children) },
+      patternStyle({ radius: 18, material: "thin", role: "panel", tokens: ["surface.panel", "border.subtle"] }, input.style),
+      input.key
+    );
+  }
+  return nodeWithOptionalStyle(
+    { kind: "glassPanel", children: childrenFrom(input as WidgetChildren) },
+    patternStyle({ radius: 18, material: "thin", role: "panel", tokens: ["surface.panel", "border.subtle"] }, style)
+  );
+}
+
+export function MediaCard(children: WidgetChildren, style?: WidgetStyle): WidgetNode;
+export function MediaCard(props: MediaCardProps): WidgetNode;
+export function MediaCard(input: WidgetChildren | MediaCardProps, style?: WidgetStyle): WidgetNode {
+  if (isProps(input)) {
+    return nodeWithOptionalStyle(
+      { kind: "mediaCard", children: childrenFrom(input.children) },
+      patternStyle({ radius: 16, material: "thin", role: "surface" }, input.style),
+      input.key
+    );
+  }
+  return nodeWithOptionalStyle(
+    { kind: "mediaCard", children: childrenFrom(input as WidgetChildren) },
+    patternStyle({ radius: 16, material: "thin", role: "surface" }, style)
+  );
 }
 
 export function Spacer(style?: WidgetStyle): WidgetNode;
@@ -569,6 +648,46 @@ export function YouTubePlayer(input: string | YouTubePlayerProps, style?: Widget
     }, youtubePlayerStyle(props.style), props.key);
   }
   return nodeWithOptionalStyle({ kind: "youtubePlayer", videoId: input as string, allowLinkInput: false, autoplay: false, controls: true }, youtubePlayerStyle(style));
+}
+
+export function Visualizer(props?: VisualizerProps): WidgetNode {
+  const input = props ?? {};
+  return nodeWithOptionalStyle({
+    kind: "visualizer",
+    ...(input.provider === undefined ? {} : { provider: input.provider.name }),
+    visualizerMode: input.mode ?? "bars",
+    ...(input.tempo === undefined ? {} : { visualizerTempo: input.tempo })
+  }, input.style, input.key);
+}
+
+export function Artwork(source: string | ImageSource, style?: WidgetStyle): WidgetNode;
+export function Artwork(props: ArtworkProps): WidgetNode;
+export function Artwork(input: string | ImageSource | ArtworkProps, style?: WidgetStyle): WidgetNode {
+  if (isProps(input) && "source" in input) {
+    const props = input as ArtworkProps;
+    return Image({
+      source: props.source,
+      style: patternStyle({ width: 64, height: 64, radius: 12, role: "media" }, props.style),
+      key: props.key
+    });
+  }
+  return Image({
+    source: input as string | ImageSource,
+    style: patternStyle({ width: 64, height: 64, radius: 12, role: "media" }, style)
+  });
+}
+
+export function TransportControls(props: TransportControlsProps = {}): WidgetNode {
+  return Row({
+    key: props.key,
+    style: patternStyle({ gap: 8, role: "control", density: "compact" }, props.style),
+    children: [
+      Button({ label: Icon("backward.fill"), action: props.previousAction, style: { role: "control" } }),
+      Button({ label: Icon("play.fill"), action: props.playAction, style: { role: "control" } }),
+      Button({ label: Icon("pause.fill"), action: props.pauseAction, style: { role: "control" } }),
+      Button({ label: Icon("forward.fill"), action: props.nextAction, style: { role: "control" } })
+    ]
+  });
 }
 
 function youtubePlayerStyle(style?: WidgetStyle): WidgetStyle {
@@ -740,6 +859,10 @@ function isObject(value: unknown): value is Record<string, any> {
 function nodeWithOptionalStyle(node: WidgetNode, style?: WidgetStyle, key?: string | number): WidgetNode {
   const styled = style === undefined ? node : { ...node, style };
   return key === undefined ? styled : { ...styled, key };
+}
+
+function patternStyle(defaults: WidgetStyle, override?: WidgetStyle): WidgetStyle {
+  return { ...defaults, ...override };
 }
 
 function normalizeTask(task: WidgetTaskItem): WidgetTaskItem {
