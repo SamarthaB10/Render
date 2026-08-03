@@ -582,6 +582,9 @@ Phase 10's first vertical slice is implemented on
 - Spotify Web API requests are limited to the current playback, play, pause,
   previous, next, and volume endpoints, with explicit 401/403/429/unavailable
   errors.
+- OAuth success and playback availability are separate states. Spotify
+  Development Mode and the playback endpoints require Premium access; a 403
+  remains an explicit unavailable state rather than fabricated track data.
 - The native host owns Spotify providers and actions. Widgets see only text,
   numeric, loading, or unavailable provider envelopes.
 - Missing configuration or consent keeps the widget alive and shows a
