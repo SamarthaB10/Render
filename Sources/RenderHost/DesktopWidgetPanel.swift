@@ -54,6 +54,23 @@ final class DesktopWidgetPanel: NSPanel {
         setFrameOrigin(clampedOrigin(candidateOrigin, to: targetScreen.visibleFrame))
     }
 
+    func resizeFrame(_ candidate: NSRect) {
+        var next = candidate
+        next.size.width = min(max(next.width, minSize.width), maxSize.width)
+        next.size.height = min(max(next.height, minSize.height), maxSize.height)
+        if let screen = screen(for: next) {
+            next.origin = clampedOrigin(next.origin, to: screen.visibleFrame, size: next.size)
+        }
+        setFrame(next, display: true)
+    }
+
+    func clampToVisibleDisplay() {
+        guard let screen = screen(for: frame) else { return }
+        let origin = clampedOrigin(frame.origin, to: screen.visibleFrame, size: frame.size)
+        guard origin != frame.origin else { return }
+        setFrameOrigin(origin)
+    }
+
     func placeOnPrimaryDisplay(
         using policy: DesktopWindowPolicy,
         anchor: WidgetAnchor = .topLeft,
@@ -89,6 +106,12 @@ final class DesktopWidgetPanel: NSPanel {
         return NSScreen.screens.first { $0.frame.contains(center) }
     }
 
+    private func screen(for frame: NSRect) -> NSScreen? {
+        NSScreen.screens.first { $0.frame.intersects(frame) }
+            ?? screen(containing: frame.origin)
+            ?? NSScreen.main
+    }
+
     private func origin(
         on screen: NSScreen,
         anchor: WidgetAnchor,
@@ -121,12 +144,8 @@ final class DesktopWidgetPanel: NSPanel {
         }
     }
 
-    private func clampedOrigin(_ origin: NSPoint, to visibleFrame: NSRect) -> NSPoint {
-        let maximumX = max(visibleFrame.minX, visibleFrame.maxX - frame.width)
-        let maximumY = max(visibleFrame.minY, visibleFrame.maxY - frame.height)
-        return NSPoint(
-            x: min(max(origin.x, visibleFrame.minX), maximumX),
-            y: min(max(origin.y, visibleFrame.minY), maximumY)
-        )
+    private func clampedOrigin(_ origin: NSPoint, to visibleFrame: NSRect, size: NSSize? = nil) -> NSPoint {
+        let size = size ?? frame.size
+        return WidgetFrameGeometry.clampedOrigin(origin: origin, size: size, visibleFrame: visibleFrame)
     }
 }

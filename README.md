@@ -13,13 +13,15 @@ The current reference implementation is a native CPU/RAM widget. It proves the a
 - Native macOS desktop-layer rendering through SwiftUI/AppKit.
 - One active widget per workspace.
 - `widget.tsx` as the readable source of truth.
-- A canonical `@render/sdk` with native layout, content, image, control, progress, provider, action, and typed-style contracts.
+- A canonical `@render/sdk` with native layout, content, image, control, task-list, timer, progress, provider, action, and typed-style contracts.
 - Automatic TSX compilation to a serializable declarative tree; no DOM, HTML, CSS, browser runtime, or webview.
 - Agent-readable SDK discovery through `render sdk list --json` and `render sdk describe <name> --json`.
 - Workspace-scoped validation, running, watch mode, logical movement, snapshots, rollback, and last-known-good recovery.
 - Host-owned CPU, memory, and local-time providers.
 - Native dragging and persisted placement for the first prototype.
 - Host-owned adjustable sizing with native resize handles, persisted size and lock state, responsive modes, and a settings-panel mode selector.
+- Host-owned countdown timers and editable task lists with start/pause/reset, completion, add/remove, direct editing, and persisted state.
+- Native `ScrollView` and persistent multiline `TextEditor` primitives; stateful nodes can use stable keys so user edits survive remixes and reordering.
 - Generic host-owned account requirements with secure macOS Keychain storage.
 - A Spotify connector for current playback, track metadata, play/pause, previous/next, and volume control.
 - Render-owned Spotify permission prompt and a liquid-glass widget settings panel with metadata and a confirmed stop control.
@@ -336,8 +338,7 @@ The catalog also marks contract-only and planned items. Current limitations are 
 - Spotify is the first implemented authenticated connector. It currently covers account status, current playback metadata, play/pause, previous/next, and volume; playlists, search, library, history, and artwork retrieval are separate future connector surfaces.
 - Spotify requires a local client ID and user consent; without either, the host reports the reason instead of using fake data.
 - One active widget, local development, and a locally built host are the current scope; packaging, notarization, and distribution are future work.
-- `TextField` supports direct editing during the current widget session. Persistent widget-owned state and add/remove collection controls remain planned SDK surfaces.
-- `Toggle` supports direct task completion toggles during the current widget session; shared state and persistence remain planned.
+- `TextField` supports direct editing during the current widget session. `Timer` and `TaskList` provide host-owned persisted interaction state; `TaskList` supports direct task editing, completion, adding, and removal. Use `render sdk describe Timer --json`, `render sdk describe TaskList --json`, and `render sdk describe WidgetTaskItem --json` for the exact contracts.
 
 If the catalog cannot express a requested feature, the agent should report the missing contract instead of generating a fake integration or falling back to web technology.
 

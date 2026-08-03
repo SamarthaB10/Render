@@ -18,7 +18,7 @@ Every future phase should preserve these properties:
 
 ## Current baseline
 
-The current prototype already provides a local Swift/AppKit and SwiftUI host, a TypeScript SDK and catalog, a serializable widget tree, validation, snapshots, last-known-good promotion, watch mode, logical placement, native dragging, host-owned authentication, the first Spotify connector, and the host-owned adjustable sizing/responsive-mode contract. Adjustable size, mode, lock state, and placement persist as local runtime preferences; widget source remains portable.
+The current prototype already provides a local Swift/AppKit and SwiftUI host, a TypeScript SDK and catalog, a serializable widget tree, validation, snapshots, last-known-good promotion, watch mode, logical placement, native dragging, host-owned authentication, the first Spotify connector, the host-owned adjustable sizing/responsive-mode contract, and host-owned `Timer`/`TaskList` primitives. Adjustable size, mode, lock state, placement, countdown state, and task state persist as local runtime preferences; widget source remains portable.
 
 The main gaps are deliberate: one active widget is the supported local path, the supervisor boundary still needs to become a true multi-widget runtime, and installation currently requires developer tooling and terminal commands. Spotify playback also depends on the account's service-level access; an OAuth success does not guarantee playback access.
 
@@ -99,7 +99,7 @@ Acceptance criteria:
 
 Status: Planned. Start after the runtime contract is stable; deliver in vertical slices.
 
-The SDK should give agents a deep, coherent set of native building blocks instead of forcing them to invent one-off primitives. The first adjustable-widget contract is now shipped; continue adding each family end to end: TypeScript contract, catalog entry, JSX/runtime behavior, native renderer, validation, tests, agent documentation, accessibility behavior, and performance receipt.
+The SDK should give agents a deep, coherent set of native building blocks instead of forcing them to invent one-off primitives. The adjustable-widget, timer, and editable task-list contracts are now shipped; continue adding each family end to end: TypeScript contract, catalog entry, JSX/runtime behavior, native renderer, validation, tests, agent documentation, accessibility behavior, and performance receipt.
 
 Initial primitive families:
 
@@ -112,6 +112,20 @@ Initial primitive families:
 - Styling: semantic themes, gradients, typography scales, icons, borders, shadows, materials, transitions, and reduced-motion behavior.
 
 Do not add a primitive only because it is easy to expose. A primitive is ready when an agent can discover when to use it, compose it with the existing catalog, receive actionable diagnostics, and run it without a hidden web dependency.
+
+### Agreed primitive expansion roadmap
+
+This is the prioritized SDK strategy established for the next implementation cycle. Every item remains subject to the full vertical-slice rule: TypeScript interface, catalog entry, runtime validation, native implementation, persistence semantics where relevant, accessibility behavior, tests, agent documentation, and a performance receipt.
+
+1. **Productivity foundation** — `ScrollView`, persistent multiline `TextEditor`, stable state keys, richer `TaskList` editing, configurable timer durations, date/time controls, and Reminders connector/actions.
+2. **Media and system** — native audio/media controls, Spotify playback, CPU/RAM/network/battery providers, weather, artwork loading, app actions, and stale-data handling.
+3. **Domain connectors** — curated sports, finance, transit, and other host-owned providers using the shared authentication, permissions, freshness, caching, and error-state contracts.
+4. **Native visual system** — Liquid Glass/material surfaces, semantic themes, charts, async images, accessible transitions, and reduced-motion behavior.
+5. **Composable layout and components** — constraint measurement, safe-area/multi-display layout, reusable typed components, sections, virtualized collections, and adaptive responsive rules.
+6. **Runtime resilience** — independent widget workers, automatic last-known-good recovery, five-restart crash-loop quarantine, repair cards, and state-preserving remixes.
+7. **Agent discovery** — categorized catalog queries, capability/permission metadata, validated recipes, current-state inspection, and agent-readable repair guidance.
+
+The first slice in progress is the productivity foundation: `ScrollView` keeps content inside a resized widget, while `TextEditor` stores user content by stable key or path. Generated text remains a default; user edits survive relaunches and source remixes.
 
 ### Phase F5 — Agent-first SDK discovery and generation
 

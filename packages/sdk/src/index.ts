@@ -14,7 +14,11 @@ export type WidgetNodeKind =
   | "button"
   | "gauge"
   | "progress"
-  | "grid";
+  | "grid"
+  | "timer"
+  | "taskList"
+  | "scrollView"
+  | "textEditor";
 
 export { describeSdkCatalog, listSdkCatalog, SDK_PACKAGE, SDK_VERSION } from "./catalog.ts";
 export type { SdkCatalogItem, SdkCatalogKind } from "./catalog.ts";
@@ -183,12 +187,16 @@ export interface WidgetNode {
   source?: ImageSource;
   action?: WidgetAction;
   columns?: number;
+  durationSeconds?: number;
+  tasks?: WidgetTaskItem[];
+  placeholder?: string;
 }
 
 export type WidgetChild = WidgetNode | string | number | null | boolean | undefined;
 export type WidgetChildren = WidgetChild | WidgetChild[];
 
 export interface WidgetComponentProps {
+  key?: string | number;
   children?: WidgetChildren;
   style?: WidgetStyle;
 }
@@ -203,8 +211,29 @@ export interface TextFieldProps extends WidgetComponentProps {
   text?: string;
 }
 
+export interface TextEditorProps extends WidgetComponentProps {
+  text?: string;
+  placeholder?: string;
+}
+
+export interface ScrollViewProps extends ContainerProps {}
+
 export interface ToggleProps extends WidgetComponentProps {
   checked?: boolean;
+}
+
+export interface TimerProps extends WidgetComponentProps {
+  durationSeconds: number;
+}
+
+export interface WidgetTaskItem {
+  id: string;
+  text: string;
+  completed?: boolean;
+}
+
+export interface TaskListProps extends WidgetComponentProps {
+  items: WidgetTaskItem[];
 }
 
 export interface ShapeProps extends WidgetComponentProps {}
@@ -304,6 +333,12 @@ export function Stack(input: WidgetNode[] | ContainerProps, style?: WidgetStyle)
   return containerNode("stack", input, style);
 }
 
+export function ScrollView(children: WidgetNode[], style?: WidgetStyle): WidgetNode;
+export function ScrollView(props: ScrollViewProps): WidgetNode;
+export function ScrollView(input: WidgetNode[] | ScrollViewProps, style?: WidgetStyle): WidgetNode {
+  return containerNode("scrollView", input, style);
+}
+
 export function Box(children: WidgetChildren, style?: WidgetStyle): WidgetNode;
 export function Box(props: ContainerProps): WidgetNode;
 export function Box(input: WidgetChildren | ContainerProps, style?: WidgetStyle): WidgetNode {
@@ -360,6 +395,20 @@ export function TextField(input: string | TextFieldProps, style?: WidgetStyle): 
   return nodeWithOptionalStyle({ kind: "textField", text: input as string }, style);
 }
 
+export function TextEditor(text?: string, style?: WidgetStyle): WidgetNode;
+export function TextEditor(props: TextEditorProps): WidgetNode;
+export function TextEditor(input: string | TextEditorProps = "", style?: WidgetStyle): WidgetNode {
+  if (isProps(input)) {
+    const props = input as TextEditorProps;
+    return nodeWithOptionalStyle({
+      kind: "textEditor",
+      text: String(props.text ?? firstChild(props.children) ?? ""),
+      placeholder: props.placeholder
+    }, props.style, props.key);
+  }
+  return nodeWithOptionalStyle({ kind: "textEditor", text: input as string }, style);
+}
+
 export function Toggle(checked: boolean, style?: WidgetStyle): WidgetNode;
 export function Toggle(props: ToggleProps): WidgetNode;
 export function Toggle(input: boolean | ToggleProps, style?: WidgetStyle): WidgetNode {
@@ -368,6 +417,26 @@ export function Toggle(input: boolean | ToggleProps, style?: WidgetStyle): Widge
     return nodeWithOptionalStyle({ kind: "toggle", value: props.checked === true ? 1 : 0 }, props.style);
   }
   return nodeWithOptionalStyle({ kind: "toggle", value: input ? 1 : 0 }, style);
+}
+
+export function Timer(durationSeconds: number, style?: WidgetStyle): WidgetNode;
+export function Timer(props: TimerProps): WidgetNode;
+export function Timer(input: number | TimerProps, style?: WidgetStyle): WidgetNode {
+  if (isProps(input)) {
+    const props = input as TimerProps;
+    return nodeWithOptionalStyle({ kind: "timer", durationSeconds: props.durationSeconds }, props.style, props.key);
+  }
+  return nodeWithOptionalStyle({ kind: "timer", durationSeconds: input as number }, style);
+}
+
+export function TaskList(items: WidgetTaskItem[], style?: WidgetStyle): WidgetNode;
+export function TaskList(props: TaskListProps): WidgetNode;
+export function TaskList(input: WidgetTaskItem[] | TaskListProps, style?: WidgetStyle): WidgetNode {
+  if (isProps(input)) {
+    const props = input as TaskListProps;
+    return nodeWithOptionalStyle({ kind: "taskList", tasks: props.items.map(normalizeTask) }, props.style, props.key);
+  }
+  return nodeWithOptionalStyle({ kind: "taskList", tasks: (input as WidgetTaskItem[]).map(normalizeTask) }, style);
 }
 
 export function Shape(style?: WidgetStyle): WidgetNode;
@@ -457,9 +526,9 @@ export function useTimer(intervalMs: number): TimerBinding {
   return { kind: "timer", intervalMs };
 }
 
-function containerNode(kind: "column" | "row" | "stack", input: WidgetNode[] | ContainerProps, style?: WidgetStyle): WidgetNode {
+function containerNode(kind: "column" | "row" | "stack" | "scrollView", input: WidgetNode[] | ContainerProps, style?: WidgetStyle): WidgetNode {
   if (isProps(input)) {
-    return nodeWithOptionalStyle({ kind, children: childrenFrom(input.children) }, input.style);
+    return nodeWithOptionalStyle({ kind, children: childrenFrom(input.children) }, input.style, input.key);
   }
   return nodeWithOptionalStyle({ kind, children: input as WidgetNode[] }, style);
 }
@@ -513,6 +582,11 @@ function isObject(value: unknown): value is Record<string, any> {
   return typeof value === "object" && value !== null;
 }
 
-function nodeWithOptionalStyle(node: WidgetNode, style?: WidgetStyle): WidgetNode {
-  return style === undefined ? node : { ...node, style };
+function nodeWithOptionalStyle(node: WidgetNode, style?: WidgetStyle, key?: string | number): WidgetNode {
+  const styled = style === undefined ? node : { ...node, style };
+  return key === undefined ? styled : { ...styled, key };
+}
+
+function normalizeTask(task: WidgetTaskItem): WidgetTaskItem {
+  return { id: task.id, text: task.text, completed: task.completed === true };
 }

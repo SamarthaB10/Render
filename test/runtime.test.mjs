@@ -54,6 +54,52 @@ test("accepts the host-owned current-time provider", () => {
   });
 });
 
+test("builds host-owned study primitives", () => {
+  const source = `
+    import { Column, ScrollView, TaskList, TextEditor, Text, Timer, widget } from "@render/sdk";
+    export default widget({
+      "schemaVersion": 1, "name": "Study", "sdkVersion": "0.1.0",
+      "size": { "width": 320, "height": 420 },
+      "anchor": { "corner": "top-left", "offset": { "x": 24, "y": 24 } },
+      "capabilities": [], "subscribe": []
+    }, () => Column([
+      Timer(1500),
+      TaskList([{ id: "read", text: "Read chapter 3" }]),
+      ScrollView([TextEditor({ key: "notes", text: "", placeholder: "Write a note…" })], { height: 180 })
+    ]));
+  `;
+
+  assert.deepEqual(buildRuntimeTree(source), {
+    kind: "column",
+    children: [
+      { kind: "timer", durationSeconds: 1500 },
+      { kind: "taskList", tasks: [{ id: "read", text: "Read chapter 3", completed: false }] },
+      {
+        kind: "scrollView",
+        children: [{ kind: "textEditor", key: "notes", text: "", placeholder: "Write a note…" }],
+        style: { height: 180 }
+      }
+    ]
+  });
+});
+
+test("requires unique sibling keys for persistent state", () => {
+  const source = `
+    import { Column, TextEditor, widget } from "@render/sdk";
+    export default widget({
+      "schemaVersion": 1, "name": "Duplicate keys", "sdkVersion": "0.1.0",
+      "size": { "width": 320, "height": 240 },
+      "anchor": { "corner": "top-left", "offset": { "x": 24, "y": 24 } },
+      "capabilities": [], "subscribe": []
+    }, () => Column([
+      TextEditor({ key: "notes", text: "one" }),
+      TextEditor({ key: "notes", text: "two" })
+    ]));
+  `;
+
+  assert.throws(() => buildRuntimeTree(source), /sibling keys must be unique/);
+});
+
 test("prepareRun atomically writes the candidate tree", () => {
   const workspace = mkdtempSync(path.join(os.tmpdir(), "render-runtime-"));
   try {

@@ -17,6 +17,10 @@ public enum WidgetNodeKind: String, Codable, Sendable {
     case gauge
     case progress
     case grid
+    case timer
+    case taskList
+    case scrollView
+    case textEditor
 }
 
 public enum WidgetLength: Codable, Equatable, Sendable {
@@ -356,6 +360,18 @@ public enum WidgetKey: Codable, Equatable, Sendable {
     }
 }
 
+public struct WidgetTaskItem: Codable, Equatable, Identifiable, Sendable {
+    public let id: String
+    public let text: String
+    public let completed: Bool
+
+    public init(id: String, text: String, completed: Bool = false) {
+        self.id = id
+        self.text = text
+        self.completed = completed
+    }
+}
+
 public struct WidgetTree: Codable, Equatable, Sendable {
     public let kind: WidgetNodeKind
     public let key: WidgetKey?
@@ -370,6 +386,9 @@ public struct WidgetTree: Codable, Equatable, Sendable {
     public let source: ImageSource?
     public let action: WidgetAction?
     public let columns: Int?
+    public let durationSeconds: Int?
+    public let tasks: [WidgetTaskItem]?
+    public let placeholder: String?
 
     public init(
         kind: WidgetNodeKind,
@@ -384,7 +403,10 @@ public struct WidgetTree: Codable, Equatable, Sendable {
         name: String? = nil,
         source: ImageSource? = nil,
         action: WidgetAction? = nil,
-        columns: Int? = nil
+        columns: Int? = nil,
+        durationSeconds: Int? = nil,
+        tasks: [WidgetTaskItem]? = nil,
+        placeholder: String? = nil
     ) {
         self.kind = kind
         self.key = key
@@ -399,10 +421,13 @@ public struct WidgetTree: Codable, Equatable, Sendable {
         self.source = source
         self.action = action
         self.columns = columns
+        self.durationSeconds = durationSeconds
+        self.tasks = tasks
+        self.placeholder = placeholder
     }
 
     private enum CodingKeys: String, CodingKey {
-        case kind, key, children, text, provider, style, value, maximum, orientation, name, source, action, columns
+        case kind, key, children, text, provider, style, value, maximum, orientation, name, source, action, columns, durationSeconds, tasks, placeholder
     }
 
     public init(from decoder: Decoder) throws {
@@ -420,11 +445,14 @@ public struct WidgetTree: Codable, Equatable, Sendable {
         source = try container.decodeIfPresent(ImageSource.self, forKey: .source)
         action = try container.decodeIfPresent(WidgetAction.self, forKey: .action)
         columns = try container.decodeIfPresent(Int.self, forKey: .columns)
+        durationSeconds = try container.decodeIfPresent(Int.self, forKey: .durationSeconds)
+        tasks = try container.decodeIfPresent([WidgetTaskItem].self, forKey: .tasks)
+        placeholder = try container.decodeIfPresent(String.self, forKey: .placeholder)
     }
 
     public func validationIssues(path: String = "root") -> [WidgetTreeValidationIssue] {
         var issues: [WidgetTreeValidationIssue] = []
-        let isContainer = [.column, .row, .stack, .box, .grid, .button].contains(kind)
+        let isContainer = [.column, .row, .stack, .box, .scrollView, .grid, .button].contains(kind)
 
         if isContainer && text != nil {
             issues.append(.init(path: path, message: "container nodes cannot define text"))
@@ -442,6 +470,21 @@ public struct WidgetTree: Codable, Equatable, Sendable {
         }
         if kind == .toggle && value != 0 && value != 1 {
             issues.append(.init(path: "\(path).value", message: "toggle value must be zero or one"))
+        }
+        if kind == .timer && (durationSeconds == nil || durationSeconds ?? 0 <= 0) {
+            issues.append(.init(path: "\(path).durationSeconds", message: "timer duration must be a positive integer in seconds"))
+        }
+        if kind == .taskList {
+            guard let tasks else {
+                issues.append(.init(path: "\(path).tasks", message: "taskList nodes require an array of items"))
+                return issues
+            }
+            var ids = Set<String>()
+            for (index, task) in tasks.enumerated() {
+                if task.id.isEmpty { issues.append(.init(path: "\(path).tasks[\(index)].id", message: "task id must be non-empty")) }
+                if !ids.insert(task.id).inserted { issues.append(.init(path: "\(path).tasks[\(index)].id", message: "task ids must be unique")) }
+                if task.text.isEmpty { issues.append(.init(path: "\(path).tasks[\(index)].text", message: "task text must be non-empty")) }
+            }
         }
         if let provider, provider.isEmpty {
             issues.append(.init(path: "\(path).provider", message: "provider name must be non-empty"))
@@ -480,6 +523,9 @@ public struct WidgetTree: Codable, Equatable, Sendable {
         if kind != .image && source != nil { issues.append(.init(path: "\(path).source", message: "only image nodes may define a source")) }
         if kind != .divider && orientation != nil { issues.append(.init(path: "\(path).orientation", message: "only divider nodes may define an orientation")) }
         if kind != .grid && columns != nil { issues.append(.init(path: "\(path).columns", message: "only grid nodes may define columns")) }
+        if kind != .timer && durationSeconds != nil { issues.append(.init(path: "\(path).durationSeconds", message: "only timer nodes may define durationSeconds")) }
+        if kind != .taskList && tasks != nil { issues.append(.init(path: "\(path).tasks", message: "only taskList nodes may define tasks")) }
+        if kind != .textEditor && placeholder != nil { issues.append(.init(path: "\(path).placeholder", message: "only textEditor nodes may define a placeholder")) }
         switch action {
         case .invoke(let name, _), .set(let name, _):
             if name.isEmpty { issues.append(.init(path: "\(path).action.name", message: "action name must be non-empty")) }
@@ -507,7 +553,18 @@ public struct WidgetTree: Codable, Equatable, Sendable {
         }
         if let font = style?.font, let size = font.size, size <= 0 { issues.append(.init(path: "\(path).style.font.size", message: "font size must be greater than zero")) }
 
+        var childKeys = Set<String>()
         for (index, child) in children.enumerated() {
+            if let key = child.key {
+                let keyName: String
+                switch key {
+                case .string(let value): keyName = "string:\(value)"
+                case .number(let value): keyName = "number:\(value)"
+                }
+                if !childKeys.insert(keyName).inserted {
+                    issues.append(.init(path: "\(path).children[\(index)].key", message: "sibling keys must be unique"))
+                }
+            }
             issues.append(contentsOf: child.validationIssues(path: "\(path).children[\(index)]"))
         }
         return issues

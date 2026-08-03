@@ -79,6 +79,17 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     status: "implemented"
   },
   {
+    name: "ScrollView",
+    kind: "primitive",
+    summary: "Native vertically scrollable content container",
+    importPath: SDK_PACKAGE,
+    signature: "ScrollView(children: WidgetNode[], style?: WidgetStyle): WidgetNode",
+    inputs: ["children", "style"],
+    example: "ScrollView([Text(\"Long notes\")], { height: 320 })",
+    status: "implemented",
+    notes: ["The native renderer owns scrolling and keeps overflowing content inside the widget frame."]
+  },
+  {
     name: "Box",
     kind: "primitive",
     summary: "General native container for grouping and styling children",
@@ -137,6 +148,17 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     ]
   },
   {
+    name: "TextEditor",
+    kind: "primitive",
+    summary: "Native persistent multiline text editor",
+    importPath: SDK_PACKAGE,
+    signature: "TextEditor(text?: string, style?: WidgetStyle): WidgetNode",
+    inputs: ["text", "style"],
+    example: 'TextEditor({ key: "notes", text: "", placeholder: "Write a note…" })',
+    status: "implemented",
+    notes: ["The native renderer persists editor content by stable key or node path; widget source supplies the default text."]
+  },
+  {
     name: "Toggle",
     kind: "primitive",
     summary: "Native interactive checkbox control",
@@ -149,6 +171,28 @@ const SDK_CATALOG: SdkCatalogItem[] = [
       "The native renderer keeps the checked value interactive for the current widget session.",
       "Shared state between controls and persistent widget-owned state are separate planned contracts."
     ]
+  },
+  {
+    name: "Timer",
+    kind: "primitive",
+    summary: "Host-owned countdown timer with start, pause, reset, and persisted state",
+    importPath: SDK_PACKAGE,
+    signature: "Timer(durationSeconds: number, style?: WidgetStyle): WidgetNode",
+    inputs: ["durationSeconds", "style"],
+    example: "Timer(1500, { color: \"#ffffff\" })",
+    status: "implemented",
+    notes: ["The native renderer owns timer controls, wall-clock recovery, and persistence."]
+  },
+  {
+    name: "TaskList",
+    kind: "primitive",
+    summary: "Host-owned editable task list with completion, editing, adding, and persistence",
+    importPath: SDK_PACKAGE,
+    signature: "TaskList(items: WidgetTaskItem[], style?: WidgetStyle): WidgetNode",
+    inputs: ["items", "style"],
+    example: 'TaskList([{ id: "read", text: "Read chapter 3" }])',
+    status: "implemented",
+    notes: ["The native renderer owns task editing, completion, adding, and persistence."]
   },
   {
     name: "Shape",
@@ -404,7 +448,7 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     importPath: SDK_PACKAGE,
     signature: "interface WidgetNode { kind: WidgetNodeKind; children?: WidgetNode[]; style?: WidgetStyle; ... }",
     fields: [
-      'kind: "column" | "row" | "stack" | "box" | "spacer" | "divider" | "text" | "textField" | "toggle" | "shape" | "icon" | "image" | "button" | "gauge" | "progress" | "grid"',
+      'kind: "column" | "row" | "stack" | "box" | "scrollView" | "spacer" | "divider" | "text" | "textField" | "textEditor" | "toggle" | "timer" | "taskList" | "shape" | "icon" | "image" | "button" | "gauge" | "progress" | "grid"',
       "children?: WidgetNode[]",
       "text?: string",
       "provider?: string",
@@ -415,7 +459,10 @@ const SDK_CATALOG: SdkCatalogItem[] = [
       "name?: string",
       "source?: ImageSource",
       "action?: WidgetAction",
-      "columns?: number"
+      "columns?: number",
+      "durationSeconds?: number",
+      "tasks?: WidgetTaskItem[]",
+      "placeholder?: string"
     ],
     example: 'Column([Text("CPU")])',
     status: "implemented",
@@ -426,7 +473,7 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     kind: "type",
     summary: "Allowed discriminators for declarative widget nodes",
     importPath: SDK_PACKAGE,
-    signature: 'type WidgetNodeKind = "column" | "row" | "stack" | "box" | "spacer" | "divider" | "text" | "textField" | "toggle" | "shape" | "icon" | "image" | "button" | "gauge" | "progress" | "grid"',
+    signature: 'type WidgetNodeKind = "column" | "row" | "stack" | "box" | "scrollView" | "spacer" | "divider" | "text" | "textField" | "textEditor" | "toggle" | "timer" | "taskList" | "shape" | "icon" | "image" | "button" | "gauge" | "progress" | "grid"',
     example: 'const kind: WidgetNodeKind = "box"',
     status: "implemented"
   },
@@ -500,6 +547,17 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     fields: ["mode", "size"],
     example: 'const render = ({ mode }: WidgetRenderContext) => mode === "compact" ? compactLayout() : regularLayout()',
     status: "implemented"
+  },
+  {
+    name: "WidgetTaskItem",
+    kind: "type",
+    summary: "Portable default task row consumed by the host-owned task list",
+    importPath: SDK_PACKAGE,
+    signature: "interface WidgetTaskItem { id: string; text: string; completed?: boolean }",
+    fields: ["id", "text", "completed"],
+    example: 'const task: WidgetTaskItem = { id: "read", text: "Read chapter 3" }',
+    status: "implemented",
+    notes: ["TaskList owns editing, completion, adding, and persistence; widget source supplies defaults."]
   },
   {
     name: "WidgetAccountRequirement",

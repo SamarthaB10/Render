@@ -567,7 +567,7 @@ function validateRuntimeTree(node, pathName, subscriptions, capabilities, accoun
     throw new Error(`${pathName}: render() must return a widget node`);
   }
   const kinds = new Set([
-    "column", "row", "stack", "box", "spacer", "divider", "text", "textField", "toggle", "shape",
+    "column", "row", "stack", "box", "scrollView", "spacer", "divider", "text", "textField", "textEditor", "toggle", "timer", "taskList", "shape",
     "icon", "image", "button", "gauge", "progress", "grid"
   ]);
   if (!kinds.has(node.kind)) {
@@ -576,7 +576,7 @@ function validateRuntimeTree(node, pathName, subscriptions, capabilities, accoun
   if (node.key !== undefined && !(["string", "number"].includes(typeof node.key))) {
     throw new Error(`${pathName}.key: keys must be strings or numbers`);
   }
-  const containers = new Set(["column", "row", "stack", "box", "grid", "button"]);
+  const containers = new Set(["column", "row", "stack", "box", "scrollView", "grid", "button"]);
   if (containers.has(node.kind) && node.text !== undefined) {
     throw new Error(`${pathName}.text: container nodes cannot define text`);
   }
@@ -585,7 +585,14 @@ function validateRuntimeTree(node, pathName, subscriptions, capabilities, accoun
   }
   if (node.children !== undefined) {
     if (!Array.isArray(node.children)) throw new Error(`${pathName}.children: must be an array`);
+    const childKeys = new Set();
     node.children.forEach((child, index) => validateRuntimeTree(child, `${pathName}.children[${index}]`, subscriptions, capabilities, accounts));
+    node.children.forEach((child, index) => {
+      if (child.key === undefined) return;
+      const key = `${typeof child.key}:${String(child.key)}`;
+      if (childKeys.has(key)) throw new Error(`${pathName}.children[${index}].key: sibling keys must be unique`);
+      childKeys.add(key);
+    });
   }
   if (node.provider !== undefined && (typeof node.provider !== "string" || node.provider.length === 0)) {
     throw new Error(`${pathName}.provider: provider bindings require a name`);
@@ -602,8 +609,29 @@ function validateRuntimeTree(node, pathName, subscriptions, capabilities, accoun
   if ((node.kind === "text" || node.kind === "textField") && (typeof node.text !== "string" || node.text.length === 0) && node.provider === undefined) {
     throw new Error(`${pathName}.text: text nodes require text or a provider`);
   }
+  if (node.kind === "textEditor" && node.text !== undefined && typeof node.text !== "string") {
+    throw new Error(`${pathName}.text: textEditor content must be a string`);
+  }
+  if (node.placeholder !== undefined && (node.kind !== "textEditor" || typeof node.placeholder !== "string")) {
+    throw new Error(`${pathName}.placeholder: only textEditor nodes may define a string placeholder`);
+  }
   if (node.kind === "toggle" && node.value !== 0 && node.value !== 1) {
     throw new Error(`${pathName}.value: toggle value must be boolean`);
+  }
+  if (node.kind === "timer" && (!Number.isInteger(node.durationSeconds) || node.durationSeconds <= 0)) {
+    throw new Error(`${pathName}.durationSeconds: timer duration must be a positive integer in seconds`);
+  }
+  if (node.kind === "taskList") {
+    if (!Array.isArray(node.tasks)) throw new Error(`${pathName}.tasks: task lists require an array of items`);
+    const ids = new Set();
+    node.tasks.forEach((task, index) => {
+      if (!task || typeof task !== "object") throw new Error(`${pathName}.tasks[${index}]: task must be an object`);
+      if (typeof task.id !== "string" || task.id.length === 0) throw new Error(`${pathName}.tasks[${index}].id: task id must be non-empty`);
+      if (ids.has(task.id)) throw new Error(`${pathName}.tasks[${index}].id: task ids must be unique`);
+      ids.add(task.id);
+      if (typeof task.text !== "string" || task.text.length === 0) throw new Error(`${pathName}.tasks[${index}].text: task text must be non-empty`);
+      if (task.completed !== undefined && typeof task.completed !== "boolean") throw new Error(`${pathName}.tasks[${index}].completed: task completion must be boolean`);
+    });
   }
   if ((node.kind === "gauge" || node.kind === "progress")) {
     const hasProvider = typeof node.provider === "string" && node.provider.length > 0;
