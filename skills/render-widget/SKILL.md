@@ -190,6 +190,30 @@ Wait for the status result to report the active widget as running and, when nati
 render run --workspace "$WORKSPACE" --watch
 ```
 
+When several isolated widgets need lifecycle operations, use the fleet seam.
+Repeat `--workspace` for each widget; the operation continues for the other
+workspaces if one workspace reports a diagnostic:
+
+```bash
+render fleet run \
+  --workspace "$HOME/RenderWidgets/system-monitor" \
+  --workspace "$HOME/RenderWidgets/study-timer" \
+  --json
+render fleet status \
+  --workspace "$HOME/RenderWidgets/system-monitor" \
+  --workspace "$HOME/RenderWidgets/study-timer" \
+  --json
+render fleet stop \
+  --workspace "$HOME/RenderWidgets/system-monitor" \
+  --workspace "$HOME/RenderWidgets/study-timer" \
+  --json
+```
+
+Fleet status reconciles stale process records and marks a workspace stopped
+instead of reporting a dead process as running. This is the first independent
+runtime slice; the future host-managed supervisor will retain this workspace
+and last-known-good contract while moving each widget behind its own worker.
+
 Successful edits update the existing widget in place. The first prototype is draggable; placement is persisted by the native host. The implemented local providers are `system.cpu`, `system.memory`, and `system.time`; `system.time` is rendered as the host-local clock when bound to `Text`. Spotify providers/actions are host-backed and remain explicit unavailable states until the user connects an account.
 
 ### 6. Remix, move, and recover

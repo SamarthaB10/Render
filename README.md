@@ -17,6 +17,7 @@ The current reference implementation is a native CPU/RAM widget. It proves the a
 - Automatic TSX compilation to a serializable declarative tree; no DOM, HTML, CSS, browser runtime, or webview.
 - Agent-readable SDK discovery through `render sdk list --json` and `render sdk describe <name> --json`.
 - Workspace-scoped validation, running, watch mode, logical movement, snapshots, rollback, and last-known-good recovery.
+- An experimental fleet lifecycle seam can run, inspect, reconcile, and stop multiple isolated widget workspaces with repeated `--workspace` flags; each workspace keeps its own snapshots and runtime metadata.
 - Host-owned CPU, memory, and local-time providers.
 - Native dragging and persisted placement for the first prototype.
 - Host-owned adjustable sizing with native resize handles, persisted size and lock state, responsive modes, and a settings-panel mode selector.
@@ -90,6 +91,30 @@ Confirm that the native worker is ready:
 ```bash
 node bin/render.mjs status --workspace "$HOME/RenderWidgets/system-monitor" --json
 ```
+
+For multiple widgets, use the fleet commands. They persist a local registry at
+`~/.render/fleet.json` (or the path supplied with `--state-path`) and keep each
+workspace's lifecycle state separate:
+
+```bash
+node bin/render.mjs fleet run \
+  --workspace "$HOME/RenderWidgets/system-monitor" \
+  --workspace "$HOME/RenderWidgets/study-timer" \
+  --json
+node bin/render.mjs fleet status \
+  --workspace "$HOME/RenderWidgets/system-monitor" \
+  --workspace "$HOME/RenderWidgets/study-timer" \
+  --json
+node bin/render.mjs fleet stop \
+  --workspace "$HOME/RenderWidgets/system-monitor" \
+  --workspace "$HOME/RenderWidgets/study-timer" \
+  --json
+```
+
+This is the first fleet slice, not the final crash-isolated architecture: the
+commands orchestrate the existing per-widget host boundary. The future
+host-managed supervisor will preserve this contract while giving every widget
+its own worker process and restart policy.
 
 The status response should report a running widget and, when the native supervisor is active, `worker.status` as `ready`. The widget appears on the desktop at its logical anchor. The first prototype can be dragged by the user, and its placement is persisted by the native host.
 
