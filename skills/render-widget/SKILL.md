@@ -90,6 +90,12 @@ For an authenticated integration, declare the connector and exact scopes in the 
 
 `RenderHost` owns OAuth, secure credential storage, refresh, API calls, and permission state. Never put access tokens, refresh tokens, client secrets, or arbitrary OAuth URLs in the widget source. Spotify is implemented when `render sdk describe spotify --json` reports `status: "implemented"`, but the local host still needs a Spotify client ID configured before authorization can open.
 
+OAuth success does not guarantee playback access. Spotify playback endpoints
+require Premium access; if the host reports HTTP 403, explain that limitation
+and keep the widget in an explicit unavailable state. Do not invent track,
+progress, volume, or device data and do not ask the agent to regenerate the
+widget as though this were a TSX error.
+
 ### 4. Validate before running
 
 ```bash

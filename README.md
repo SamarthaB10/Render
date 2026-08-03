@@ -172,7 +172,10 @@ The first connector asks only for playback/account scopes:
 ```
 
 The native host uses Spotify's current playback endpoints and returns explicit
-loading, unavailable, permission, Premium-account, and rate-limit states.
+loading, unavailable, permission, and rate-limit states. Spotify OAuth can
+succeed while playback remains unavailable: Spotify playback APIs require an
+active Premium account, and Spotify may return HTTP 403 when that requirement
+is not met. Render never substitutes fake playback data.
 
 ## Spotify widget module
 
