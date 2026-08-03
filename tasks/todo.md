@@ -41,3 +41,17 @@
 - [x] Add measured CPU and resident-memory telemetry with explicit tripwires.
 - [x] Route native run, watch, move, and rollback through the supervisor path.
 - [x] Verify worker crash recovery on the target macOS runtime.
+
+## Phase 9 - Native JSX and SDK surface
+
+- [x] Define `jsx`, `jsxs`, and `Fragment` plus typed native style props without DOM or CSS exposure.
+- [x] Add `Box`, `Spacer`, and `Divider` through the complete SDK/catalog/native/validation/docs/test/receipt boundary.
+- [x] Add `Icon`, `Image`, `Button`, and `Progress` with serializable state and typed actions.
+- [x] Define provider values, loading/unavailable states, and the capability declarations required by the first slice.
+- [x] Make SDK discovery exact enough for a fresh agent to author without guessing imports or signatures.
+- [x] Add actionable unsupported-capability diagnostics and prohibit invented primitives, providers, actions, fake data, DOM, and webview fallbacks.
+- [x] Add focused tests and performance receipts, then verify an interactive Widget through check, run, remix, move, watch, and rollback.
+
+Phase 9 is complete for the first vertical slice. URL/provider image sources,
+media playback, account authentication, and filesystem/network operations
+remain explicit cataloged capability gaps until their host contracts ship.

@@ -8,6 +8,8 @@ import {
 } from "node:fs";
 import path from "node:path";
 import { extractManifest, validateManifest } from "./manifest.mjs";
+import { buildRuntimeTree } from "./runtime.mjs";
+import { transpileTsx } from "./tsx-runtime.mjs";
 import { CANONICAL_WIDGET_SOURCE } from "../packages/sdk/src/catalog.ts";
 
 export function initWorkspace(workspace, requestId = randomUUID()) {
@@ -139,6 +141,20 @@ export function checkWorkspace(workspace, requestId = randomUUID()) {
   }
 
   try {
+    transpileTsx(source, widgetPath);
+  } catch (error) {
+    return result(requestId, "check", root, false, (error.diagnostics ?? [{
+      code: error.code ?? "invalid-widget-source",
+      path: "widget.tsx",
+      message: error.message
+    }]).map((diagnostic) => ({
+      code: diagnostic.code ?? error.code ?? "invalid-widget-source",
+      path: diagnostic.path ?? "widget.tsx",
+      message: diagnostic.message ?? error.message
+    })));
+  }
+
+  try {
     const manifest = extractManifest(source);
     const issues = validateManifest(manifest);
     if (issues.length > 0) {
@@ -151,6 +167,16 @@ export function checkWorkspace(workspace, requestId = randomUUID()) {
   } catch (error) {
     return result(requestId, "check", root, false, [{
       code: "invalid-widget-source",
+      path: "widget.tsx",
+      message: error.message
+    }]);
+  }
+
+  try {
+    buildRuntimeTree(source, widgetPath);
+  } catch (error) {
+    return result(requestId, "check", root, false, [{
+      code: error.code ?? "invalid-widget-tree",
       path: "widget.tsx",
       message: error.message
     }]);

@@ -2,8 +2,8 @@ import { randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import { existsSync, readFileSync, renameSync, unlinkSync, watch, writeFileSync } from "node:fs";
 import path from "node:path";
-import vm from "node:vm";
 import * as sdk from "../packages/sdk/src/index.ts";
+import { buildTsxRuntimeTree } from "./tsx-runtime.mjs";
 import {
   checkWorkspace,
   promoteSnapshot,
@@ -15,26 +15,14 @@ import { extractManifest, updateManifest, validateManifest } from "./manifest.mj
 
 // Receipt: perf/receipts/phase8-worker.json
 const SUPERVISOR_STARTUP_TIMEOUT_MS = 5000;
+const SUPPORTED_ACTIONS = new Set(["widget.refresh", "widget.reload"]);
+const SUPPORTED_PROVIDERS = new Set(["system.cpu", "system.memory"]);
 
 export function buildRuntimeTree(source, filename = "widget.tsx") {
-  const transformed = source
-    .replace(
-      /import\s*\{([^}]+)\}\s*from\s*["']@render\/sdk["']\s*;?/m,
-      "const {$1} = sdk;"
-    )
-    .replace(/export\s+default\s+/, "exports.default = ");
-
-  const sandbox = { exports: {}, sdk };
-  const script = new vm.Script(transformed, { filename });
-  script.runInNewContext(sandbox, { timeout: 1000 });
-
-  const definition = sandbox.exports.default;
-  if (!definition || typeof definition.render !== "function") {
-    throw new Error("widget.tsx must export the result of widget(manifest, render)");
-  }
-  const tree = definition.render();
-  const subscriptions = new Set(definition.manifest?.subscribe ?? []);
-  validateRuntimeTree(tree, "root", subscriptions);
+  const tree = buildTsxRuntimeTree(source, { sdk, filename });
+  const manifest = extractManifest(source);
+  const subscriptions = new Set(manifest.subscribe);
+  validateRuntimeTree(tree, "root", subscriptions, new Set(manifest.capabilities));
   return JSON.parse(JSON.stringify(tree));
 }
 
@@ -470,17 +458,30 @@ export function watchWorkspace(workspace, requestId = randomUUID(), onResult = (
   };
 }
 
-function validateRuntimeTree(node, pathName, subscriptions) {
+function validateRuntimeTree(node, pathName, subscriptions, capabilities) {
   if (!node || typeof node !== "object") {
     throw new Error(`${pathName}: render() must return a widget node`);
   }
-  const kinds = new Set(["column", "row", "stack", "text", "shape", "gauge"]);
+  const kinds = new Set([
+    "column", "row", "stack", "box", "spacer", "divider", "text", "shape",
+    "icon", "image", "button", "gauge", "progress", "grid"
+  ]);
   if (!kinds.has(node.kind)) {
     throw new Error(`${pathName}.kind: unknown widget primitive`);
   }
+  if (node.key !== undefined && !(["string", "number"].includes(typeof node.key))) {
+    throw new Error(`${pathName}.key: keys must be strings or numbers`);
+  }
+  const containers = new Set(["column", "row", "stack", "box", "grid", "button"]);
+  if (containers.has(node.kind) && node.text !== undefined) {
+    throw new Error(`${pathName}.text: container nodes cannot define text`);
+  }
+  if (!containers.has(node.kind) && node.children !== undefined && node.children.length > 0) {
+    throw new Error(`${pathName}.children: leaf nodes cannot define children`);
+  }
   if (node.children !== undefined) {
     if (!Array.isArray(node.children)) throw new Error(`${pathName}.children: must be an array`);
-    node.children.forEach((child, index) => validateRuntimeTree(child, `${pathName}.children[${index}]`, subscriptions));
+    node.children.forEach((child, index) => validateRuntimeTree(child, `${pathName}.children[${index}]`, subscriptions, capabilities));
   }
   if (node.provider !== undefined && (typeof node.provider !== "string" || node.provider.length === 0)) {
     throw new Error(`${pathName}.provider: provider bindings require a name`);
@@ -488,16 +489,139 @@ function validateRuntimeTree(node, pathName, subscriptions) {
   if (node.provider !== undefined && !subscriptions.has(node.provider)) {
     throw new Error(`${pathName}.provider: ${node.provider} must be listed in manifest.subscribe`);
   }
-  if (node.kind === "text" && typeof node.text !== "string" && node.provider === undefined) {
+  if (node.provider !== undefined && !SUPPORTED_PROVIDERS.has(node.provider)) {
+    throw new Error(`${pathName}.provider: unsupported provider '${node.provider}'; use render sdk list to choose a host provider`);
+  }
+  if (node.kind === "text" && (typeof node.text !== "string" || node.text.length === 0) && node.provider === undefined) {
     throw new Error(`${pathName}.text: text nodes require text or a provider`);
   }
-  if (node.kind === "gauge") {
+  if ((node.kind === "gauge" || node.kind === "progress")) {
     const hasProvider = typeof node.provider === "string" && node.provider.length > 0;
     const hasValue = typeof node.value === "number";
-    if ((!hasProvider && !hasValue) || typeof node.maximum !== "number" || node.maximum <= 0) {
-      throw new Error(`${pathName}: gauge nodes require a provider or value and a positive maximum`);
+    if ((!hasProvider && !hasValue) || typeof node.maximum !== "number" || !Number.isFinite(node.maximum) || node.maximum <= 0) {
+      throw new Error(`${pathName}: ${node.kind} nodes require a provider or value and a positive maximum`);
+    }
+    if (hasValue && (!Number.isFinite(node.value) || node.value < 0 || node.value > node.maximum)) {
+      throw new Error(`${pathName}.value: ${node.kind} value must be between zero and maximum`);
     }
   }
+  if (node.kind === "icon" && (typeof node.name !== "string" || node.name.length === 0)) {
+    throw new Error(`${pathName}.name: icon nodes require a non-empty symbol name`);
+  }
+  if (node.kind === "image") {
+    if (!node.source || typeof node.source !== "object") throw new Error(`${pathName}.source: image nodes require an explicit source`);
+    const sourceKinds = new Set(["asset", "url", "provider"]);
+    if (!sourceKinds.has(node.source.kind)) throw new Error(`${pathName}.source.kind: image source kind must be asset, url, or provider`);
+    const sourceValue = node.source.kind === "url" ? node.source.url : node.source.name;
+    if (typeof sourceValue !== "string" || sourceValue.length === 0) throw new Error(`${pathName}.source: image source value must be non-empty`);
+    if (node.source.kind === "url" && !capabilities.has("network")) throw new Error(`${pathName}.source: URL images require the manifest capability \"network\" and user permission`);
+    if (node.source.kind !== "asset") throw new Error(`${pathName}.source.kind: ${node.source.kind} image sources are deferred until their capability-backed provider ships; use an asset source`);
+  }
+  if (node.kind === "divider" && node.orientation !== "horizontal" && node.orientation !== "vertical") {
+    throw new Error(`${pathName}.orientation: divider orientation must be horizontal or vertical`);
+  }
+  if (node.kind === "grid" && (!Number.isInteger(node.columns) || node.columns <= 0)) {
+    throw new Error(`${pathName}.columns: grid columns must be a positive integer`);
+  }
+  if (node.action !== undefined) {
+    if (node.kind !== "button") throw new Error(`${pathName}.action: only button nodes may define an action`);
+    validateAction(node.action, `${pathName}.action`);
+  }
+  validateStyle(node.style, `${pathName}.style`);
+}
+
+function validateAction(action, pathName) {
+  if (!action || typeof action !== "object" || !["invoke", "set"].includes(action.type)) {
+    throw new Error(`${pathName}: action type must be invoke or set`);
+  }
+  if (typeof action.name !== "string" || action.name.length === 0) {
+    throw new Error(`${pathName}.name: action name must be non-empty`);
+  }
+  if (!SUPPORTED_ACTIONS.has(action.name)) {
+    throw new Error(`${pathName}.name: unsupported action '${action.name}'; use render sdk describe WidgetActionName`);
+  }
+  if (action.type === "invoke" && action.payload !== undefined) validateJsonValue(action.payload, `${pathName}.payload`);
+  if (action.type === "set") validateJsonValue(action.value, `${pathName}.value`);
+}
+
+function validateJsonValue(value, pathName) {
+  if (value === null || typeof value === "string" || typeof value === "boolean") return;
+  if (typeof value === "number") {
+    if (Number.isFinite(value)) return;
+    throw new Error(`${pathName}: JSON numbers must be finite`);
+  }
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => validateJsonValue(item, `${pathName}[${index}]`));
+    return;
+  }
+  if (typeof value === "object") {
+    Object.entries(value).forEach(([key, item]) => validateJsonValue(item, `${pathName}.${key}`));
+    return;
+  }
+  throw new Error(`${pathName}: action values must be JSON-compatible`);
+}
+
+function validateStyle(style, pathName) {
+  if (style === undefined) return;
+  if (!style || typeof style !== "object" || Array.isArray(style)) throw new Error(`${pathName}: style must be an object`);
+  const allowed = new Set([
+    "width", "height", "color", "backgroundColor", "opacity", "padding", "margin", "gap",
+    "alignItems", "justifyContent", "radius", "border", "shadow", "font", "tokens"
+  ]);
+  for (const key of Object.keys(style)) if (!allowed.has(key)) throw new Error(`${pathName}.${key}: unknown style property`);
+  for (const key of ["width", "height"]) {
+    if (style[key] !== undefined && !(typeof style[key] === "number" || style[key] === "fill" || style[key] === "fit")) {
+      throw new Error(`${pathName}.${key}: length must be a number, fill, or fit`);
+    }
+    if (typeof style[key] === "number" && (!Number.isFinite(style[key]) || style[key] <= 0)) throw new Error(`${pathName}.${key}: length must be greater than zero`);
+  }
+  for (const key of ["opacity", "gap", "radius"]) {
+    if (style[key] !== undefined && (typeof style[key] !== "number" || !Number.isFinite(style[key]) || style[key] < 0 || (key === "opacity" && style[key] > 1))) {
+      throw new Error(`${pathName}.${key}: must be a valid non-negative number${key === "opacity" ? " between zero and one" : ""}`);
+    }
+  }
+  for (const key of ["color", "backgroundColor"]) if (style[key] !== undefined && typeof style[key] !== "string") throw new Error(`${pathName}.${key}: color must be a string`);
+  const alignments = new Set(["leading", "center", "trailing", "top", "bottom", "fill", "space-between"]);
+  for (const key of ["alignItems", "justifyContent"]) if (style[key] !== undefined && !alignments.has(style[key])) throw new Error(`${pathName}.${key}: unsupported alignment`);
+  validateSpacing(style.padding, `${pathName}.padding`);
+  validateSpacing(style.margin, `${pathName}.margin`);
+  if (style.border !== undefined) {
+    if (!style.border || typeof style.border !== "object" || Array.isArray(style.border)) throw new Error(`${pathName}.border: border must be an object`);
+    validateObjectKeys(style.border, ["color", "width", "radius"], `${pathName}.border`);
+    for (const key of ["width", "radius"]) if (style.border[key] !== undefined && (typeof style.border[key] !== "number" || !Number.isFinite(style.border[key]) || style.border[key] < 0)) throw new Error(`${pathName}.border.${key}: must be non-negative`);
+    if (style.border.color !== undefined && typeof style.border.color !== "string") throw new Error(`${pathName}.border.color: color must be a string`);
+  }
+  if (style.shadow !== undefined) {
+    if (!style.shadow || typeof style.shadow !== "object" || Array.isArray(style.shadow)) throw new Error(`${pathName}.shadow: shadow must be an object`);
+    validateObjectKeys(style.shadow, ["color", "radius", "x", "y", "opacity"], `${pathName}.shadow`);
+    for (const key of ["radius", "x", "y"]) if (style.shadow[key] !== undefined && (typeof style.shadow[key] !== "number" || !Number.isFinite(style.shadow[key]))) throw new Error(`${pathName}.shadow.${key}: must be a finite number`);
+    if (style.shadow.opacity !== undefined && (typeof style.shadow.opacity !== "number" || style.shadow.opacity < 0 || style.shadow.opacity > 1)) throw new Error(`${pathName}.shadow.opacity: must be between zero and one`);
+    if (style.shadow.color !== undefined && typeof style.shadow.color !== "string") throw new Error(`${pathName}.shadow.color: color must be a string`);
+  }
+  if (style.font !== undefined) {
+    if (!style.font || typeof style.font !== "object" || Array.isArray(style.font)) throw new Error(`${pathName}.font: font must be an object`);
+    validateObjectKeys(style.font, ["family", "size", "weight", "monospace"], `${pathName}.font`);
+    if (style.font.size !== undefined && (typeof style.font.size !== "number" || style.font.size <= 0)) throw new Error(`${pathName}.font.size: must be greater than zero`);
+    if (style.font.weight !== undefined && !new Set(["regular", "medium", "semibold", "bold"]).has(style.font.weight)) throw new Error(`${pathName}.font.weight: unsupported font weight`);
+    if (style.font.family !== undefined && typeof style.font.family !== "string") throw new Error(`${pathName}.font.family: family must be a string`);
+    if (style.font.monospace !== undefined && typeof style.font.monospace !== "boolean") throw new Error(`${pathName}.font.monospace: must be boolean`);
+  }
+  if (style.tokens !== undefined && (!Array.isArray(style.tokens) || style.tokens.some((token) => !new Set(["surface", "surface.elevated", "text.primary", "text.secondary", "accent", "danger", "success", "mono"]).has(token)))) throw new Error(`${pathName}.tokens: contains an unsupported style token`);
+}
+
+function validateObjectKeys(value, allowed, pathName) {
+  for (const key of Object.keys(value)) if (!allowed.includes(key)) throw new Error(`${pathName}.${key}: unknown style property`);
+}
+
+function validateSpacing(value, pathName) {
+  if (value === undefined) return;
+  if (typeof value === "number") {
+    if (!Number.isFinite(value) || value < 0) throw new Error(`${pathName}: spacing must be non-negative`);
+    return;
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error(`${pathName}: spacing must be a number or insets`);
+  validateObjectKeys(value, ["top", "right", "bottom", "left"], pathName);
+  for (const key of ["top", "right", "bottom", "left"]) if (value[key] !== undefined && (typeof value[key] !== "number" || !Number.isFinite(value[key]) || value[key] < 0)) throw new Error(`${pathName}.${key}: spacing must be non-negative`);
 }
 
 function findHostPath() {

@@ -7,6 +7,10 @@
   },
   "scripts": {
     "test": "node --test",
+    "typecheck": "tsc packages/sdk/src/index.ts packages/sdk/src/jsx-runtime.ts --noEmit --module esnext --target es2020 --skipLibCheck --moduleResolution bundler --allowImportingTsExtensions --pretty false",
     "measure:performance": "node scripts/measure-performance.mjs"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2"
   }
 }

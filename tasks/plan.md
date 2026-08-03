@@ -86,6 +86,26 @@ Build the smallest vertical slice that can grow into Render's first local macOS 
 - [x] Candidate supervisor startup is session-scoped and cannot replace the active supervisor until the worker reports ready.
 - [x] Worker resource measurements and tripwires are recorded in `perf/receipts/phase8-worker.json`.
 
+### Phase 9: Native JSX and SDK surface
+
+These tasks are shipped as one agent-facing vertical slice. External image
+sources and media/account integrations remain explicit deferred capability
+gaps rather than hidden fallbacks.
+
+- [x] Task 20: Define the JSX runtime contract (`jsx`, `jsxs`, `Fragment`) and a typed native style model that does not expose DOM or CSS.
+- [x] Task 21: Add the first layout slice: `Box`, `Spacer`, and `Divider`, including serializable tree types, native rendering, catalog entries, validation, and examples.
+- [x] Task 22: Add the first content/control slice: `Icon`, `Image`, `Button`, and `Progress`, including typed state and serializable actions.
+- [x] Task 23: Define provider values, loading/unavailable states, typed actions, and the narrow capability declarations required by the Phase 9 slice.
+- [x] Task 24: Make each Phase 9 item agent-readable through exact catalog discovery, actionable `render check --json` diagnostics, and unsupported-capability guidance.
+- [x] Task 25: Add focused SDK/native/CLI tests and performance receipts for the Phase 9 slice, then verify an agent can build and recover an interactive Widget through the supervised lifecycle.
+
+### Checkpoint: Phase 9 contract
+
+- [x] Every shipped item has SDK types, JSX/runtime support, a catalog entry, native implementation, validation, agent documentation, tests, and performance evidence.
+- [x] A fresh agent can discover exact supported imports and signatures without reading Render source code.
+- [x] An unsupported request produces a named capability gap; no invented primitive, provider, action, DOM, webview, or fake data path is used.
+- [x] The existing last-known-good, capability, provider, supervisor, and receipt invariants remain intact.
+
 ## Risks and mitigations
 
 | Risk | Impact | Mitigation |
@@ -94,6 +114,8 @@ Build the smallest vertical slice that can grow into Render's first local macOS 
 | Native window semantics differ across macOS Spaces/displays | Core desktop behavior may regress | Add focused native behavior checks and manual verification on the target Mac. |
 | TSX execution becomes a premature runtime project | Scope expands before rendering is proven | Define the serialized SDK/tree contract first and keep the initial execution path minimal. |
 | Resource limits are guessed | Good widgets may be rejected or performance claims become untrustworthy | Measure real workloads before setting limits, per `AGENTS.md`. |
+| Catalog and native renderer drift | Agents generate Widgets that validate but cannot render | Ship each SDK item as one contract boundary and gate promotion on catalog, renderer, validation, tests, and receipt evidence. |
+| Broad primitive roadmap becomes an unbounded rewrite | Phase 9 loses its vertical proof | Implement only the first slice first; keep advanced families explicitly deferred. |
 
 ## Open implementation questions
 

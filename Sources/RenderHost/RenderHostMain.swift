@@ -14,6 +14,7 @@ private final class RenderHostDelegate: NSObject, NSApplicationDelegate {
         let manifest = loadManifest(workspace: workspace)
         let providers = ProviderStore(subscriptions: Set(manifest.subscribe))
         providers.start()
+        let actionDispatcher = WidgetActionDispatcher(capabilities: manifest.capabilities)
         let contentModel = WidgetContentModel(tree: loadTree(workspace: workspace))
         let panel = DesktopWidgetPanel(
             contentRect: NSRect(
@@ -26,7 +27,7 @@ private final class RenderHostDelegate: NSObject, NSApplicationDelegate {
         )
         let contentView = DraggableHostingView(
             rootView: AnyView(
-                WidgetTreeContainer(model: contentModel, providers: providers)
+                WidgetTreeContainer(model: contentModel, providers: providers, onAction: actionDispatcher.dispatch)
             )
         )
         contentView.onDrag = { [weak panel] origin in
@@ -207,15 +208,17 @@ private final class RenderHostDelegate: NSObject, NSApplicationDelegate {
 private struct WidgetTreeContainer: View {
     @ObservedObject var model: WidgetContentModel
     @ObservedObject var providers: ProviderStore
+    let onAction: (WidgetAction) -> Void
 
     var body: some View {
-        WidgetTreeView(tree: model.tree, providers: providers)
+        WidgetTreeView(tree: model.tree, providers: providers, onAction: onAction)
     }
 }
 
 private struct RuntimeManifest: Decodable {
     let size: Size
     let anchor: Anchor
+    let capabilities: [String]
     let subscribe: [String]
 
     struct Size: Decodable {
@@ -236,6 +239,7 @@ private struct RuntimeManifest: Decodable {
     static let fallback = RuntimeManifest(
         size: Size(width: 320, height: 180),
         anchor: Anchor(corner: .topLeft, offset: Offset(x: 24, y: 24)),
+        capabilities: [],
         subscribe: []
     )
 }

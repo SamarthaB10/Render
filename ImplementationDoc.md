@@ -415,6 +415,120 @@ The CLI lifecycle is covered by the deterministic end-to-end fixture in
 
 Phase 8 is implemented on the current branch. The native host remains a single supervisor process for the first prototype, while the widget execution boundary is now disposable and ready to expand to one worker per widget when multiple active widgets are introduced.
 
+### Phase 9 - Native JSX and SDK surface contract
+
+Phase 9 is implemented for the first vertical slice. It expands the SDK
+without weakening Render's agent-first or native-runtime boundaries. An agent
+may use a primitive only after it appears in the versioned SDK catalog with a
+native implementation and validation support.
+
+#### Product alignment
+
+Phase 9 follows the Conjure/Share/Remix loop:
+
+- **Conjure** creates a Widget from a user request by composing cataloged SDK
+  primitives and declared providers, actions, and capabilities.
+- **Share** preserves readable Widget source, assets, declarations, and
+  provenance as the portable artifact. A compiled binary or workspace pointer
+  is never the shareable form.
+- **Remix** patches that source in an isolated installed workspace and keeps
+  the existing lifecycle, placement, permissions, supervision, and
+  last-known-good rules.
+
+The authoring surface remains TSX projected into a serializable declarative
+tree. It does not expose DOM, HTML, CSS layout, browser APIs, a webview, or
+private native views. Providers stay host-owned and shared; direct network or
+filesystem access remains explicit, capability-based, and permission-gated.
+The Phase 8 supervisor/worker boundary remains in force for every new
+primitive and provider. Any performance number or enforcement limit requires
+measured evidence in a receipt before it becomes a tripwire.
+
+#### Primitive-family roadmap
+
+The SDK will grow through these cataloged families, in dependency order:
+
+- **Layout:** `Box`, `Column`, `Row`, `Stack`, `Spacer`, `Divider`, `Grid`,
+  and bounded `Scroll`.
+- **Typography and content:** `Text`, rich text, `Icon`, `Badge`, `Link`, and
+  image/content presentation.
+- **Visuals:** `Shape`, `Image`, `Progress`, `Gauge`, `Sparkline`, charts, and
+  audio visualizations where a host provider exists.
+- **Controls and actions:** `Button`, `Toggle`, `Slider`, `TextField`,
+  `Checkbox`, `Picker`, menus, focus state, and typed declarative actions.
+- **Collections and data:** keyed `List`, virtualized collections, key-value
+  rows, loading states, empty states, and unavailable states.
+- **Providers and integrations:** host-owned system, time, media, weather,
+  account, and other providers with explicit availability, capability, and
+  permission contracts.
+
+Every primitive or provider is complete only when all of these ship together:
+
+1. SDK TypeScript types and the JSX/runtime contract.
+2. A versioned catalog entry with exact signature, imports, examples, and
+   support status.
+3. A native renderer or host implementation.
+4. `render check` validation and actionable diagnostics.
+5. Agent-readable documentation generated or verified from the same contract.
+6. Focused unit/integration tests.
+7. Performance evidence and a receipt for any relevant resource claim.
+
+#### First Phase 9 slice
+
+The first vertical slice is the smallest useful path from agent-authored TSX
+to native interaction:
+
+- Define the JSX runtime (`jsx`, `jsxs`, and `Fragment`) and typed style props
+  without exposing CSS or arbitrary style strings.
+- Add `Box`, `Spacer`, and `Divider` for composable layout.
+- Add `Icon`, `Image`, `Button`, and `Progress` with native rendering,
+  accessibility labels where applicable, and serializable state/action output.
+- Define typed actions, provider values, loading/unavailable states, and the
+  capability declarations needed by that slice.
+- Publish the catalog contracts, canonical examples, validation diagnostics,
+  agent instructions, focused tests, and a measured performance receipt as
+  one release boundary.
+
+The slice is successful when a fresh agent can discover the exact contracts,
+build a useful interactive native Widget using only catalog imports, run
+`render check --json`, and recover through the existing supervised lifecycle.
+
+Phase 9 ships that slice: automatic TSX is compiled through the repository's
+TypeScript dependency, the native tree validates and renders every listed
+node kind, provider lifecycle values are explicit, and button actions cross a
+host-owned allowlist boundary. The measured JSX fixture is recorded in
+`perf/receipts/phase9-native-jsx.json`. Asset images are supported; URL and
+provider image sources, media playback, account authentication, and external
+network/filesystem operations remain explicit deferred capability gaps.
+
+#### Explicitly deferred from Phase 9
+
+- Spotify playback, account authentication, artwork retrieval, and transport
+  actions until their provider, account, capability, permission, and native
+  action contracts exist.
+- Arbitrary CSS, DOM compatibility, webviews, raw screen coordinates, and
+  escape hatches to private native views.
+- Unbounded custom drawing, arbitrary code-driven layout, and a general
+  plugin/native-module ABI.
+- Full charting, virtualized data grids, advanced media visualizations, and
+  the complete provider catalog beyond the first vertical slice.
+- Multiple simultaneous active Widgets, sharing/publishing UX, and installer
+  or distribution work; these remain separate roadmap phases.
+
+#### Agent contract for Phase 9
+
+For every Widget request, the agent must first run `render sdk list --json`,
+then run `render sdk describe <name> --json` for every primitive, style,
+provider, action, type, and capability it plans to use. The agent must use the
+reported import path, signature, example, support status, required
+declarations, and diagnostics rather than inferred or remembered APIs.
+
+If the catalog cannot express the request, the agent must name the missing
+catalog item or capability, explain the platform work required, and stop that
+part of the Widget. It must not invent a primitive, provider, action, browser
+fallback, fake data source, or hidden capability. If a supported request needs
+network, filesystem, app, account, or other machine access, the agent declares
+the narrowest capability and asks for the user's permission before running it.
+
 ## Acceptance checklist
 
 - [ ] A fresh workspace can be initialized without touching unrelated projects.

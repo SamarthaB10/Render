@@ -61,6 +61,36 @@ test("check rejects imports outside the SDK boundary", () => {
   }
 });
 
+test("check rejects unsupported action names with an agent-readable diagnostic", () => {
+  const workspace = mkdtempSync(path.join(os.tmpdir(), "render-workspace-"));
+  try {
+    initWorkspace(workspace, "request-init");
+    writeFileSync(path.join(workspace, "widget.tsx"), `
+      import { Button, widget } from "@render/sdk";
+      export default widget({
+        "schemaVersion": 1,
+        "name": "Unsupported action",
+        "sdkVersion": "0.1.0",
+        "size": { "width": 240, "height": 120 },
+        "anchor": { "corner": "top-left", "offset": { "x": 24, "y": 24 } },
+        "capabilities": [],
+        "subscribe": []
+      }, () => Button("Play", { type: "invoke", name: "media.play" }));
+    `);
+
+    const result = checkWorkspace(workspace, "request-check");
+
+    assert.equal(result.ok, false);
+    assert.deepEqual(result.diagnostics, [{
+      code: "invalid-widget-tree",
+      path: "widget.tsx",
+      message: "root.action.name: unsupported action 'media.play'; use render sdk describe WidgetActionName"
+    }]);
+  } finally {
+    rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
 test("move updates the logical anchor and promotes a running snapshot", () => {
   const workspace = mkdtempSync(path.join(os.tmpdir(), "render-move-"));
   try {
