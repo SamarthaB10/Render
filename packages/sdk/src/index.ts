@@ -45,6 +45,33 @@ export type WidgetStyleToken =
   | "mono";
 
 export type WidgetCapability = "network" | "filesystem.read" | "filesystem.write";
+export interface WidgetSize {
+  width: number;
+  height: number;
+}
+
+export interface WidgetResponsiveMode {
+  minWidth: number;
+  minHeight: number;
+}
+
+export interface WidgetResponsive {
+  modes: Record<string, WidgetResponsiveMode>;
+  default: string;
+}
+
+export interface WidgetAdjustable {
+  enabled: boolean;
+  minSize?: WidgetSize;
+  maxSize?: WidgetSize;
+  responsive?: WidgetResponsive;
+}
+
+export interface WidgetRenderContext {
+  mode: string;
+  size?: WidgetSize;
+}
+
 export type ProviderState = "loading" | "available" | "unavailable";
 export type WidgetAccountState =
   | "connected"
@@ -221,19 +248,20 @@ export interface WidgetManifest {
   schemaVersion: 1;
   name: string;
   sdkVersion: string;
-  size: { width: number; height: number };
+  size: WidgetSize;
   anchor: {
     corner: "top-left" | "top-right" | "bottom-left" | "bottom-right";
     offset: { x: number; y: number };
   };
   capabilities: WidgetCapability[];
   subscribe: string[];
+  adjustable?: WidgetAdjustable;
   accounts?: WidgetAccountRequirement[];
 }
 
 export interface WidgetDefinition {
   manifest: WidgetManifest;
-  render: () => WidgetNode;
+  render: (context?: WidgetRenderContext) => WidgetNode;
 }
 
 export interface ProviderBinding {
@@ -254,7 +282,7 @@ export interface TimerBinding {
   intervalMs: number;
 }
 
-export function widget(manifest: WidgetManifest, render: () => WidgetNode): WidgetDefinition {
+export function widget(manifest: WidgetManifest, render: (context?: WidgetRenderContext) => WidgetNode): WidgetDefinition {
   return { manifest, render };
 }
 

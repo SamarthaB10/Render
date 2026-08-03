@@ -43,7 +43,7 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     kind: "function",
     summary: "Defines a serializable widget manifest and render function",
     importPath: SDK_PACKAGE,
-    signature: "widget(manifest: WidgetManifest, render: () => WidgetNode): WidgetDefinition",
+    signature: "widget(manifest: WidgetManifest, render: (context?: WidgetRenderContext) => WidgetNode): WidgetDefinition",
     inputs: ["manifest", "render"],
     example: "export default widget(manifest, () => Column([Text(\"Hello\")]));",
     notes: ["The manifest must be a JSON-compatible object with quoted keys and values."]
@@ -442,12 +442,64 @@ const SDK_CATALOG: SdkCatalogItem[] = [
       "sdkVersion: string",
       "size: { width: number; height: number }",
       'anchor: { corner: "top-left" | "top-right" | "bottom-left" | "bottom-right"; offset: { x: number; y: number } }',
+      "adjustable?: WidgetAdjustable",
       'capabilities: Array<"network" | "filesystem.read" | "filesystem.write">',
       "subscribe: string[]",
       "accounts?: WidgetAccountRequirement[]"
     ],
     example: 'widget({ "schemaVersion": 1, "name": "Example", "sdkVersion": "0.1.0", "size": { "width": 320, "height": 180 }, "anchor": { "corner": "top-left", "offset": { "x": 24, "y": 24 } }, "capabilities": [], "subscribe": [], "accounts": [] }, render)',
     notes: ["Keep manifest keys quoted so render check can provide source-oriented diagnostics."]
+  },
+  {
+    name: "WidgetSize",
+    kind: "type",
+    summary: "Width and height in native points",
+    importPath: SDK_PACKAGE,
+    signature: "interface WidgetSize { width: number; height: number }",
+    fields: ["width", "height"],
+    example: "const size: WidgetSize = { width: 280, height: 300 }",
+    status: "implemented"
+  },
+  {
+    name: "WidgetResponsiveMode",
+    kind: "type",
+    summary: "Minimum dimensions for one responsive widget mode",
+    importPath: SDK_PACKAGE,
+    signature: "interface WidgetResponsiveMode { minWidth: number; minHeight: number }",
+    fields: ["minWidth", "minHeight"],
+    example: "const compact: WidgetResponsiveMode = { minWidth: 180, minHeight: 180 }",
+    status: "implemented"
+  },
+  {
+    name: "WidgetResponsive",
+    kind: "type",
+    summary: "Declared responsive modes and default mode",
+    importPath: SDK_PACKAGE,
+    signature: "interface WidgetResponsive { modes: Record<string, WidgetResponsiveMode>; default: string }",
+    fields: ["modes", "default"],
+    example: 'const responsive: WidgetResponsive = { modes: { compact: { minWidth: 180, minHeight: 180 } }, default: "compact" }',
+    status: "implemented"
+  },
+  {
+    name: "WidgetAdjustable",
+    kind: "type",
+    summary: "Widget-level live resizing and responsive layout contract",
+    importPath: SDK_PACKAGE,
+    signature: "interface WidgetAdjustable { enabled: boolean; minSize?: WidgetSize; maxSize?: WidgetSize; responsive?: WidgetResponsive }",
+    fields: ["enabled", "minSize", "maxSize", "responsive"],
+    example: 'const adjustable: WidgetAdjustable = { enabled: true, minSize: { width: 180, height: 180 } }',
+    status: "implemented",
+    notes: ["The native host owns resize handles, persistence, lock state, and Settings controls."]
+  },
+  {
+    name: "WidgetRenderContext",
+    kind: "type",
+    summary: "Host-provided responsive mode and current size during rendering",
+    importPath: SDK_PACKAGE,
+    signature: "interface WidgetRenderContext { mode: string; size?: WidgetSize }",
+    fields: ["mode", "size"],
+    example: 'const render = ({ mode }: WidgetRenderContext) => mode === "compact" ? compactLayout() : regularLayout()',
+    status: "implemented"
   },
   {
     name: "WidgetAccountRequirement",
@@ -509,8 +561,8 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     kind: "type",
     summary: "Serializable widget manifest and render function pair",
     importPath: SDK_PACKAGE,
-    signature: "interface WidgetDefinition { manifest: WidgetManifest; render: () => WidgetNode }",
-    fields: ["manifest: WidgetManifest", "render: () => WidgetNode"],
+    signature: "interface WidgetDefinition { manifest: WidgetManifest; render: (context?: WidgetRenderContext) => WidgetNode }",
+    fields: ["manifest: WidgetManifest", "render: (context?: WidgetRenderContext) => WidgetNode"],
     example: 'const definition: WidgetDefinition = widget(manifest, render)'
   },
   {

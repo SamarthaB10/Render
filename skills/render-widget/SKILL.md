@@ -15,6 +15,7 @@ Use the installed `render` command when available. When working directly from th
 - Do not edit unrelated projects, repository files, or global configuration.
 - Use primitives and providers from `@render/sdk`; do not invent DOM, HTML, CSS, browser APIs, webviews, or arbitrary native APIs.
 - Keep the manifest explicit: size, logical anchor, capabilities, provider subscriptions, and connector account requirements must be declared.
+- If the widget should be user-resizable, declare `adjustable` with measured min/max bounds and only the responsive modes the widget actually supports. Use the optional render context (`{ mode, size }`) for adaptive layout; do not scale blindly or create a private resize primitive.
 - Treat CLI diagnostics as the source of truth. Fix the reported path and message before trying to run again.
 - A failed candidate must never replace the last-known-good widget.
 - Do not claim an integration works when its provider, action contract, or capability enforcement is not shipped.
@@ -35,7 +36,7 @@ Each described item includes its exact `importPath`, TypeScript `signature`, can
 
 If the request needs something missing—such as a provider, action, or connector whose catalog status is `planned` or `contract-only`—report the exact catalog item and status, explain what host contract is absent, and stop that part of the widget. Do not substitute fake data, a browser fallback, a private native API, or an invented Render API. If the supported design needs network, filesystem, app, account, or other machine access, declare the narrowest capability and ask the user for permission before proceeding.
 
-For the Phase 9 surface, the roadmap families are layout, typography/content, visuals, controls/actions, collections/data, and providers/integrations. The shipped first slice is `Box`, `Spacer`, `Divider`, `Icon`, `Image`, `Button`, `TextField`, `Toggle`, `Progress`, `Grid`, typed actions/provider states, and the JSX runtime. `TextField` and `Toggle` provide current-session native editing and completion controls; persistent widget-owned state and add/remove collection controls are not yet part of the contract. Treat any item as unavailable until `render sdk list --json` and `render sdk describe ... --json` expose its exact contract and support status.
+For the Phase 9 surface, the roadmap families are layout, typography/content, visuals, controls/actions, collections/data, and providers/integrations. The shipped first slice is `Box`, `Spacer`, `Divider`, `Icon`, `Image`, `Button`, `TextField`, `Toggle`, `Progress`, `Grid`, typed actions/provider states, the JSX runtime, and the host-owned `WidgetAdjustable`/`WidgetRenderContext` contract. `TextField` and `Toggle` provide current-session native editing and completion controls; persistent widget-owned state and add/remove collection controls are not yet part of the contract. Treat any item as unavailable until `render sdk list --json` and `render sdk describe ... --json` expose its exact contract and support status.
 
 ### 2. Create or identify an isolated workspace
 
@@ -71,6 +72,24 @@ export default widget({
 ```
 
 The scaffold above is the canonical CPU/RAM example. It is also the canonical example for the first provider-backed widget path. For another composition, inspect every primitive with `render sdk describe <name> --json` and copy its documented signature and example. The current runtime supports all cataloged layout, content, control, and progress primitives, plus constrained typed styles and automatic TSX. `useTimer` remains cataloged for a future host-scheduled update contract and is not yet rendered by the native host. Image URL/provider sources are cataloged gaps and `render check` rejects them until their capability-backed providers ship. Every future primitive must ship as SDK type, JSX/runtime contract, catalog entry, native renderer, validation, agent documentation, focused tests, and performance evidence before the skill may use it.
+
+For an adjustable widget, inspect the exact contract before authoring:
+
+```bash
+render sdk describe WidgetAdjustable --json
+render sdk describe WidgetRenderContext --json
+```
+
+The host exposes native resize handles when `adjustable.enabled` is true. The settings panel also exposes width/height, lock, reset, and declared responsive modes. Use these explicit operations for agent-driven changes:
+
+```bash
+render resize --workspace "$WORKSPACE" --width 420 --height 300 --json
+render mode --workspace "$WORKSPACE" --mode compact --json
+render mode --workspace "$WORKSPACE" --mode auto --json
+render reset-size --workspace "$WORKSPACE" --json
+```
+
+Size, mode, lock state, and placement persist locally across relaunches. They are runtime preferences, not shared source state. If a remix removes the saved mode, Render switches to `auto`, reports the recovery, and keeps the last-known-good widget active.
 
 For network or filesystem access, declare the narrowest required capability and ask the user for permission before proceeding. Never place credentials or tokens in `widget.tsx`.
 

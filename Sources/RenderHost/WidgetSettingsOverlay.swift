@@ -4,6 +4,11 @@ import RenderHostCore
 struct WidgetSettingsOverlay: View {
     let widgetName: String
     let workspace: String?
+    let adjustable: RuntimeManifest.Adjustable?
+    let defaultSize: RuntimeManifest.Size
+    let preferences: WidgetPreferences
+    let onPreferencesChange: (WidgetPreferences) -> Void
+    let onModeChange: (String) -> Void
     let accountStatus: AccountStatus?
     let authorizationMessage: String?
     let onAuthorize: () -> Void
@@ -13,10 +18,17 @@ struct WidgetSettingsOverlay: View {
     @State private var isOpen = false
     @State private var showStopConfirmation = false
     @State private var showPermissionPrompt: Bool
+    @State private var widthText: String
+    @State private var heightText: String
 
     init(
         widgetName: String,
         workspace: String?,
+        adjustable: RuntimeManifest.Adjustable?,
+        defaultSize: RuntimeManifest.Size,
+        preferences: WidgetPreferences,
+        onPreferencesChange: @escaping (WidgetPreferences) -> Void,
+        onModeChange: @escaping (String) -> Void,
         accountStatus: AccountStatus?,
         authorizationMessage: String?,
         onAuthorize: @escaping () -> Void,
@@ -24,11 +36,18 @@ struct WidgetSettingsOverlay: View {
     ) {
         self.widgetName = widgetName
         self.workspace = workspace
+        self.adjustable = adjustable
+        self.defaultSize = defaultSize
+        self.preferences = preferences
+        self.onPreferencesChange = onPreferencesChange
+        self.onModeChange = onModeChange
         self.accountStatus = accountStatus
         self.authorizationMessage = authorizationMessage
         self.onAuthorize = onAuthorize
         self.onStop = onStop
         _showPermissionPrompt = State(initialValue: accountStatus?.state == .needsAuthorization)
+        _widthText = State(initialValue: preferences.width.map(Self.format) ?? Self.format(defaultSize.width))
+        _heightText = State(initialValue: preferences.height.map(Self.format) ?? Self.format(defaultSize.height))
     }
 
     var body: some View {
@@ -60,6 +79,12 @@ struct WidgetSettingsOverlay: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
         .animation(.easeOut(duration: 0.16), value: isOpen)
+        .onChange(of: preferences.width) { width in
+            widthText = width.map(Self.format) ?? Self.format(defaultSize.width)
+        }
+        .onChange(of: preferences.height) { height in
+            heightText = height.map(Self.format) ?? Self.format(defaultSize.height)
+        }
         .alert("Stop this widget?", isPresented: $showStopConfirmation) {
             Button("Stop Widget", role: .destructive, action: onStop)
             Button("Cancel", role: .cancel) {}
@@ -132,6 +157,11 @@ struct WidgetSettingsOverlay: View {
                 }
             }
 
+            if adjustable?.enabled == true {
+                Divider().opacity(0.35)
+                adjustableControls
+            }
+
             Button("Stop Widget", role: .destructive) {
                 showStopConfirmation = true
             }
@@ -196,6 +226,82 @@ struct WidgetSettingsOverlay: View {
                 .lineLimit(1)
                 .truncationMode(.middle)
         }
+    }
+
+    private var adjustableControls: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            Text("Layout")
+                .font(.subheadline.weight(.semibold))
+
+            HStack(spacing: 8) {
+                TextField("Width", text: $widthText)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 74)
+                Text("×")
+                    .foregroundColor(.secondary)
+                TextField("Height", text: $heightText)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 74)
+                Button("Apply") { applySize() }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+            }
+
+            Toggle("Lock size and position", isOn: Binding(
+                get: { preferences.locked },
+                set: { locked in
+                    var next = preferences
+                    next.locked = locked
+                    onPreferencesChange(next)
+                }
+            ))
+
+            if let responsive = adjustable?.responsive, responsive.modes.count > 1 {
+                Picker("Mode", selection: Binding(
+                    get: { preferences.mode },
+                    set: onModeChange
+                )) {
+                    Text("Auto").tag("auto")
+                    ForEach(responsive.modes.keys.sorted(), id: \.self) { mode in
+                        Text(mode.capitalized).tag(mode)
+                    }
+                }
+                .pickerStyle(.menu)
+            }
+
+            Button("Reset size") {
+                var next = preferences
+                next.width = nil
+                next.height = nil
+                widthText = Self.format(defaultSize.width)
+                heightText = Self.format(defaultSize.height)
+                onPreferencesChange(next)
+            }
+            .buttonStyle(.plain)
+            .foregroundColor(.secondary)
+        }
+    }
+
+    private func applySize() {
+        guard let width = Double(widthText), let height = Double(heightText) else { return }
+        var next = preferences
+        next.width = clamped(width, axis: .width)
+        next.height = clamped(height, axis: .height)
+        widthText = Self.format(next.width ?? width)
+        heightText = Self.format(next.height ?? height)
+        onPreferencesChange(next)
+    }
+
+    private enum Axis { case width, height }
+
+    private func clamped(_ value: Double, axis: Axis) -> Double {
+        let minimum = axis == .width ? adjustable?.minSize?.width : adjustable?.minSize?.height
+        let maximum = axis == .width ? adjustable?.maxSize?.width : adjustable?.maxSize?.height
+        return min(max(value, minimum ?? 1), maximum ?? value)
+    }
+
+    private static func format(_ value: Double) -> String {
+        String(Int(value.rounded()))
     }
 
     private func accountIcon(_ state: AccountState) -> String {

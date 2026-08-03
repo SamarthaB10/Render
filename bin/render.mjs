@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describeSdkCatalog, listSdkCatalog, SDK_PACKAGE, SDK_VERSION } from "../packages/sdk/src/catalog.ts";
 import { checkWorkspace, initWorkspace, scaffoldWorkspace, statusWorkspace } from "../src/workspace.mjs";
-import { moveWorkspace, rollbackWorkspace, runWorkspace, watchWorkspace } from "../src/runtime.mjs";
+import { moveWorkspace, resetWidgetSize, resizeWorkspace, rollbackWorkspace, runWorkspace, setWidgetMode, watchWorkspace } from "../src/runtime.mjs";
 
 export function execute(argv, cwd = process.cwd()) {
   const command = argv[0];
@@ -17,6 +17,9 @@ export function execute(argv, cwd = process.cwd()) {
   if (command === "check") return checkWorkspace(workspace);
   if (command === "status") return statusWorkspace(workspace);
   if (command === "run") return runWorkspace(workspace);
+  if (command === "resize") return resizeWorkspace(workspace, { width: options.width, height: options.height });
+  if (command === "mode") return setWidgetMode(workspace, options.mode ?? "auto");
+  if (command === "reset-size") return resetWidgetSize(workspace);
   if (command === "move") {
     return moveWorkspace(workspace, {
       corner: options.corner,
@@ -33,7 +36,7 @@ export function execute(argv, cwd = process.cwd()) {
     diagnostics: [{
       code: "unknown-command",
       path: "command",
-      message: "use render init, render scaffold, render check, render run, render status, render move, render rollback, or render sdk list/describe"
+      message: "use render init, render scaffold, render check, render run, render resize, render mode, render reset-size, render status, render move, render rollback, or render sdk list/describe"
     }]
   };
 }
@@ -83,6 +86,9 @@ export function parseOptions(args, cwd = process.cwd()) {
   let corner = null;
   let offsetX = null;
   let offsetY = null;
+  let width = null;
+  let height = null;
+  let mode = null;
   for (let index = 0; index < args.length; index += 1) {
     if (args[index] === "--json") {
       json = true;
@@ -100,12 +106,21 @@ export function parseOptions(args, cwd = process.cwd()) {
     } else if (args[index] === "--offset-y" && args[index + 1]) {
       offsetY = Number(args[index + 1]);
       index += 1;
+    } else if (args[index] === "--width" && args[index + 1]) {
+      width = Number(args[index + 1]);
+      index += 1;
+    } else if (args[index] === "--height" && args[index + 1]) {
+      height = Number(args[index + 1]);
+      index += 1;
+    } else if (args[index] === "--mode" && args[index + 1]) {
+      mode = args[index + 1];
+      index += 1;
     } else if (args[index] === "--workspace" && args[index + 1]) {
       workspace = path.resolve(cwd, args[index + 1]);
       index += 1;
     }
   }
-  return { workspace, json, watch, version, corner, offsetX, offsetY };
+  return { workspace, json, watch, version, corner, offsetX, offsetY, width, height, mode };
 }
 
 function printResult(result, json) {

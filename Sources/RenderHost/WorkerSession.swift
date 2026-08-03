@@ -22,6 +22,8 @@ final class WorkerSession {
     private var previousCPUTime: UInt64?
     private var previousSampleTime: UInt64?
     private var lastResourceSample: [String: Any]?
+    private var renderMode: String
+    private var renderSize: WorkerRenderSize?
 
     // Receipt: perf/receipts/phase8-worker.json
     private let maxCPUPercent = 200.0
@@ -30,7 +32,7 @@ final class WorkerSession {
     var onTree: ((WidgetTree) -> Void)?
     var onFailure: (([WorkerDiagnostic]) -> Void)?
 
-    init(workspace: String, workerScript: String, sourcePath: String? = nil, statePath: String? = nil, treePath: String? = nil) {
+    init(workspace: String, workerScript: String, sourcePath: String? = nil, statePath: String? = nil, treePath: String? = nil, mode: String = "auto", size: WorkerRenderSize? = nil) {
         self.workspace = workspace
         self.sourcePath = sourcePath ?? URL(fileURLWithPath: workspace).appendingPathComponent("widget.tsx").path
         self.workerScript = workerScript
@@ -38,6 +40,8 @@ final class WorkerSession {
             ?? URL(fileURLWithPath: workspace).appendingPathComponent(".render/runtime/worker-state.json")
         self.runtimeTreeURL = treePath.map(URL.init(fileURLWithPath:))
             ?? URL(fileURLWithPath: workspace).appendingPathComponent(".render/runtime/tree.json")
+        self.renderMode = mode
+        self.renderSize = size
     }
 
     func start() throws -> WidgetTree {
@@ -81,6 +85,21 @@ final class WorkerSession {
         )])
     }
 
+    func render(mode: String, size: WorkerRenderSize? = nil, completion: @escaping (Result<WidgetTree, Error>) -> Void) {
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self else { return }
+            do {
+                self.renderMode = mode
+                self.renderSize = size
+                let tree = try self.renderCurrentTree()
+                self.writeTree(tree)
+                DispatchQueue.main.async { completion(.success(tree)) }
+            } catch {
+                DispatchQueue.main.async { completion(.failure(error)) }
+            }
+        }
+    }
+
     private func launchAndRender() throws -> WidgetTree {
         let process = Process()
         let inputPipe = Pipe()
@@ -119,11 +138,17 @@ final class WorkerSession {
         guard ready.kind == .ready else {
             throw WorkerSessionError.protocolViolation(ready.validationIssues())
         }
+        return try renderCurrentTree()
+    }
+
+    private func renderCurrentTree() throws -> WidgetTree {
         try send(WorkerMessage(
             kind: .render,
             messageID: UUID().uuidString,
             workspace: workspace,
-            sourcePath: sourcePath
+            sourcePath: sourcePath,
+            mode: renderMode,
+            size: renderSize
         ))
 
         let rendered = try readMessage()
