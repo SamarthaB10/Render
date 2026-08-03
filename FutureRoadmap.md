@@ -56,6 +56,9 @@ Acceptance criteria:
   stopped through one machine-readable fleet operation.
 - [x] Multiple widgets can run concurrently under one detached fleet
   supervisor, with each workspace retaining its own host and worker state.
+- [x] Quarantine a native worker after five consecutive restart failures and
+  expose the repair diagnostic through worker state and the widget settings
+  panel.
 - Killing or crashing one worker leaves the host and other widgets running.
 - A failed candidate leaves the previous version visible and actionable diagnostics identify the repair path.
 - Stop, restart, status, and logs address one widget without ambiguous global process state.

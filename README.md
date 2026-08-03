@@ -30,6 +30,7 @@ The current reference implementation is a native CPU/RAM widget. It proves the a
 - A generic native `List` primitive for static rows or structured provider-backed rows such as `reminders.items`.
 - A native `YouTubePlayer` primitive backed by an isolated WebKit surface, with explicit network capability, validated video IDs, and an optional persisted link-input toggle.
 - Render-owned Spotify permission prompt and a liquid-glass widget settings panel with metadata and a confirmed stop control.
+- Worker crash loops remain quiet while they recover and become a visible liquid-glass settings diagnostic only after five consecutive restart failures; the last-known-good tree remains visible.
 
 MCP is not required for this prototype. The agent boundary is the deterministic local CLI plus the checked-in widget-authoring skill. MCP can wrap that stable contract later if broader interoperability requires it.
 

@@ -44,6 +44,9 @@ The supervisor writes the initial tree before worker execution begins and update
 3. RenderHost retries with bounded exponential backoff, capped at four seconds per retry.
 4. A successful retry writes the new tree and returns to `ready`.
 5. A failed retry records `worker-restart-failed` and schedules the next retry.
+6. The first four consecutive restart failures remain machine-visible as
+   `restarting`; the fifth changes the worker state to `quarantined`, emits
+   `worker-restart-threshold`, and stops retrying until the widget is run again.
 
 The CLI uses session-specific worker source, state, and tree paths during candidate startup. It promotes a new snapshot and stops the previous supervisor only after the candidate worker reports `ready`. A failed candidate therefore cannot replace the active process or last-known-good snapshot, and an existing worker restart never rereads an unvalidated candidate source.
 
@@ -61,6 +64,8 @@ remains active. A supervisor state of `stopped` or a stale PID is explicit in
 - CPU: 200% of one logical CPU.
 - Resident memory: 131,072 KB.
 - `render run` startup observation: 5,000 ms supervisor readiness deadline.
+- User-visible worker restart threshold: 5 consecutive failures, defined by
+  `RestartPolicy` and required by the crash-loop recovery contract.
 
 These are measured tripwires for runaway or hung behavior, not a target budget for healthy widgets. If a good widget reaches one, remeasure the workload before changing the limit.
 
