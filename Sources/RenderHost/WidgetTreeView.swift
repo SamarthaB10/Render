@@ -18,7 +18,7 @@ struct WidgetTreeView: View {
     }()
 
     var body: some View {
-        content
+        clippedContent
             .frame(width: fixedWidth, height: fixedHeight, alignment: frameAlignment)
             .frame(
                 maxWidth: fillsAvailableSpace || expandsWidth ? .infinity : nil,
@@ -38,6 +38,14 @@ struct WidgetTreeView: View {
                 x: CGFloat(tree.style?.shadow?.x ?? 0),
                 y: CGFloat(tree.style?.shadow?.y ?? 0)
             )
+    }
+
+    // A node's radius is both its visual corner and its content clip. This is
+    // especially important for native surfaces such as WKWebView, whose
+    // rectangular backing view otherwise bleeds through rounded borders.
+    private var clippedContent: AnyView {
+        guard let radius = tree.style?.radius, radius > 0 else { return content }
+        return AnyView(content.clipShape(RoundedRectangle(cornerRadius: CGFloat(radius))))
     }
 
     private var content: AnyView {
