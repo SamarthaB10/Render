@@ -95,7 +95,7 @@ Wait for the status result to report the active widget as running and, when nati
 render run --workspace "$WORKSPACE" --watch
 ```
 
-Successful edits update the existing widget in place. The first prototype is draggable; placement is persisted by the native host.
+Successful edits update the existing widget in place. The first prototype is draggable; placement is persisted by the native host. The implemented local providers are `system.cpu`, `system.memory`, and `system.time`; `system.time` is rendered as the host-local clock when bound to `Text`.
 
 ### 6. Remix, move, and recover
 

@@ -13,6 +13,8 @@ struct SystemMetricsSampler {
                 values[name] = sampleCPU()
             case "system.memory":
                 values[name] = sampleMemory()
+            case "system.time":
+                values[name] = .available(name: name, value: Date().timeIntervalSince1970)
             default:
                 values[name] = .unavailable(name: name, message: "provider is not available in this host")
             }

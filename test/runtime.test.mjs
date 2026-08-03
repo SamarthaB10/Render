@@ -37,6 +37,23 @@ test("rejects provider bindings that are not explicitly subscribed", () => {
   assert.throws(() => buildRuntimeTree(source), /must be listed in manifest.subscribe/);
 });
 
+test("accepts the host-owned current-time provider", () => {
+  const source = `
+    import { Text, useProvider, widget } from "@render/sdk";
+    export default widget({
+      "schemaVersion": 1, "name": "Clock", "sdkVersion": "0.1.0",
+      "size": { "width": 240, "height": 100 },
+      "anchor": { "corner": "top-left", "offset": { "x": 24, "y": 24 } },
+      "capabilities": [], "subscribe": ["system.time"]
+    }, () => Text(useProvider("system.time")));
+  `;
+
+  assert.deepEqual(buildRuntimeTree(source), {
+    kind: "text",
+    provider: "system.time"
+  });
+});
+
 test("prepareRun atomically writes the candidate tree", () => {
   const workspace = mkdtempSync(path.join(os.tmpdir(), "render-runtime-"));
   try {

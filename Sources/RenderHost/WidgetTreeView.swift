@@ -7,6 +7,13 @@ struct WidgetTreeView: View {
     @ObservedObject var providers: ProviderStore
     var onAction: ((WidgetAction) -> Void)? = nil
 
+    private static let timeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .none
+        formatter.timeStyle = .short
+        return formatter
+    }()
+
     var body: some View {
         content
             .frame(width: fixedWidth, height: fixedHeight, alignment: frameAlignment)
@@ -158,6 +165,9 @@ struct WidgetTreeView: View {
         guard let provider = providerValue else { return tree.text ?? "" }
         guard provider.state == .available, let value = provider.value else {
             return provider.state == .loading ? "Loading…" : "Unavailable"
+        }
+        if provider.name == "system.time" {
+            return Self.timeFormatter.string(from: Date(timeIntervalSince1970: value))
         }
         return "\(Int(value.rounded()))%"
     }

@@ -106,5 +106,6 @@ test("Phase 9 catalog is exact and exported runtime primitives are discoverable"
   assert.equal(catalog.describeSdkCatalog("WidgetAction").status, "implemented");
   assert.equal(catalog.describeSdkCatalog("widget.refresh").kind, "action");
   assert.equal(catalog.describeSdkCatalog("ProviderState").signature.includes("loading"), true);
+  assert.equal(catalog.describeSdkCatalog("system.time").status, "implemented");
   assert.equal(catalog.describeSdkCatalog("jsx").kind, "function");
 });

@@ -451,6 +451,17 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     notes: ['Declare "system.memory" in the widget manifest subscribe array.', "Render loading and unavailable states explicitly; do not substitute fake values."]
   },
   {
+    name: "system.time",
+    kind: "provider",
+    summary: "Host local time, sampled once per second",
+    importPath: SDK_PACKAGE,
+    value: "number | loading | unavailable",
+    signature: 'useProvider("system.time"): ProviderBinding',
+    example: 'Text(useProvider("system.time"))',
+    status: "implemented",
+    notes: ['Declare "system.time" in the widget manifest subscribe array.', "Text renders the host-local time from the provider value; use a Text node rather than Gauge or Progress.", "Render loading and unavailable states explicitly; do not substitute fake values."]
+  },
+  {
     name: "network",
     kind: "capability",
     summary: "Permission to access network resources",
