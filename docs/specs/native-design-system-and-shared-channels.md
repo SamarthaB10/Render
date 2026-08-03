@@ -12,7 +12,7 @@ The platform must also remain honest about source availability. A visualizer mus
 
 Extend Render with a native, agent-readable design system and a host-mediated shared-channel contract.
 
-Render ships a dark-first default visual language for all Widgets: semantic themes, materials, typography, spacing, radii, borders, shadows, motion, density, and responsive behavior. SDK primitives automatically inherit the active theme. Explicit user or agent definitions override defaults only through supported typed design tokens; unsupported styling is rejected with actionable diagnostics.
+Render ships a dark-first default visual language for all Widgets: semantic themes, materials, typography, spacing, radii, borders, shadows, motion, density, and responsive behavior. SDK primitives automatically inherit the active theme. Authored raw styling is preserved until the user chooses a runtime theme; a chosen runtime theme then owns the Widget palette, typography, geometry, borders, and surfaces, while supported semantic design tokens remain explicit theme roles. Unsupported styling is rejected with actionable diagnostics.
 
 Add polished composable patterns—MediaCard, Artwork, TransportControls, Visualizer, GlassPanel, status surfaces, and settings chrome—on top of the same catalog. These patterns remain native, typed, accessible, and adaptable to any domain.
 

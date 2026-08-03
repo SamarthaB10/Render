@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import { validateManifest } from "../src/manifest.mjs";
 
@@ -63,6 +64,18 @@ test("manifest theme declarations accept only known Render themes", async () => 
   assert.deepEqual(validateManifest({ ...base, theme: { default: "dark-glass", options: ["dark-glass", "neon"] } }), [
     { path: "theme.options[1]", message: "must be a supported Render theme" }
   ]);
+});
+
+test("native runtime themes restyle widget content and define Retro as Vaporwave", () => {
+  const treeView = readFileSync(new URL("../Sources/RenderHost/WidgetTreeView.swift", import.meta.url), "utf8");
+  const theme = readFileSync(new URL("../Sources/RenderHost/RenderTheme.swift", import.meta.url), "utf8");
+  const readme = readFileSync(new URL("../README.md", import.meta.url), "utf8");
+
+  assert.match(treeView, /usesThemeOverrides/);
+  assert.match(treeView, /if !usesThemeOverrides, let color = nativeColor\(tree\.style\?\.color\)/);
+  assert.match(theme, /Retro is the Render-native Vaporwave\/Outrun variant/);
+  assert.match(theme, /usesScanlines = true/);
+  assert.match(readme, /Retro in Render means Vaporwave\/Outrun, not sepia or brown/);
 });
 
 test("unsupported semantic styling is reported at check", async () => {

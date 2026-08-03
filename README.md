@@ -375,7 +375,7 @@ The catalog currently exposes these implemented families:
 
 ### Native visual language
 
-The default Render surface is a restrained dark-glass system: rounded native cards, semantic hierarchy, quiet borders, and purposeful motion. Agents should start with `GlassPanel`, `MediaCard`, `Artwork`, `TransportControls`, and `Visualizer`, then use documented `WidgetStyle` fields for the requested visual direction. Explicit user styling wins over defaults, but arbitrary DOM/CSS and private native views are never widget primitives. Every widget also receives host-managed settings, resize, lock, and recovery chrome with keyboard-accessible focus behavior.
+The default Render surface is a restrained dark-glass system: rounded native cards, semantic hierarchy, quiet borders, and purposeful motion. Agents should start with `GlassPanel`, `MediaCard`, `Artwork`, `TransportControls`, and `Visualizer`, then use documented `WidgetStyle` fields for the requested visual direction. Explicit authored styling is the default; when a user selects a theme in Widget settings, that runtime preference applies the selected theme's palette, typography, geometry, borders, and surface treatment across the Widget while semantic SDK tokens continue resolving through the active theme. Arbitrary DOM/CSS and private native views are never widget primitives. Every widget also receives host-managed settings, resize, lock, and recovery chrome with keyboard-accessible focus behavior.
 
 For a theme-aware widget, declare the available variants in the manifest:
 
@@ -388,7 +388,7 @@ theme: {
 
 The host stores the selected theme, size, mode, lock state, and placement locally. Sharing or remixing a widget carries its declared defaults and responsive rules, not another user's desktop preferences. `Visualizer` is intentionally honest: it can respond to playback metadata and the host clock, but it does not invent audio data or change Spotify playback tempo.
 
-For a retro treatment, agents can layer `Box`, `Stack`, `Shape`, `Text`, and `Divider`, then use `radius`, `border`, `shadow`, monospace fonts, and explicit colors to build curved panels, inset frames, pill controls, and neon or CRT-like accents. The catalog intentionally does not expose arbitrary CSS or HTML.
+Retro in Render means Vaporwave/Outrun, not sepia or brown: a near-black purple void, deep violet surfaces, chrome text, hot magenta and electric cyan accents, terminal-style monospace typography, angular geometry, cyan/magenta borders, colored glow, and subtle CRT scanlines behind the content. Select `retro` when the user asks for that complete treatment. Agents can still compose `Box`, `Stack`, `Shape`, `Text`, and `Divider` for intentional retro structure, but should not recreate the theme with private CSS, HTML, or arbitrary native views.
 
 The catalog also marks contract-only and planned items. Current limitations are deliberate:
 

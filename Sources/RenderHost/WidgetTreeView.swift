@@ -9,6 +9,7 @@ struct WidgetTreeView: View {
     let theme: RenderTheme
     let nodePath: String
     let fillsAvailableSpace: Bool
+    let usesThemeOverrides: Bool
     var onAction: ((WidgetAction) -> Void)? = nil
 
     private static let timeFormatter: DateFormatter = {
@@ -27,7 +28,7 @@ struct WidgetTreeView: View {
                     .background(backgroundShape)
                     .overlay(borderShape)
                     .shadow(
-                        color: shadowColor,
+                        color: resolvedShadowColor,
                         radius: CGFloat(tree.style?.shadow?.radius ?? 0),
                         x: CGFloat(tree.style?.shadow?.x ?? 0),
                         y: CGFloat(tree.style?.shadow?.y ?? 0)
@@ -55,10 +56,17 @@ struct WidgetTreeView: View {
                 borderShape
             }
             .frame(width: availableSize.width, height: availableSize.height, alignment: .topLeading)
-            .clipShape(RoundedRectangle(cornerRadius: CGFloat(tree.style?.radius ?? 0), style: .continuous))
+            .overlay {
+                if usesThemeOverrides && theme.usesScanlines {
+                    RenderScanlineOverlay()
+                        .clipShape(RoundedRectangle(cornerRadius: effectiveRadius, style: .continuous))
+                        .allowsHitTesting(false)
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: effectiveRadius, style: .continuous))
             .shadow(
-                color: shadowColor,
-                radius: CGFloat(tree.style?.shadow?.radius ?? 0),
+                color: resolvedShadowColor,
+                radius: resolvedShadowRadius,
                 x: CGFloat(tree.style?.shadow?.x ?? 0),
                 y: CGFloat(tree.style?.shadow?.y ?? 0)
             )
@@ -92,7 +100,7 @@ struct WidgetTreeView: View {
         case .column:
             return AnyView(VStack(alignment: horizontalAlignment, spacing: gap) {
                 ForEach(tree.children.indices, id: \.self) { index in
-                    WidgetTreeView(tree: tree.children[index], providers: providers, interactionStore: interactionStore, theme: theme, nodePath: childPath(index), fillsAvailableSpace: false, onAction: onAction)
+                    WidgetTreeView(tree: tree.children[index], providers: providers, interactionStore: interactionStore, theme: theme, nodePath: childPath(index), fillsAvailableSpace: false, usesThemeOverrides: usesThemeOverrides, onAction: onAction)
                     if tree.style?.justifyContent == .spaceBetween && index < tree.children.count - 1 {
                         Spacer(minLength: 0)
                     }
@@ -101,7 +109,7 @@ struct WidgetTreeView: View {
         case .row:
             return AnyView(HStack(alignment: verticalAlignment, spacing: gap) {
                 ForEach(tree.children.indices, id: \.self) { index in
-                    WidgetTreeView(tree: tree.children[index], providers: providers, interactionStore: interactionStore, theme: theme, nodePath: childPath(index), fillsAvailableSpace: false, onAction: onAction)
+                    WidgetTreeView(tree: tree.children[index], providers: providers, interactionStore: interactionStore, theme: theme, nodePath: childPath(index), fillsAvailableSpace: false, usesThemeOverrides: usesThemeOverrides, onAction: onAction)
                     if tree.style?.justifyContent == .spaceBetween && index < tree.children.count - 1 {
                         Spacer(minLength: 0)
                     }
@@ -110,26 +118,26 @@ struct WidgetTreeView: View {
         case .stack:
             return AnyView(ZStack(alignment: frameAlignment) {
                 ForEach(tree.children.indices, id: \.self) { index in
-                    WidgetTreeView(tree: tree.children[index], providers: providers, interactionStore: interactionStore, theme: theme, nodePath: childPath(index), fillsAvailableSpace: false, onAction: onAction)
+                    WidgetTreeView(tree: tree.children[index], providers: providers, interactionStore: interactionStore, theme: theme, nodePath: childPath(index), fillsAvailableSpace: false, usesThemeOverrides: usesThemeOverrides, onAction: onAction)
                 }
             })
         case .box:
             return AnyView(VStack(alignment: horizontalAlignment, spacing: gap) {
                 ForEach(tree.children.indices, id: \.self) { index in
-                    WidgetTreeView(tree: tree.children[index], providers: providers, interactionStore: interactionStore, theme: theme, nodePath: childPath(index), fillsAvailableSpace: false, onAction: onAction)
+                    WidgetTreeView(tree: tree.children[index], providers: providers, interactionStore: interactionStore, theme: theme, nodePath: childPath(index), fillsAvailableSpace: false, usesThemeOverrides: usesThemeOverrides, onAction: onAction)
                 }
             })
         case .glassPanel, .mediaCard:
             return AnyView(VStack(alignment: horizontalAlignment, spacing: gap) {
                 ForEach(tree.children.indices, id: \.self) { index in
-                    WidgetTreeView(tree: tree.children[index], providers: providers, interactionStore: interactionStore, theme: theme, nodePath: childPath(index), fillsAvailableSpace: false, onAction: onAction)
+                    WidgetTreeView(tree: tree.children[index], providers: providers, interactionStore: interactionStore, theme: theme, nodePath: childPath(index), fillsAvailableSpace: false, usesThemeOverrides: usesThemeOverrides, onAction: onAction)
                 }
             })
         case .scrollView:
             return AnyView(SwiftUI.ScrollView(.vertical) {
                 VStack(alignment: horizontalAlignment, spacing: gap) {
                     ForEach(tree.children.indices, id: \.self) { index in
-                        WidgetTreeView(tree: tree.children[index], providers: providers, interactionStore: interactionStore, theme: theme, nodePath: childPath(index), fillsAvailableSpace: false, onAction: onAction)
+                        WidgetTreeView(tree: tree.children[index], providers: providers, interactionStore: interactionStore, theme: theme, nodePath: childPath(index), fillsAvailableSpace: false, usesThemeOverrides: usesThemeOverrides, onAction: onAction)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: frameAlignment)
@@ -141,7 +149,7 @@ struct WidgetTreeView: View {
                 spacing: gap
             ) {
                 ForEach(tree.children.indices, id: \.self) { index in
-                    WidgetTreeView(tree: tree.children[index], providers: providers, interactionStore: interactionStore, theme: theme, nodePath: childPath(index), fillsAvailableSpace: false, onAction: onAction)
+                    WidgetTreeView(tree: tree.children[index], providers: providers, interactionStore: interactionStore, theme: theme, nodePath: childPath(index), fillsAvailableSpace: false, usesThemeOverrides: usesThemeOverrides, onAction: onAction)
                 }
             })
         case .spacer:
@@ -184,7 +192,7 @@ struct WidgetTreeView: View {
                 store: interactionStore
             ))
         case .shape:
-            return AnyView(RoundedRectangle(cornerRadius: CGFloat(tree.style?.radius ?? 12)).fill(foregroundColor ?? Color.secondary))
+            return AnyView(RoundedRectangle(cornerRadius: effectiveRadius).fill(foregroundColor ?? Color.secondary))
         case .icon:
             return AnyView(iconContent)
         case .image:
@@ -196,7 +204,7 @@ struct WidgetTreeView: View {
             }) {
                 HStack(spacing: gap) {
                     ForEach(tree.children.indices, id: \.self) { index in
-                        WidgetTreeView(tree: tree.children[index], providers: providers, interactionStore: interactionStore, theme: theme, nodePath: childPath(index), fillsAvailableSpace: false, onAction: onAction)
+                        WidgetTreeView(tree: tree.children[index], providers: providers, interactionStore: interactionStore, theme: theme, nodePath: childPath(index), fillsAvailableSpace: false, usesThemeOverrides: usesThemeOverrides, onAction: onAction)
                     }
                 }
             }.disabled(tree.action == nil))
@@ -318,17 +326,17 @@ struct WidgetTreeView: View {
     }
 
     private var foregroundColor: Color? {
-        if let color = nativeColor(tree.style?.color) { return color }
         for token in tree.style?.tokens ?? [] {
             guard isForegroundToken(token), let color = theme.color(for: token) else { continue }
             return color
         }
+        if !usesThemeOverrides, let color = nativeColor(tree.style?.color) { return color }
         return theme.primaryText
     }
 
     private var backgroundShape: AnyView {
-        let shape = RoundedRectangle(cornerRadius: CGFloat(tree.style?.radius ?? 0))
-        if let color = nativeColor(tree.style?.backgroundColor) {
+        let shape = RoundedRectangle(cornerRadius: effectiveRadius)
+        if !usesThemeOverrides, let color = nativeColor(tree.style?.backgroundColor) {
             return AnyView(shape.fill(color))
         }
         if let roleColor = theme.surfaceColor(role: tree.style?.role, material: tree.style?.material) {
@@ -364,23 +372,46 @@ struct WidgetTreeView: View {
 
     private var borderShape: some View {
         let border = tree.style?.border
-        return RoundedRectangle(cornerRadius: CGFloat(border?.radius ?? tree.style?.radius ?? 0))
-            .stroke(nativeColor(border?.color) ?? (border?.width == nil ? .clear : theme.border), lineWidth: CGFloat(border?.width ?? 0))
+        let isRootSurface = fillsAvailableSpace
+        let width = border?.width ?? (usesThemeOverrides && isRootSurface ? Double(theme.defaultBorderWidth) : 0)
+        let color = usesThemeOverrides && isRootSurface
+            ? theme.border
+            : nativeColor(border?.color) ?? (border?.width == nil ? .clear : theme.border)
+        return RoundedRectangle(cornerRadius: border?.radius.map { CGFloat($0) } ?? effectiveRadius)
+            .stroke(color, lineWidth: CGFloat(width))
     }
 
-    private var shadowColor: Color {
-        nativeColor(tree.style?.shadow?.color)?.opacity(tree.style?.shadow?.opacity ?? 0.25) ?? .clear
+    private var resolvedShadowColor: Color {
+        if usesThemeOverrides && fillsAvailableSpace {
+            return theme.shadowColor
+        }
+        return nativeColor(tree.style?.shadow?.color)?.opacity(tree.style?.shadow?.opacity ?? 0.25) ?? .clear
+    }
+
+    private var resolvedShadowRadius: CGFloat {
+        if usesThemeOverrides && fillsAvailableSpace {
+            return theme.shadowRadius
+        }
+        return CGFloat(tree.style?.shadow?.radius ?? 0)
+    }
+
+    private var effectiveRadius: CGFloat {
+        if usesThemeOverrides {
+            return theme.surfaceRadius
+        }
+        return CGFloat(tree.style?.radius ?? 0)
     }
 
     private var nativeFont: Font? {
-        guard let font = tree.style?.font, let size = font.size else { return nil }
-        if font.monospace == true {
-            return .system(size: CGFloat(size), weight: fontWeight(font.weight), design: .monospaced)
+        let font = tree.style?.font
+        guard let size = font?.size ?? (usesThemeOverrides ? Double(theme.baseFontSize) : nil) else { return nil }
+        if font?.monospace == true || (usesThemeOverrides && theme.usesMonospaceTypography) {
+            return .system(size: CGFloat(size), weight: fontWeight(font?.weight), design: .monospaced)
         }
-        if let family = font.family {
-            return .custom(family, size: CGFloat(size)).weight(fontWeight(font.weight))
+        if let family = font?.family, !usesThemeOverrides {
+            return .custom(family, size: CGFloat(size)).weight(fontWeight(font?.weight))
         }
-        return .system(size: CGFloat(size), weight: fontWeight(font.weight))
+        return .system(size: CGFloat(size), weight: fontWeight(font?.weight))
     }
 
     private func fontWeight(_ weight: WidgetFontWeight?) -> Font.Weight {
@@ -438,6 +469,22 @@ struct WidgetTreeView: View {
         let blue = Double((number >> (expanded.count == 8 ? 8 : 0)) & 0xff) / 255
         let alpha = expanded.count == 8 ? Double(number & 0xff) / 255 : 1
         return Color(red: red, green: green, blue: blue, opacity: alpha)
+    }
+}
+
+private struct RenderScanlineOverlay: View {
+    var body: some View {
+        Canvas { context, size in
+            var path = Path()
+            var y: CGFloat = 2
+            while y < size.height {
+                path.move(to: CGPoint(x: 0, y: y))
+                path.addLine(to: CGPoint(x: size.width, y: y))
+                y += 4
+            }
+            context.stroke(path, with: .color(.white.opacity(0.06)), lineWidth: 1)
+        }
+        .allowsHitTesting(false)
     }
 }
 

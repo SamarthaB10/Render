@@ -235,7 +235,16 @@ private struct WidgetTreeContainer: View {
 
     var body: some View {
         ZStack {
-            WidgetTreeView(tree: model.tree, providers: providers, interactionStore: interactionStore, theme: RenderTheme(name: selectedTheme), nodePath: "root", fillsAvailableSpace: true, onAction: onAction)
+            WidgetTreeView(
+                tree: model.tree,
+                providers: providers,
+                interactionStore: interactionStore,
+                theme: RenderTheme(name: selectedTheme),
+                nodePath: "root",
+                fillsAvailableSpace: true,
+                usesThemeOverrides: preferences.value.theme != nil,
+                onAction: onAction
+            )
             WidgetSettingsOverlay(
                 widgetName: widgetName,
                 workspace: workspace,
