@@ -88,6 +88,8 @@ struct WidgetTreeView: View {
             )
         case .text:
             return AnyView(Text(displayedText))
+        case .textField:
+            return AnyView(EditableTextField(initialText: tree.text ?? "", style: tree.style))
         case .shape:
             return AnyView(RoundedRectangle(cornerRadius: CGFloat(tree.style?.radius ?? 12)).fill(foregroundColor ?? Color.secondary))
         case .icon:
@@ -310,5 +312,25 @@ struct WidgetTreeView: View {
         let blue = Double((number >> (expanded.count == 8 ? 8 : 0)) & 0xff) / 255
         let alpha = expanded.count == 8 ? Double(number & 0xff) / 255 : 1
         return Color(red: red, green: green, blue: blue, opacity: alpha)
+    }
+}
+
+private struct EditableTextField: View {
+    let initialText: String
+    let style: WidgetStyle?
+    @State private var value: String
+
+    init(initialText: String, style: WidgetStyle?) {
+        self.initialText = initialText
+        self.style = style
+        _value = State(initialValue: initialText)
+    }
+
+    var body: some View {
+        TextField("", text: $value)
+            .textFieldStyle(.plain)
+            .padding(8)
+            .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: CGFloat(style?.radius ?? 8)))
+            .foregroundColor(.primary)
     }
 }
