@@ -18,7 +18,19 @@ struct WidgetTreeView: View {
     }()
 
     var body: some View {
-        clippedContent
+        surfaceContent
+            .background(backgroundShape)
+            .overlay(borderShape)
+            .shadow(
+                color: shadowColor,
+                radius: CGFloat(tree.style?.shadow?.radius ?? 0),
+                x: CGFloat(tree.style?.shadow?.x ?? 0),
+                y: CGFloat(tree.style?.shadow?.y ?? 0)
+            )
+    }
+
+    private var surfaceContent: AnyView {
+        let laidOutContent = content
             .frame(width: fixedWidth, height: fixedHeight, alignment: frameAlignment)
             .frame(
                 maxWidth: fillsAvailableSpace || expandsWidth ? .infinity : nil,
@@ -30,22 +42,10 @@ struct WidgetTreeView: View {
             .opacity(tree.style?.opacity ?? 1)
             .foregroundColor(foregroundColor)
             .font(nativeFont)
-            .background(backgroundShape)
-            .overlay(borderShape)
-            .shadow(
-                color: shadowColor,
-                radius: CGFloat(tree.style?.shadow?.radius ?? 0),
-                x: CGFloat(tree.style?.shadow?.x ?? 0),
-                y: CGFloat(tree.style?.shadow?.y ?? 0)
-            )
-    }
-
-    // A node's radius is both its visual corner and its content clip. This is
-    // especially important for native surfaces such as WKWebView, whose
-    // rectangular backing view otherwise bleeds through rounded borders.
-    private var clippedContent: AnyView {
-        guard let radius = tree.style?.radius, radius > 0 else { return content }
-        return AnyView(content.clipShape(RoundedRectangle(cornerRadius: CGFloat(radius))))
+        guard let radius = tree.style?.radius, radius > 0 else { return AnyView(laidOutContent) }
+        // Apply the clip after the declared frame and padding. Otherwise a
+        // native child can paint beyond its node and overlap the next sibling.
+        return AnyView(laidOutContent.clipShape(RoundedRectangle(cornerRadius: CGFloat(radius))))
     }
 
     private var content: AnyView {
@@ -123,7 +123,7 @@ struct WidgetTreeView: View {
         case .toggle:
             return AnyView(EditableToggle(initialValue: (tree.value ?? 0) == 1))
         case .timer:
-            return AnyView(WidgetTimerView(path: nodePath, durationSeconds: tree.durationSeconds ?? 1, store: interactionStore))
+            return AnyView(WidgetTimerView(path: nodePath, durationSeconds: tree.durationSeconds ?? 1, style: tree.style, store: interactionStore))
         case .taskList:
             return AnyView(WidgetTaskListView(path: nodePath, defaults: tree.tasks ?? [], store: interactionStore))
         case .list:
