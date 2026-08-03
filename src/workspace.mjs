@@ -131,9 +131,12 @@ export function markWorkspaceStopped(workspace) {
   const state = readState(root);
   const nextState = {
     ...state,
+    status: "stopped",
     running: false,
     processId: null,
-    workerStatePath: null
+    workerProcessId: null,
+    workerStatePath: null,
+    lastTransitionAt: new Date().toISOString()
   };
   writeState(root, nextState);
   return nextState;
@@ -258,7 +261,11 @@ function readState(root) {
   const state = JSON.parse(readFileSync(path.join(root, ".render", "metadata.json"), "utf8"));
   return {
     successfulVersions: [],
+    status: "stopped",
     processId: null,
+    workerProcessId: null,
+    hostLogPath: null,
+    lastTransitionAt: null,
     lastFailure: null,
     ...state,
     successfulVersions: Array.isArray(state.successfulVersions) ? state.successfulVersions : []

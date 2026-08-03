@@ -21,6 +21,7 @@ test("Render agent skill defines the complete widget lifecycle", () => {
     "render fleet run",
     "render fleet status",
     "render fleet stop",
+    "render fleet logs",
     "render fleet relaunch",
     "render rollback"
   ]) {

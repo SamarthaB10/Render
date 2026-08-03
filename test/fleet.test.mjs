@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
-import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { parseOptions } from "../bin/render.mjs";
-import { fleetRelaunch, fleetRun, fleetStatus, fleetStop } from "../src/fleet.mjs";
+import { fleetLogs, fleetRelaunch, fleetRun, fleetStatus, fleetStop } from "../src/fleet.mjs";
 import { initWorkspace } from "../src/workspace.mjs";
 
 test("fleet CLI options preserve repeated isolated workspaces", () => {
@@ -43,11 +43,23 @@ test("fleet runs and reports multiple independent widget workspaces", () => {
 
     const registry = JSON.parse(readFileSync(statePath, "utf8"));
     assert.deepEqual(registry.widgets.map((item) => item.workspace), [path.resolve(first), path.resolve(second)]);
+    assert.equal(typeof registry.widgets[0].logPath, "string");
+    assert.equal(registry.widgets[0].status, "running");
 
     const status = fleetStatus([first, second], "request-fleet-status", { statePath });
     assert.equal(status.ok, true);
     assert.equal(status.widgets.length, 2);
     assert.deepEqual(status.widgets.map((item) => item.workspace), [path.resolve(first), path.resolve(second)]);
+
+    const logs = fleetLogs([first], "request-fleet-logs", { statePath });
+    assert.equal(logs.ok, true);
+    assert.equal(logs.widgets[0].logPath, registry.widgets[0].logPath);
+    assert.equal(logs.widgets[0].exists, true);
+
+    unlinkSync(registry.widgets[0].logPath);
+    const missingLogs = fleetLogs([first], "request-fleet-logs-missing", { statePath });
+    assert.equal(missingLogs.ok, false);
+    assert.equal(missingLogs.widgets[0].diagnostics[0].code, "missing-log-file");
 
     const stopped = fleetStop([first, second], "request-fleet-stop", { statePath });
     assert.equal(stopped.ok, true);

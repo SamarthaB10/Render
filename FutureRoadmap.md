@@ -20,7 +20,11 @@ Every future phase should preserve these properties:
 
 The current prototype already provides a local Swift/AppKit and SwiftUI host, a TypeScript SDK and catalog, a serializable widget tree, validation, snapshots, last-known-good promotion, watch mode, logical placement, native dragging, host-owned authentication, the first Spotify connector, the host-owned adjustable sizing/responsive-mode contract, and host-owned `Timer`/`TaskList` primitives. Adjustable size, mode, lock state, placement, countdown state, and task state persist as local runtime preferences; widget source remains portable.
 
-The main gaps are deliberate: one active widget is the supported local path, the supervisor boundary still needs to become a true multi-widget runtime, and installation currently requires developer tooling and terminal commands. Spotify playback also depends on the account's service-level access; an OAuth success does not guarantee playback access.
+The main gaps are deliberate: the fleet path is now the supported local
+multi-widget lifecycle, while installation still requires developer tooling
+and terminal commands. The future XPC transport and packaged lifecycle remain
+installation/hardening work. Spotify playback also depends on the account's
+service-level access; an OAuth success does not guarantee playback access.
 
 ## Delivery sequence
 
@@ -28,9 +32,11 @@ The phases below are ordered by dependency. Each phase is marked `Planned` until
 
 ### Phase F1 — Independent widget runtimes
 
-Status: In progress. The first fleet lifecycle slice is implemented on
-`feat/roadmap-completion`; the host-managed multi-worker supervisor remains.
-Highest priority.
+Status: Complete for the local development runtime. `feat/roadmap-completion`
+now provides a detached host-managed fleet supervisor, per-widget process
+records and logs, independent restart/recovery, and five-failure quarantine.
+XPC remains a future transport option for the packaged lifecycle rather than a
+missing widget contract.
 
 Change the current single-widget lifecycle into a supervisor that owns a separate native worker process for every running widget. Keep the existing serializable tree and worker protocol as the contract boundary. Use XPC where it provides reliable macOS process identity and lifecycle management; keep transport details behind the protocol so the widget contract does not depend on one IPC implementation.
 
@@ -43,12 +49,12 @@ Implementation steps:
   registered workspaces without reconstructing their paths.
 - [x] Add a detached fleet supervisor that monitors each registered host and
   restarts a dead widget host without touching the other workspace processes.
-- Define a stable widget identity, runtime directory, state file, log stream, and process record for each widget.
-- Move launch, readiness, stop, restart, health checks, and crash classification into the supervisor.
-- Ensure each worker has an independent process lifetime and that worker failure is isolated from the host and every other worker.
-- Preserve last-known-good snapshots and promote a candidate only after validation and native readiness.
-- Make status truthful after launch timeouts, crashes, stale PIDs, sleep/wake, and manual termination.
-- Add measured resource observations for each worker before introducing enforcement budgets.
+- [x] Define a stable widget identity, runtime directory, state file, log stream, and process record for each widget.
+- [x] Move launch, readiness, stop, restart, health checks, and crash classification into the supervisor.
+- [x] Ensure each worker has an independent process lifetime and that worker failure is isolated from the host and every other worker.
+- [x] Preserve last-known-good snapshots and promote a candidate only after validation and native readiness.
+- [x] Make status truthful after launch timeouts, crashes, stale PIDs, sleep/wake, and manual termination.
+- [x] Add measured resource observations for each worker before introducing enforcement budgets.
 
 Acceptance criteria:
 
@@ -59,9 +65,9 @@ Acceptance criteria:
 - [x] Quarantine a native worker after five consecutive restart failures and
   expose the repair diagnostic through worker state and the widget settings
   panel.
-- Killing or crashing one worker leaves the host and other widgets running.
-- A failed candidate leaves the previous version visible and actionable diagnostics identify the repair path.
-- Stop, restart, status, and logs address one widget without ambiguous global process state.
+- [x] Killing or crashing one worker leaves the host and other widgets running.
+- [x] A failed candidate leaves the previous version visible and actionable diagnostics identify the repair path.
+- [x] Stop, restart, status, and logs address one widget without ambiguous global process state.
 
 ### Phase F2 — One-click installation and lifecycle management
 
