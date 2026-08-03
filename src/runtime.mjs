@@ -17,35 +17,8 @@ import { readPreferences, writePreferences } from "./preferences.mjs";
 
 // Receipt: perf/receipts/phase8-worker.json
 const SUPERVISOR_STARTUP_TIMEOUT_MS = 5000;
-const SUPPORTED_ACTIONS = new Set([
-  "widget.refresh",
-  "widget.reload",
-  "spotify.play",
-  "spotify.pause",
-  "spotify.next",
-  "spotify.previous",
-  "spotify.set-volume",
-  "reminders.create",
-  "reminders.update",
-  "reminders.complete",
-  "reminders.delete"
-]);
-const SUPPORTED_PROVIDERS = new Set([
-  "system.cpu",
-  "system.memory",
-  "system.time",
-  "spotify.account",
-  "spotify.track.title",
-  "spotify.track.artist",
-  "spotify.playback.isPlaying",
-  "spotify.playback.progress",
-  "spotify.playback.volume",
-  "reminders.account",
-  "reminders.items",
-  "reminders.incompleteCount",
-  "reminders.next.title",
-  "reminders.next.dueDate"
-]);
+const SUPPORTED_ACTIONS = new Set(sdk.WIDGET_ACTION_NAMES);
+const SUPPORTED_PROVIDERS = new Set(sdk.WIDGET_PROVIDER_NAMES);
 
 export function buildRuntimeTree(source, filename = "widget.tsx", options = {}) {
   const manifest = extractManifest(source);
@@ -647,10 +620,7 @@ function validateRuntimeTree(node, pathName, subscriptions, capabilities, accoun
   if (!node || typeof node !== "object") {
     throw new Error(`${pathName}: render() must return a widget node`);
   }
-  const kinds = new Set([
-    "column", "row", "stack", "box", "glassPanel", "mediaCard", "scrollView", "spacer", "divider", "text", "textField", "textEditor", "dateTime", "dateTimePicker", "toggle", "timer", "taskList", "shape",
-    "icon", "image", "button", "gauge", "progress", "grid", "list", "visualizer", "youtubePlayer"
-  ]);
+  const kinds = new Set(sdk.WIDGET_NODE_KINDS);
   if (!kinds.has(node.kind)) {
     throw new Error(`${pathName}.kind: unknown widget primitive`);
   }

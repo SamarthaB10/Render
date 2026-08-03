@@ -64,3 +64,12 @@ The SDK catalog, widget skill, check diagnostics, README, and implementation
 roadmap are part of the agent contract. Every supported primitive, provider,
 action, capability, failure, and required user permission should be
 discoverable from those surfaces without reading the host implementation.
+
+## Canonical Widget contract
+
+The canonical Widget contract is the versioned, self-describing JSON Schema at
+`contracts/render-widget-contract.v1.json`. It is the source of truth for the
+agent-visible Widget manifest, retained tree, primitives, styles, providers,
+actions, capabilities, connectors, and compatibility version. TypeScript,
+native Swift, and agent-facing Markdown outputs are generated from it and CI
+rejects drift between the source and those outputs.

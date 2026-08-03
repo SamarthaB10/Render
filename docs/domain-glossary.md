@@ -71,3 +71,12 @@ Anything that touches the user's machine beyond the Standard surface. Capabiliti
 3. Running commands or reading arbitrary files - dangerous.
 
 The dangerous rungs exist but require loud, explicit, per-Widget consent. Render deliberately rejects the incumbent posture where skins can simply do anything.
+
+## Canonical Widget contract
+
+The versioned, self-describing JSON Schema that defines the agent-visible
+Widget surface. It describes the Widget manifest and retained tree plus the
+supported primitives, styles, providers, actions, capabilities, connectors,
+and compatibility rules. SDK, runtime, native, and agent documentation
+artifacts are generated or verified from this contract; they are not separate
+sources of truth.
