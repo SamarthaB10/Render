@@ -245,8 +245,8 @@ final class DesktopWindowPolicyTests: XCTestCase {
     func testPhaseNineValidationUsesActionablePaths() {
         let tree = WidgetTree(
             kind: .button,
-            action: .invoke(name: "", payload: nil),
-            children: [WidgetTree(kind: .icon)]
+            children: [WidgetTree(kind: .icon)],
+            action: .invoke(name: "", payload: nil)
         )
 
         XCTAssertEqual(
