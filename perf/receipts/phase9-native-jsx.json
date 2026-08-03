@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "measuredAt": "2026-08-03T00:34:30.174Z",
+  "commit": "42fac3ecb73de0194b9d37675a982d986ca0a83c",
+  "system": {
+    "platform": "darwin",
+    "arch": "arm64",
+    "macOS": "26.3.1",
+    "swift": "Apple Swift version 6.3.3 (swiftlang-6.3.3.1.3 clang-2100.1.1.101)",
+    "node": "v24.15.0",
+    "hostBinary": ".build/debug/RenderHost"
+  },
+  "widget": {
+    "sourceBytes": 752,
+    "runtimeTreeBytes": 500,
+    "snapshotDiskBytes": 1533
+  },
+  "runtimeTreeBuild": {
+    "iterations": 100,
+    "durationMs": {
+      "count": 100,
+      "min": 95.00145800000018,
+      "p50": 100.80887499999972,
+      "p95": 122.75766599999997,
+      "max": 176.07625000000007,
+      "mean": 105.04811423000007
+    }
+  },
+  "hostProcess": {
+    "sampleIntervalMs": 1000,
+    "warmupIntervalMs": 1000,
+    "cpuPercent": {
+      "count": 5,
+      "min": 0.8,
+      "p50": 2.4,
+      "p95": 6.3,
+      "max": 6.3,
+      "mean": 3.1
+    },
+    "residentMemoryKB": {
+      "count": 5,
+      "min": 30512,
+      "p50": 32208,
+      "p95": 40816,
+      "max": 40816,
+      "mean": 33936
+    }
+  },
+  "wakeups": {
+    "state": "unavailable",
+    "message": "powermetrics requires superuser privileges on this Mac"
+  },
+  "frameCadence": {
+    "frameCount": 120,
+    "state": "available",
+    "hertz": 119.70411644231493,
+    "durationMs": 1002.471791,
+    "message": "display-link callback cadence; widget render-pass cadence is not instrumented"
+  }
+}

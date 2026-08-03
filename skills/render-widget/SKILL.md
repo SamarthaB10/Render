@@ -18,6 +18,7 @@ Use the installed `render` command when available. When working directly from th
 - Treat CLI diagnostics as the source of truth. Fix the reported path and message before trying to run again.
 - A failed candidate must never replace the last-known-good widget.
 - Do not claim an integration works when its provider, action contract, or capability enforcement is not shipped.
+- Conjure creates a source Widget, Share preserves that readable source artifact, and Remix patches the installed source in place; never substitute a compiled artifact, workspace pointer, DOM, HTML, CSS, webview, or private native view.
 
 ## Required workflow
 
@@ -30,7 +31,11 @@ render sdk list --json
 render sdk describe <primitive-or-provider-or-type> --json
 ```
 
-Each described item includes its exact `importPath`, TypeScript `signature`, canonical `example`, and any `notes` or required declarations. Select only cataloged primitives, styles, types, providers, and capabilities. If the request needs something missing—such as Spotify playback, an image provider, or an interactive button—explain that the integration is not yet available and do not substitute fake data or an invented API.
+Each described item includes its exact `importPath`, TypeScript `signature`, canonical `example`, and any `notes` or required declarations. Select only cataloged primitives, styles, types, providers, actions, and capabilities. A name in the roadmap is not an import: use it only when the catalog describes it as supported for the active SDK version.
+
+If the request needs something missing—such as Spotify playback, an image provider, or an interactive button—report the exact missing catalog item or capability, explain what platform contract is absent, and stop that part of the Widget. Do not substitute fake data, a browser fallback, a private native API, or an invented Render API. If the supported design needs network, filesystem, app, account, or other machine access, declare the narrowest capability and ask the user for permission before proceeding.
+
+For the Phase 9 surface, the roadmap families are layout, typography/content, visuals, controls/actions, collections/data, and providers/integrations. The shipped first slice is `Box`, `Spacer`, `Divider`, `Icon`, `Image`, `Button`, `Progress`, `Grid`, typed actions/provider states, and the JSX runtime. Treat any item as unavailable until `render sdk list --json` and `render sdk describe ... --json` expose its exact contract and support status.
 
 ### 2. Create or identify an isolated workspace
 
@@ -65,7 +70,7 @@ export default widget({
 ]));
 ```
 
-The scaffold above is the canonical CPU/RAM example. It is also the canonical example for the first provider-backed widget path. For another composition, inspect every primitive with `render sdk describe <name> --json` and copy its documented signature and example. The current runtime supports `Column`, `Row`, `Stack`, `Text`, `Shape`, `Gauge`, `useProvider`, and the manifest contract. `useTimer` is cataloged for the future runtime contract but is not yet rendered by the native host. The catalog also calls out partial behavior, such as `WidgetStyle.color` not yet being applied by the native renderer.
+The scaffold above is the canonical CPU/RAM example. It is also the canonical example for the first provider-backed widget path. For another composition, inspect every primitive with `render sdk describe <name> --json` and copy its documented signature and example. The current runtime supports all cataloged layout, content, control, and progress primitives, plus constrained typed styles and automatic TSX. `useTimer` remains cataloged for a future host-scheduled update contract and is not yet rendered by the native host. Image URL/provider sources are cataloged gaps and `render check` rejects them until their capability-backed providers ship. Every future primitive must ship as SDK type, JSX/runtime contract, catalog entry, native renderer, validation, agent documentation, focused tests, and performance evidence before the skill may use it.
 
 For network or filesystem access, declare the narrowest required capability and ask the user for permission before proceeding. Never place credentials or tokens in `widget.tsx`.
 

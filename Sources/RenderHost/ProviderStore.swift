@@ -22,7 +22,7 @@ final class ProviderStore: ObservableObject {
     }
 
     func value(for name: String) -> ProviderValue? {
-        snapshot.values[name]
+        snapshot.values[name] ?? (subscriptions.contains(name) ? .loading(name: name) : nil)
     }
 
     deinit {

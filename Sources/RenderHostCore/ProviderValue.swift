@@ -1,4 +1,5 @@
 public enum ProviderState: String, Codable, Equatable, Sendable {
+    case loading
     case available
     case unavailable
 }
@@ -18,6 +19,10 @@ public struct ProviderValue: Codable, Equatable, Sendable {
 
     public static func available(name: String, value: Double) -> ProviderValue {
         ProviderValue(name: name, state: .available, value: value)
+    }
+
+    public static func loading(name: String, message: String = "waiting for provider") -> ProviderValue {
+        ProviderValue(name: name, state: .loading, message: message)
     }
 
     public static func unavailable(name: String, message: String) -> ProviderValue {

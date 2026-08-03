@@ -50,17 +50,36 @@ test("SDK catalog exposes canonical primitives, providers, styles, and capabilit
     "Column",
     "Row",
     "Stack",
+    "Box",
+    "Spacer",
+    "Divider",
     "Text",
     "Shape",
+    "Icon",
+    "Image",
+    "Button",
     "Gauge",
+    "Progress",
+    "Grid",
     "useProvider",
     "useTimer",
+    "jsx",
+    "jsxs",
+    "Fragment",
+    "widget.refresh",
+    "widget.reload",
     "WidgetStyle",
+    "WidgetAction",
+    "WidgetActionName",
+    "ImageSource",
     "WidgetNode",
     "WidgetNodeKind",
     "WidgetManifest",
     "WidgetDefinition",
     "ProviderBinding",
+    "ProviderState",
+    "ProviderValue",
+    "WidgetCapability",
     "TimerBinding",
     "system.cpu",
     "system.memory",
@@ -69,7 +88,10 @@ test("SDK catalog exposes canonical primitives, providers, styles, and capabilit
     "filesystem.write"
   ]);
   assert.equal(catalog.describeSdkCatalog("Text").kind, "primitive");
-  assert.deepEqual(catalog.describeSdkCatalog("WidgetStyle").fields, ["width", "height", "color"]);
+  assert.deepEqual(catalog.describeSdkCatalog("WidgetStyle").fields, [
+    "width", "height", "color", "backgroundColor", "opacity", "padding", "margin", "gap",
+    "alignItems", "justifyContent", "radius", "border", "shadow", "font", "tokens"
+  ]);
 });
 
 test("SDK catalog gives agents exact contracts and canonical examples", async () => {
@@ -101,17 +123,17 @@ test("CLI exposes SDK catalog list and describe operations", () => {
 
   assert.equal(listed.ok, true);
   assert.equal(listed.operation, "sdk.list");
-  assert.equal(listed.items.length, 21);
+  assert.equal(listed.items.length, 40);
   assert.equal(listed.sdkVersion, "0.1.0");
   assert.deepEqual(described.item, {
     name: "system.cpu",
     kind: "provider",
     summary: "Host CPU utilization percentage, sampled once per second",
-    value: "number | unavailable",
+    value: "number | loading | unavailable",
     importPath: "@render/sdk",
     signature: 'useProvider("system.cpu"): ProviderBinding',
     example: 'Gauge(useProvider("system.cpu"), 100)',
-    notes: ["Declare \"system.cpu\" in the widget manifest subscribe array."]
+    notes: ["Declare \"system.cpu\" in the widget manifest subscribe array.", "Render loading and unavailable states explicitly; do not substitute fake values."]
   });
   assert.equal(missing.ok, false);
   assert.deepEqual(missing.diagnostics[0], {
