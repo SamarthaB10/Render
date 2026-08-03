@@ -13,6 +13,10 @@ final class DraggableHostingView: NSHostingView<AnyView> {
         true
     }
 
+    override var mouseDownCanMoveWindow: Bool {
+        true
+    }
+
     override func mouseDown(with event: NSEvent) {
         if hitInteractiveControl(at: event) {
             forwardingMouseDown = true

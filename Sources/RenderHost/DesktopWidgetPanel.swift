@@ -14,6 +14,8 @@ final class DesktopWidgetPanel: NSPanel {
         backgroundColor = .clear
         hasShadow = false
         ignoresMouseEvents = policy.ignoresMouseEvents
+        isMovable = true
+        isMovableByWindowBackground = true
         level = NSWindow.Level(rawValue: DesktopWindowLevel.interactive)
         collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary]
         isReleasedWhenClosed = false
@@ -23,11 +25,9 @@ final class DesktopWidgetPanel: NSPanel {
     override var canBecomeMain: Bool { false }
 
     func move(to candidateOrigin: NSPoint) {
-        if let screen = screen(containing: candidateOrigin) {
-            setFrameOrigin(clampedOrigin(candidateOrigin, to: screen.visibleFrame))
-        } else {
-            setFrameOrigin(candidateOrigin)
-        }
+        let targetScreen = screen(containing: candidateOrigin) ?? NSScreen.main ?? NSScreen.screens.first
+        guard let targetScreen else { return }
+        setFrameOrigin(clampedOrigin(candidateOrigin, to: targetScreen.visibleFrame))
     }
 
     func placeOnPrimaryDisplay(

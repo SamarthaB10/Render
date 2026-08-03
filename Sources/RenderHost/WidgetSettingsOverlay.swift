@@ -50,6 +50,7 @@ struct WidgetSettingsOverlay: View {
             .onHover { hovering in
                 withAnimation(.easeOut(duration: 0.16)) { isHovered = hovering }
             }
+            .allowsHitTesting(isHovered || isOpen)
             .zIndex(3)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
