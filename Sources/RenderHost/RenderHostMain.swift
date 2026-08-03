@@ -387,12 +387,34 @@ private struct WidgetTreeContainer: View {
                 preferences: preferences.value,
                 onPreferencesChange: onPreferencesChange,
                 onModeChange: onModeChange,
+                youtube: youtubeSettings,
+                interactionStore: interactionStore,
                 accountStatus: providers.accountConnector.flatMap { providers.accountStatus(for: $0) },
                 authorizationMessage: providers.authorizationMessage,
                 onAuthorize: onAuthorize,
                 onStop: onStop
             )
         }
+    }
+
+    private var youtubeSettings: YouTubePlayerSettings? {
+        findYouTubeSettings(in: model.tree, path: "root")
+    }
+
+    private func findYouTubeSettings(in tree: WidgetTree, path: String) -> YouTubePlayerSettings? {
+        if tree.kind == .youtubePlayer {
+            return YouTubePlayerSettings(
+                path: path,
+                initialVideoID: tree.videoId,
+                allowLinkInput: tree.allowLinkInput == true
+            )
+        }
+        for (index, child) in tree.children.enumerated() {
+            if let settings = findYouTubeSettings(in: child, path: "\(path).children[\(index)]") {
+                return settings
+            }
+        }
+        return nil
     }
 }
 

@@ -279,17 +279,18 @@ struct WidgetTreeView: View {
         return nil
     }
 
-    private var backgroundColor: Color? {
-        if let color = nativeColor(tree.style?.backgroundColor) { return color }
-        for token in tree.style?.tokens ?? [] {
-            if token == .surface { return Color.black.opacity(0.12) }
-            if token == .surfaceElevated { return Color.black.opacity(0.2) }
+    private var backgroundShape: AnyView {
+        let shape = RoundedRectangle(cornerRadius: CGFloat(tree.style?.radius ?? 0))
+        if let color = nativeColor(tree.style?.backgroundColor) {
+            return AnyView(shape.fill(color))
         }
-        return nil
-    }
-
-    private var backgroundShape: some View {
-        RoundedRectangle(cornerRadius: CGFloat(tree.style?.radius ?? 0)).fill(backgroundColor ?? .clear)
+        if tree.style?.tokens?.contains(.surfaceElevated) == true {
+            return AnyView(shape.fill(.regularMaterial))
+        }
+        if tree.style?.tokens?.contains(.surface) == true {
+            return AnyView(shape.fill(.ultraThinMaterial))
+        }
+        return AnyView(shape.fill(.clear))
     }
 
     private var borderShape: some View {

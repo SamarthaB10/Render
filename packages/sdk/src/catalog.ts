@@ -236,7 +236,7 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     inputs: ["videoId", "allowLinkInput", "autoplay", "controls", "startSeconds", "style"],
     example: 'YouTubePlayer({ videoId: "M7lc1UVf-VE", allowLinkInput: true, controls: true })',
     status: "implemented",
-    notes: ["The native renderer owns the isolated WKWebView and official YouTube embed surface.", "The manifest must declare the network capability; source defaults use 11-character YouTube video IDs only.", "Set allowLinkInput to true to show a native persisted toggle and input for pasted youtube.com or youtu.be links.", "Autoplay is opt-in and may still be restricted by macOS or YouTube playback policy."]
+    notes: ["The native renderer owns the isolated WKWebView and official YouTube embed surface.", "The manifest must declare the network capability; source defaults use 11-character YouTube video IDs only.", "Set allowLinkInput to true to expose a native persisted link editor in the widget's hover settings panel for pasted youtube.com or youtu.be links.", "Autoplay is opt-in and may still be restricted by macOS or YouTube playback policy."]
   },
   {
     name: "Shape",

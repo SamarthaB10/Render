@@ -129,6 +129,7 @@ final class WidgetInteractionStore: ObservableObject {
         var urls = state.youtubeURLs ?? [:]
         urls[path] = value
         state.youtubeURLs = urls
+        objectWillChange.send()
         persist()
     }
 
@@ -140,6 +141,7 @@ final class WidgetInteractionStore: ObservableObject {
         var values = state.youtubeLinkInputEnabled ?? [:]
         values[path] = enabled
         state.youtubeLinkInputEnabled = values
+        objectWillChange.send()
         persist()
     }
 
