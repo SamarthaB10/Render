@@ -41,6 +41,8 @@ Implementation steps:
   stale-process reconciliation.
 - [x] Add registry-backed `relaunch` so a lifecycle owner can restore all
   registered workspaces without reconstructing their paths.
+- [x] Add a detached fleet supervisor that monitors each registered host and
+  restarts a dead widget host without touching the other workspace processes.
 - Define a stable widget identity, runtime directory, state file, log stream, and process record for each widget.
 - Move launch, readiness, stop, restart, health checks, and crash classification into the supervisor.
 - Ensure each worker has an independent process lifetime and that worker failure is isolated from the host and every other worker.
@@ -52,7 +54,8 @@ Acceptance criteria:
 
 - [x] Multiple isolated workspaces can be run, inspected, reconciled, and
   stopped through one machine-readable fleet operation.
-- Multiple widgets can run concurrently under one host-managed supervisor.
+- [x] Multiple widgets can run concurrently under one detached fleet
+  supervisor, with each workspace retaining its own host and worker state.
 - Killing or crashing one worker leaves the host and other widgets running.
 - A failed candidate leaves the previous version visible and actionable diagnostics identify the repair path.
 - Stop, restart, status, and logs address one widget without ambiguous global process state.

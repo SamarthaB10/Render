@@ -211,9 +211,11 @@ render fleet relaunch --json
 ```
 
 Fleet status reconciles stale process records and marks a workspace stopped
-instead of reporting a dead process as running. This is the first independent
-runtime slice; the future host-managed supervisor will retain this workspace
-and last-known-good contract while moving each widget behind its own worker.
+instead of reporting a dead process as running. Native fleet runs keep a
+detached supervisor over the per-widget host processes; a dead widget host is
+restarted without replacing another widget. This is the first independent
+runtime slice; the future XPC-backed supervisor will retain this workspace and
+last-known-good contract while moving each widget behind its own worker.
 `fleet relaunch` consumes the persisted registry, so a future login item can
 restore registered widgets without reconstructing workspace paths.
 

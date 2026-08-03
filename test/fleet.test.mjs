@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -88,6 +88,56 @@ test("fleet relaunch restores every registered workspace after a stop", () => {
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test("fleet supervisor restarts one crashed widget without replacing another", async () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "render-fleet-supervisor-"));
+  const statePath = path.join(root, "fleet.json");
+  const hostPath = path.join(root, "hold-host.sh");
+  const first = path.join(root, "first");
+  const second = path.join(root, "second");
+
+  try {
+    writeFileSync(hostPath, "#!/bin/sh\nexec sleep 30\n");
+    chmodSync(hostPath, 0o755);
+    initWorkspace(first, "request-first");
+    initWorkspace(second, "request-second");
+    writeFileSync(path.join(first, "widget.tsx"), widgetSource("First"));
+    writeFileSync(path.join(second, "widget.tsx"), widgetSource("Second"));
+
+    const started = fleetRun([first, second], "request-fleet-run", {
+      hostPath,
+      statePath,
+      supervise: true,
+      monitorIntervalMs: 25
+    });
+    const firstProcessID = started.widgets[0].processId;
+    const secondProcessID = started.widgets[1].processId;
+    assert.equal(started.supervisor.status, "starting");
+
+    process.kill(firstProcessID);
+    await waitFor(() => {
+      const state = JSON.parse(readFileSync(path.join(first, ".render/metadata.json"), "utf8"));
+      return state.running === true && state.processId !== firstProcessID;
+    });
+
+    const recovered = fleetStatus([first, second], "request-fleet-status", { statePath });
+    assert.equal(recovered.ok, true);
+    assert.equal(recovered.widgets[0].state.processId !== firstProcessID, true);
+    assert.equal(recovered.widgets[1].state.processId, secondProcessID);
+  } finally {
+    fleetStop([first, second], "request-fleet-stop", { statePath });
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+async function waitFor(predicate) {
+  const deadline = Date.now() + 3000;
+  while (Date.now() < deadline) {
+    if (predicate()) return;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  assert.fail("timed out waiting for fleet supervisor recovery");
+}
 
 function widgetSource(label) {
   return `import { Text, widget } from "@render/sdk";

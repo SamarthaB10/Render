@@ -320,6 +320,7 @@ The first CLI uses explicit workspace-scoped subcommands:
 | `render reset-size` | Clear the local size override and return to manifest defaults. |
 | `render rollback` | Select and relaunch a known-good snapshot. |
 | `render fleet run/status/stop` | Run, inspect, reconcile, or stop multiple isolated widget workspaces with repeated `--workspace` flags. |
+| `render fleet relaunch` | Restore all registered widget workspaces through the detached fleet supervisor. |
 | `render sdk list` | List primitives, providers, styles, actions, and capabilities. |
 | `render sdk describe <name>` | Show the exact current SDK contract for one catalog item. |
 
