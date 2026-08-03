@@ -336,7 +336,9 @@ The catalog currently exposes these implemented families:
 - Content and visuals: `Text`, editable native `TextField`, native `Toggle`, `Shape`, `Icon`, native asset `Image`.
 - Controls and progress: `Button`, `Gauge`, `Progress`.
 - Data and lifecycle: `useProvider`, typed provider states, `widget.refresh`, `widget.reload`, and the worker protocol types.
-- Styles: typed color, sizing, spacing, alignment, radius, border, shadow, font, opacity, and semantic tokens.
+- Styles: typed color, sizing, spacing, alignment, radius, border, shadow, font, opacity, and semantic tokens. `radius` clips child content as well as rounding the surface, so embedded media fits cleanly inside curved cards; `border` controls the stroke color, width, and optional corner radius.
+
+For a retro treatment, agents can layer `Box`, `Stack`, `Shape`, `Text`, and `Divider`, then use `radius`, `border`, `shadow`, monospace fonts, and explicit colors to build curved panels, inset frames, pill controls, and neon or CRT-like accents. The catalog intentionally does not expose arbitrary CSS or HTML.
 
 The catalog also marks contract-only and planned items. Current limitations are deliberate:
 

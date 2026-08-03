@@ -478,6 +478,28 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     notes: ["Requires a reminders account with the reminders.write scope."]
   },
   {
+    name: "WidgetBorder",
+    kind: "type",
+    summary: "Native border stroke configuration for a widget surface",
+    importPath: SDK_PACKAGE,
+    signature: "interface WidgetBorder { color?: string; width?: number; radius?: number }",
+    fields: ["color", "width", "radius"],
+    example: 'const border: WidgetBorder = { color: "#22d3ee", width: 1, radius: 18 }',
+    status: "implemented",
+    notes: ["radius controls the stroke corner independently; set WidgetStyle.radius as well when the child content must be clipped to the same curve."]
+  },
+  {
+    name: "WidgetShadow",
+    kind: "type",
+    summary: "Native shadow configuration for a widget surface",
+    importPath: SDK_PACKAGE,
+    signature: "interface WidgetShadow { color?: string; radius?: number; x?: number; y?: number; opacity?: number }",
+    fields: ["color", "radius", "x", "y", "opacity"],
+    example: 'const shadow: WidgetShadow = { color: "#22d3ee", radius: 18, opacity: 0.25 }',
+    status: "implemented",
+    notes: ["Shadow is rendered by the native host outside the rounded surface and is not clipped by WidgetStyle.radius."]
+  },
+  {
     name: "WidgetStyle",
     kind: "style",
     summary: "Constrained native layout, typography, color, and surface styling",
@@ -489,7 +511,7 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     notes: [
       "Values are serializable native style fields, not arbitrary CSS declarations.",
       "Width, height, and font sizes must be positive; spacing, opacity, radii, and border widths are non-negative when provided.",
-      "The native host applies layout, color, typography, surface, border, shadow, opacity, and token fields."
+      "The native host applies layout, color, typography, surface, border, shadow, opacity, and token fields; radius also clips native child content to the rounded surface."
     ]
   },
   {
