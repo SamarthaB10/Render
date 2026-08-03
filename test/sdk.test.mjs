@@ -57,6 +57,8 @@ test("SDK catalog exposes canonical primitives, providers, styles, and capabilit
     "Text",
     "TextField",
     "TextEditor",
+    "DateTime",
+    "DateTimePicker",
     "Toggle",
     "Timer",
     "TaskList",
@@ -92,6 +94,7 @@ test("SDK catalog exposes canonical primitives, providers, styles, and capabilit
     "WidgetAdjustable",
     "WidgetRenderContext",
     "WidgetTaskItem",
+    "WidgetDateTimeMode",
     "WidgetAccountRequirement",
     "WidgetAccountState",
     "WidgetAccountBinding",
@@ -173,7 +176,7 @@ test("CLI exposes SDK catalog list and describe operations", () => {
 
   assert.equal(listed.ok, true);
   assert.equal(listed.operation, "sdk.list");
-  assert.equal(listed.items.length, 69);
+  assert.equal(listed.items.length, 72);
   assert.equal(listed.sdkVersion, "0.1.0");
   assert.deepEqual(described.item, {
     name: "system.cpu",

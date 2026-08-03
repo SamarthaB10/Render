@@ -567,7 +567,7 @@ function validateRuntimeTree(node, pathName, subscriptions, capabilities, accoun
     throw new Error(`${pathName}: render() must return a widget node`);
   }
   const kinds = new Set([
-    "column", "row", "stack", "box", "scrollView", "spacer", "divider", "text", "textField", "textEditor", "toggle", "timer", "taskList", "shape",
+    "column", "row", "stack", "box", "scrollView", "spacer", "divider", "text", "textField", "textEditor", "dateTime", "dateTimePicker", "toggle", "timer", "taskList", "shape",
     "icon", "image", "button", "gauge", "progress", "grid"
   ]);
   if (!kinds.has(node.kind)) {
@@ -614,6 +614,21 @@ function validateRuntimeTree(node, pathName, subscriptions, capabilities, accoun
   }
   if (node.placeholder !== undefined && (node.kind !== "textEditor" || typeof node.placeholder !== "string")) {
     throw new Error(`${pathName}.placeholder: only textEditor nodes may define a string placeholder`);
+  }
+  if (node.dateTimeMode !== undefined && !["date", "time", "dateTime"].includes(node.dateTimeMode)) {
+    throw new Error(`${pathName}.dateTimeMode: mode must be date, time, or dateTime`);
+  }
+  if (node.kind === "dateTime" && (typeof node.dateTime !== "string" || !Number.isFinite(Date.parse(node.dateTime)))) {
+    throw new Error(`${pathName}.dateTime: DateTime nodes require a valid ISO date-time string`);
+  }
+  if (node.kind === "dateTimePicker" && node.dateTime !== undefined && (typeof node.dateTime !== "string" || !Number.isFinite(Date.parse(node.dateTime)))) {
+    throw new Error(`${pathName}.dateTime: DateTimePicker values must be valid ISO date-time strings`);
+  }
+  if (!new Set(["dateTime", "dateTimePicker"]).has(node.kind) && node.dateTime !== undefined) {
+    throw new Error(`${pathName}.dateTime: only dateTime nodes may define a date-time value`);
+  }
+  if (!new Set(["dateTime", "dateTimePicker"]).has(node.kind) && node.dateTimeMode !== undefined) {
+    throw new Error(`${pathName}.dateTimeMode: only dateTime nodes may define a date-time mode`);
   }
   if (node.kind === "toggle" && node.value !== 0 && node.value !== 1) {
     throw new Error(`${pathName}.value: toggle value must be boolean`);

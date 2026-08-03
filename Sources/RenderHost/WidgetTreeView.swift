@@ -108,6 +108,10 @@ struct WidgetTreeView: View {
             return AnyView(EditableTextField(initialText: tree.text ?? "", style: tree.style))
         case .textEditor:
             return AnyView(EditableTextEditor(path: nodePath, initialText: tree.text ?? "", placeholder: tree.placeholder, store: interactionStore, style: tree.style))
+        case .dateTime:
+            return AnyView(WidgetDateTimeView(value: tree.dateTime ?? "", mode: tree.dateTimeMode ?? "dateTime"))
+        case .dateTimePicker:
+            return AnyView(WidgetDateTimePickerView(path: nodePath, initialValue: tree.dateTime, mode: tree.dateTimeMode ?? "dateTime", store: interactionStore))
         case .toggle:
             return AnyView(EditableToggle(initialValue: (tree.value ?? 0) == 1))
         case .timer:
