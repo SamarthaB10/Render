@@ -17,6 +17,153 @@ public enum WidgetNodeKind: String, Codable, Sendable {
     case gauge
     case progress
     case grid
+    case gradient
+    case texture
+    case clip
+    case transform
+    case segmentedProgress
+    case spectrum
+}
+
+public struct WidgetGradientStop: Codable, Equatable, Sendable {
+    public let color: String
+    public let position: Double?
+
+    public init(color: String, position: Double? = nil) {
+        self.color = color
+        self.position = position
+    }
+}
+
+public enum WidgetTextureSource: Codable, Equatable, Sendable {
+    case builtIn(name: String)
+    case asset(name: String)
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        switch try container.decode(String.self, forKey: .kind) {
+        case "builtin", "builtIn": self = .builtIn(name: try container.decode(String.self, forKey: .name))
+        case "asset": self = .asset(name: try container.decode(String.self, forKey: .name))
+        default: throw DecodingError.dataCorruptedError(forKey: .kind, in: container, debugDescription: "texture source kind must be builtin or asset")
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        switch self {
+        case .builtIn(let name):
+            try container.encode("builtin", forKey: .kind)
+            try container.encode(name, forKey: .name)
+        case .asset(let name):
+            try container.encode("asset", forKey: .kind)
+            try container.encode(name, forKey: .name)
+        }
+    }
+
+    private enum CodingKeys: String, CodingKey { case kind, name }
+}
+
+public struct WidgetTransform: Codable, Equatable, Sendable {
+    public let offsetX: Double?
+    public let offsetY: Double?
+    public let scale: Double?
+    public let rotation: Double?
+
+    public init(offsetX: Double? = nil, offsetY: Double? = nil, scale: Double? = nil, rotation: Double? = nil) {
+        self.offsetX = offsetX
+        self.offsetY = offsetY
+        self.scale = scale
+        self.rotation = rotation
+    }
+}
+
+public enum WidgetAnimationRepeat: Codable, Equatable, Sendable {
+    case count(Int)
+    case forever
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if let count = try? container.decode(Int.self), count >= 0 {
+            self = .count(count)
+            return
+        }
+        if let value = try? container.decode(String.self), value == "forever" {
+            self = .forever
+            return
+        }
+        throw DecodingError.dataCorruptedError(
+            in: container,
+            debugDescription: "animation repeat must be a non-negative integer or forever"
+        )
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        switch self {
+        case .count(let count): try container.encode(count)
+        case .forever: try container.encode("forever")
+        }
+    }
+}
+
+public struct WidgetAnimation: Codable, Equatable, Sendable {
+    public let property: String
+    public let from: Double
+    public let to: Double
+    public let duration: Double
+    public let delay: Double?
+    public let `repeat`: WidgetAnimationRepeat?
+    public let easing: String?
+
+    public init(
+        property: String,
+        from: Double,
+        to: Double,
+        duration: Double,
+        delay: Double? = nil,
+        repeat: WidgetAnimationRepeat? = nil,
+        easing: String? = nil
+    ) {
+        self.property = property
+        self.from = from
+        self.to = to
+        self.duration = duration
+        self.delay = delay
+        self.`repeat` = `repeat`
+        self.easing = easing
+    }
+}
+
+public enum WidgetImageFit: String, Codable, Equatable, Sendable {
+    case contain
+    case cover
+    case fill
+}
+
+public enum WidgetImageRepeat: String, Codable, Equatable, Sendable {
+    case none
+    case x
+    case y
+    case both
+}
+
+public struct WidgetImageOptions: Codable, Equatable, Sendable {
+    public let fit: WidgetImageFit?
+    public let `repeat`: WidgetImageRepeat?
+    public let position: String?
+    public let tint: String?
+
+    public init(
+        fit: WidgetImageFit? = nil,
+        repeat: WidgetImageRepeat? = nil,
+        position: String? = nil,
+        tint: String? = nil
+    ) {
+        self.fit = fit
+        self.`repeat` = `repeat`
+        self.position = position
+        self.tint = tint
+    }
 }
 
 public enum WidgetLength: Codable, Equatable, Sendable {
@@ -368,8 +515,20 @@ public struct WidgetTree: Codable, Equatable, Sendable {
     public let orientation: String?
     public let name: String?
     public let source: ImageSource?
+    public let options: WidgetImageOptions?
     public let action: WidgetAction?
     public let columns: Int?
+    public let gradientStops: [WidgetGradientStop]?
+    public let gradientDirection: String?
+    public let textureSource: WidgetTextureSource?
+    public let transform: WidgetTransform?
+    public let animation: WidgetAnimation?
+    public let imageFit: WidgetImageFit?
+    public let imageRepeat: WidgetImageRepeat?
+    public let imagePosition: String?
+    public let tint: String?
+    public let segments: Int?
+    public let values: [Double]?
 
     public init(
         kind: WidgetNodeKind,
@@ -383,8 +542,20 @@ public struct WidgetTree: Codable, Equatable, Sendable {
         orientation: String? = nil,
         name: String? = nil,
         source: ImageSource? = nil,
+        options: WidgetImageOptions? = nil,
         action: WidgetAction? = nil,
-        columns: Int? = nil
+        columns: Int? = nil,
+        gradientStops: [WidgetGradientStop]? = nil,
+        gradientDirection: String? = nil,
+        textureSource: WidgetTextureSource? = nil,
+        transform: WidgetTransform? = nil,
+        animation: WidgetAnimation? = nil,
+        imageFit: WidgetImageFit? = nil,
+        imageRepeat: WidgetImageRepeat? = nil,
+        imagePosition: String? = nil,
+        tint: String? = nil,
+        segments: Int? = nil,
+        values: [Double]? = nil
     ) {
         self.kind = kind
         self.key = key
@@ -397,12 +568,26 @@ public struct WidgetTree: Codable, Equatable, Sendable {
         self.orientation = orientation
         self.name = name
         self.source = source
+        self.options = options
         self.action = action
         self.columns = columns
+        self.gradientStops = gradientStops
+        self.gradientDirection = gradientDirection
+        self.textureSource = textureSource
+        self.transform = transform
+        self.animation = animation
+        self.imageFit = imageFit
+        self.imageRepeat = imageRepeat
+        self.imagePosition = imagePosition
+        self.tint = tint
+        self.segments = segments
+        self.values = values
     }
 
     private enum CodingKeys: String, CodingKey {
-        case kind, key, children, text, provider, style, value, maximum, orientation, name, source, action, columns
+        case kind, key, children, text, provider, style, value, maximum, orientation, name, source, options, action, columns
+        case stops, direction, textureSource, legacyGradientStops = "gradientStops", transform, animation
+        case imageFit, imageRepeat, imagePosition, tint, segments, values
     }
 
     public init(from decoder: Decoder) throws {
@@ -417,14 +602,69 @@ public struct WidgetTree: Codable, Equatable, Sendable {
         maximum = try container.decodeIfPresent(Double.self, forKey: .maximum)
         orientation = try container.decodeIfPresent(String.self, forKey: .orientation)
         name = try container.decodeIfPresent(String.self, forKey: .name)
-        source = try container.decodeIfPresent(ImageSource.self, forKey: .source)
+        if kind == .texture {
+            source = nil
+            let currentTextureSource = try container.decodeIfPresent(WidgetTextureSource.self, forKey: .source)
+            if let currentTextureSource {
+                textureSource = currentTextureSource
+            } else {
+                textureSource = try container.decodeIfPresent(WidgetTextureSource.self, forKey: .textureSource)
+            }
+        } else {
+            source = try container.decodeIfPresent(ImageSource.self, forKey: .source)
+            textureSource = try container.decodeIfPresent(WidgetTextureSource.self, forKey: .textureSource)
+        }
+        options = try container.decodeIfPresent(WidgetImageOptions.self, forKey: .options)
         action = try container.decodeIfPresent(WidgetAction.self, forKey: .action)
         columns = try container.decodeIfPresent(Int.self, forKey: .columns)
+        gradientStops = try container.decodeIfPresent([WidgetGradientStop].self, forKey: .stops)
+            ?? container.decodeIfPresent([WidgetGradientStop].self, forKey: .legacyGradientStops)
+        gradientDirection = try container.decodeIfPresent(String.self, forKey: .direction)
+        transform = try container.decodeIfPresent(WidgetTransform.self, forKey: .transform)
+        animation = try container.decodeIfPresent(WidgetAnimation.self, forKey: .animation)
+        imageFit = try container.decodeIfPresent(WidgetImageFit.self, forKey: .imageFit)
+        imageRepeat = try container.decodeIfPresent(WidgetImageRepeat.self, forKey: .imageRepeat)
+        imagePosition = try container.decodeIfPresent(String.self, forKey: .imagePosition)
+        tint = try container.decodeIfPresent(String.self, forKey: .tint)
+        segments = try container.decodeIfPresent(Int.self, forKey: .segments)
+        values = try container.decodeIfPresent([Double].self, forKey: .values)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(kind, forKey: .kind)
+        try container.encodeIfPresent(key, forKey: .key)
+        try container.encode(children, forKey: .children)
+        try container.encodeIfPresent(text, forKey: .text)
+        try container.encodeIfPresent(provider, forKey: .provider)
+        try container.encodeIfPresent(style, forKey: .style)
+        try container.encodeIfPresent(value, forKey: .value)
+        try container.encodeIfPresent(maximum, forKey: .maximum)
+        try container.encodeIfPresent(orientation, forKey: .orientation)
+        try container.encodeIfPresent(name, forKey: .name)
+        if kind == .texture {
+            try container.encodeIfPresent(textureSource, forKey: .source)
+        } else {
+            try container.encodeIfPresent(source, forKey: .source)
+        }
+        try container.encodeIfPresent(options, forKey: .options)
+        try container.encodeIfPresent(action, forKey: .action)
+        try container.encodeIfPresent(columns, forKey: .columns)
+        try container.encodeIfPresent(gradientStops, forKey: .stops)
+        try container.encodeIfPresent(gradientDirection, forKey: .direction)
+        try container.encodeIfPresent(transform, forKey: .transform)
+        try container.encodeIfPresent(animation, forKey: .animation)
+        try container.encodeIfPresent(imageFit, forKey: .imageFit)
+        try container.encodeIfPresent(imageRepeat, forKey: .imageRepeat)
+        try container.encodeIfPresent(imagePosition, forKey: .imagePosition)
+        try container.encodeIfPresent(tint, forKey: .tint)
+        try container.encodeIfPresent(segments, forKey: .segments)
+        try container.encodeIfPresent(values, forKey: .values)
     }
 
     public func validationIssues(path: String = "root") -> [WidgetTreeValidationIssue] {
         var issues: [WidgetTreeValidationIssue] = []
-        let isContainer = [.column, .row, .stack, .box, .grid, .button].contains(kind)
+        let isContainer = [.column, .row, .stack, .box, .grid, .button, .gradient, .clip, .transform].contains(kind)
 
         if isContainer && text != nil {
             issues.append(.init(path: path, message: "container nodes cannot define text"))
@@ -446,11 +686,99 @@ public struct WidgetTree: Codable, Equatable, Sendable {
         if let provider, provider.isEmpty {
             issues.append(.init(path: "\(path).provider", message: "provider name must be non-empty"))
         }
-        if kind == .gauge || kind == .progress {
+        if kind == .gauge || kind == .progress || kind == .segmentedProgress {
             if (value == nil && provider == nil) || maximum == nil {
                 issues.append(.init(path: path, message: "\(kind.rawValue) nodes require value or a provider and maximum"))
             } else if let value, let maximum, value < 0 || value > maximum || maximum <= 0 {
                 issues.append(.init(path: "\(path).value", message: "\(kind.rawValue) value must be within a positive maximum"))
+            }
+        }
+        if kind == .segmentedProgress && (segments == nil || segments ?? 0 <= 0) {
+            issues.append(.init(path: "\(path).segments", message: "segmentedProgress nodes require a positive segment count"))
+        }
+        if kind == .spectrum && values == nil && provider == nil {
+            issues.append(.init(path: path, message: "spectrum nodes require values or a provider"))
+        }
+        if kind == .spectrum, let values, values.isEmpty {
+            issues.append(.init(path: "\(path).values", message: "spectrum values must be non-empty"))
+        }
+        if kind == .spectrum, let maximum {
+            if !maximum.isFinite || maximum <= 0 {
+                issues.append(.init(path: "\(path).maximum", message: "spectrum maximum must be a positive finite number"))
+            } else if let values {
+                for (index, value) in values.enumerated() {
+                    if !value.isFinite {
+                        issues.append(.init(path: "\(path).values[\(index)]", message: "spectrum values must be finite numbers"))
+                    } else if value < 0 || value > maximum {
+                        issues.append(.init(path: "\(path).values[\(index)]", message: "spectrum values must be between zero and maximum"))
+                    }
+                }
+            }
+        } else if kind == .spectrum, let values {
+            for (index, value) in values.enumerated() where !value.isFinite {
+                issues.append(.init(path: "\(path).values[\(index)]", message: "spectrum values must be finite numbers"))
+            }
+        }
+        if kind == .gradient {
+            if gradientStops == nil || gradientStops?.isEmpty == true {
+                issues.append(.init(path: "\(path).gradientStops", message: "gradient nodes require at least one color stop"))
+            }
+            if let gradientStops {
+                for (index, stop) in gradientStops.enumerated() {
+                    if stop.color.isEmpty {
+                        issues.append(.init(path: "\(path).gradientStops[\(index)].color", message: "gradient stop color must be non-empty"))
+                    }
+                    if let position = stop.position, !(0...1).contains(position) {
+                        issues.append(.init(path: "\(path).gradientStops[\(index)].position", message: "gradient stop position must be between zero and one"))
+                    }
+                }
+            }
+            if let gradientDirection, gradientDirection.isEmpty {
+                issues.append(.init(path: "\(path).gradientDirection", message: "gradient direction must be non-empty"))
+            }
+        }
+        if kind == .texture {
+            if textureSource == nil {
+                issues.append(.init(path: "\(path).textureSource", message: "texture nodes require an explicit builtIn or asset source"))
+            } else if case .builtIn(let name) = textureSource, name.isEmpty {
+                issues.append(.init(path: "\(path).textureSource.name", message: "texture builtIn name must be non-empty"))
+            } else if case .asset(let name) = textureSource, name.isEmpty {
+                issues.append(.init(path: "\(path).textureSource.name", message: "texture asset name must be non-empty"))
+            }
+        }
+        if kind == .transform {
+            if transform == nil {
+                issues.append(.init(path: "\(path).transform", message: "transform nodes require a transform descriptor"))
+            } else if let transform {
+                let values = [("offsetX", transform.offsetX), ("offsetY", transform.offsetY), ("scale", transform.scale), ("rotation", transform.rotation)]
+                for (name, value) in values {
+                    if let value, !value.isFinite {
+                        issues.append(.init(path: "\(path).transform.\(name)", message: "transform value must be finite"))
+                    }
+                }
+                if let scale = transform.scale, scale.isFinite && scale <= 0 {
+                    issues.append(.init(path: "\(path).transform.scale", message: "transform scale must be greater than zero"))
+                }
+            }
+        }
+        if let animation {
+            if animation.property.isEmpty {
+                issues.append(.init(path: "\(path).animation.property", message: "animation property must be non-empty"))
+            }
+            if !animation.from.isFinite {
+                issues.append(.init(path: "\(path).animation.from", message: "animation from value must be finite"))
+            }
+            if !animation.to.isFinite {
+                issues.append(.init(path: "\(path).animation.to", message: "animation to value must be finite"))
+            }
+            if !animation.duration.isFinite || animation.duration <= 0 {
+                issues.append(.init(path: "\(path).animation.duration", message: "animation duration must be greater than zero"))
+            }
+            if let delay = animation.delay, !delay.isFinite || delay < 0 {
+                issues.append(.init(path: "\(path).animation.delay", message: "animation delay must be zero or greater"))
+            }
+            if let easing = animation.easing, easing.isEmpty {
+                issues.append(.init(path: "\(path).animation.easing", message: "animation easing must be non-empty"))
             }
         }
         if kind == .icon && (name == nil || name?.isEmpty == true) {
@@ -466,6 +794,12 @@ public struct WidgetTree: Codable, Equatable, Sendable {
             } else if case .provider(let name) = source, name.isEmpty {
                 issues.append(.init(path: "\(path).source.name", message: "image provider name must be non-empty"))
             }
+            if let imagePosition, imagePosition.isEmpty {
+                issues.append(.init(path: "\(path).imagePosition", message: "image position must be non-empty"))
+            }
+            if let tint, tint.isEmpty {
+                issues.append(.init(path: "\(path).tint", message: "image tint must be non-empty"))
+            }
         }
         if kind == .divider, orientation != "horizontal" && orientation != "vertical" {
             issues.append(.init(path: "\(path).orientation", message: "divider orientation must be horizontal or vertical"))
@@ -478,8 +812,19 @@ public struct WidgetTree: Codable, Equatable, Sendable {
         }
         if kind != .icon && name != nil { issues.append(.init(path: "\(path).name", message: "only icon nodes may define a name")) }
         if kind != .image && source != nil { issues.append(.init(path: "\(path).source", message: "only image nodes may define a source")) }
+        if kind != .image && options != nil { issues.append(.init(path: "\(path).options", message: "only image nodes may define image options")) }
         if kind != .divider && orientation != nil { issues.append(.init(path: "\(path).orientation", message: "only divider nodes may define an orientation")) }
         if kind != .grid && columns != nil { issues.append(.init(path: "\(path).columns", message: "only grid nodes may define columns")) }
+        if kind != .gradient && gradientStops != nil { issues.append(.init(path: "\(path).gradientStops", message: "only gradient nodes may define gradient stops")) }
+        if kind != .gradient && gradientDirection != nil { issues.append(.init(path: "\(path).gradientDirection", message: "only gradient nodes may define a gradient direction")) }
+        if kind != .texture && textureSource != nil { issues.append(.init(path: "\(path).textureSource", message: "only texture nodes may define a texture source")) }
+        if kind != .transform && transform != nil { issues.append(.init(path: "\(path).transform", message: "only transform nodes may define a transform descriptor")) }
+        if kind != .image && imageFit != nil { issues.append(.init(path: "\(path).imageFit", message: "only image nodes may define image fit")) }
+        if kind != .image && imageRepeat != nil { issues.append(.init(path: "\(path).imageRepeat", message: "only image nodes may define image repeat")) }
+        if kind != .image && imagePosition != nil { issues.append(.init(path: "\(path).imagePosition", message: "only image nodes may define an image position")) }
+        if kind != .image && tint != nil { issues.append(.init(path: "\(path).tint", message: "only image nodes may define a tint")) }
+        if kind != .segmentedProgress && segments != nil { issues.append(.init(path: "\(path).segments", message: "only segmentedProgress nodes may define segments")) }
+        if kind != .spectrum && values != nil { issues.append(.init(path: "\(path).values", message: "only spectrum nodes may define values")) }
         switch action {
         case .invoke(let name, _), .set(let name, _):
             if name.isEmpty { issues.append(.init(path: "\(path).action.name", message: "action name must be non-empty")) }

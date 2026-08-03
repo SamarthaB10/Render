@@ -24,7 +24,7 @@ The main gaps are deliberate: one active widget is the supported local path, the
 
 ## Delivery sequence
 
-The phases below are ordered by dependency. Each phase is marked `Planned` until its acceptance criteria are implemented and verified.
+The phases below are ordered by dependency. Each phase is marked `Planned` until its acceptance criteria are implemented and verified. Individual slices may ship earlier when their complete catalog, runtime, native, test, and documentation surface is ready.
 
 ### Phase F1 — Independent widget runtimes
 
@@ -111,6 +111,8 @@ Initial primitive families:
 - System surfaces: notifications, open-app/open-URL actions, filesystem-backed resources, network-backed resources, calendar, weather, and other capability-gated providers.
 - Styling: semantic themes, gradients, typography scales, icons, borders, shadows, materials, transitions, and reduced-motion behavior.
 
+The visual-overhaul reference slice is intentionally narrower than this full family. Its implemented public contract is a colored `Box` shell, serializable `Gradient`, built-in `Texture("grain")` and `Texture("grid")`, static asset-backed `Image`, host-resolved Lucide/Feather-style `Icon` names, `SegmentedProgress`, finite-value `Spectrum`, and bounded declarative `Animate`. The SDK catalog, validator, native renderer, focused tests, and reference fixture now expose this slice. Static album art in the reference fixture is a placeholder asset; Spotify-specific artwork retrieval is not included.
+
 Do not add a primitive only because it is easy to expose. A primitive is ready when an agent can discover when to use it, compose it with the existing catalog, receive actionable diagnostics, and run it without a hidden web dependency.
 
 ### Phase F5 — Agent-first SDK discovery and generation
@@ -123,6 +125,7 @@ Implementation steps:
 
 - Version the SDK catalog and expose complete JSON schemas for primitives, props, style values, providers, actions, capabilities, permissions, and platform availability.
 - Add examples and fixtures for common widget shapes: system monitor, clock, media player, dashboard, launcher, list, and chart.
+- Maintain the catalog-driven visual-shell fixture covering the implemented shell, texture, icon, segmented progress, spectrum, static asset, and declarative animation contracts without implying a Spotify artwork provider.
 - Add a capability planner that turns a widget request into required primitives, providers, actions, and permission prompts.
 - Improve `check --json` so every failure includes the source path, contract name, invalid value, expected form, and a concrete repair suggestion.
 - Add scaffold templates that generate typed TSX modules and the smallest valid manifest for each widget family.

@@ -5,7 +5,10 @@ import RenderHostCore
 struct WidgetTreeView: View {
     let tree: WidgetTree
     @ObservedObject var providers: ProviderStore
-    var onAction: ((WidgetAction) -> Void)? = nil
+    let workspace: String?
+    let declaredAssets: Set<String>?
+    var onAction: ((WidgetAction) -> Void)?
+    @State private var animationStartDate: Date
 
     private static let timeFormatter: DateFormatter = {
         let formatter = DateFormatter()
@@ -14,13 +17,42 @@ struct WidgetTreeView: View {
         return formatter
     }()
 
+    init(
+        tree: WidgetTree,
+        providers: ProviderStore,
+        workspace: String? = nil,
+        declaredAssets: Set<String>? = nil,
+        onAction: ((WidgetAction) -> Void)? = nil
+    ) {
+        self.tree = tree
+        self.providers = providers
+        self.workspace = workspace
+        self.declaredAssets = declaredAssets
+        self.onAction = onAction
+        _animationStartDate = State(initialValue: Date())
+    }
+
     var body: some View {
-        content
+        if let animation = animation {
+            TimelineView(.animation(minimumInterval: 1.0 / 60.0)) { context in
+                surface(animationValue: animation.value(at: context.date, startDate: animationStartDate))
+            }
+        } else {
+            surface(animationValue: nil)
+        }
+    }
+
+    private func surface(animationValue: Double?) -> AnyView {
+        var result = AnyView(content)
+        result = AnyView(result
             .frame(width: fixedWidth, height: fixedHeight, alignment: frameAlignment)
-            .frame(maxWidth: expandsWidth ? .infinity : nil, maxHeight: expandsHeight ? .infinity : nil, alignment: frameAlignment)
+            .frame(
+                maxWidth: expandsWidth ? .infinity : nil,
+                maxHeight: expandsHeight ? .infinity : nil,
+                alignment: frameAlignment
+            )
             .padding(edgeInsets(tree.style?.padding))
             .padding(edgeInsets(tree.style?.margin))
-            .opacity(tree.style?.opacity ?? 1)
             .foregroundColor(foregroundColor)
             .font(nativeFont)
             .background(backgroundShape)
@@ -31,89 +63,209 @@ struct WidgetTreeView: View {
                 x: CGFloat(tree.style?.shadow?.x ?? 0),
                 y: CGFloat(tree.style?.shadow?.y ?? 0)
             )
+        )
+
+        let transform = WidgetTransformValues(tree: tree)
+        result = AnyView(result
+            .scaleEffect(transform.scale)
+            .rotationEffect(transform.rotation)
+            .offset(x: transform.x, y: transform.y)
+        )
+
+        var opacity = tree.style?.opacity ?? 1
+        if let animationValue, animation?.property == "opacity" {
+            opacity *= animationValue
+        }
+        result = AnyView(result.opacity(opacity))
+
+        if let animationValue, let animation {
+            switch animation.property {
+            case "rotation": result = AnyView(result.rotationEffect(.degrees(animationValue)))
+            case "scale": result = AnyView(result.scaleEffect(animationValue))
+            case "offsetx": result = AnyView(result.offset(x: animationValue))
+            case "offsety": result = AnyView(result.offset(y: animationValue))
+            default: break
+            }
+        }
+
+        if tree.kind.rawValue == "clip" {
+            result = AnyView(result.clipShape(RoundedRectangle(cornerRadius: clipRadius)))
+        }
+        return result
     }
 
     private var content: AnyView {
-        switch tree.kind {
-        case .column:
+        switch tree.kind.rawValue {
+        case "column":
             return AnyView(VStack(alignment: horizontalAlignment, spacing: gap) {
                 ForEach(tree.children.indices, id: \.self) { index in
-                    WidgetTreeView(tree: tree.children[index], providers: providers, onAction: onAction)
+                    child(tree.children[index])
                     if tree.style?.justifyContent == .spaceBetween && index < tree.children.count - 1 {
                         Spacer(minLength: 0)
                     }
                 }
             })
-        case .row:
+        case "row":
             return AnyView(HStack(alignment: verticalAlignment, spacing: gap) {
                 ForEach(tree.children.indices, id: \.self) { index in
-                    WidgetTreeView(tree: tree.children[index], providers: providers, onAction: onAction)
+                    child(tree.children[index])
                     if tree.style?.justifyContent == .spaceBetween && index < tree.children.count - 1 {
                         Spacer(minLength: 0)
                     }
                 }
             })
-        case .stack:
-            return AnyView(ZStack(alignment: frameAlignment) {
-                ForEach(tree.children.indices, id: \.self) { index in
-                    WidgetTreeView(tree: tree.children[index], providers: providers, onAction: onAction)
-                }
-            })
-        case .box:
+        case "stack":
+            return childStack
+        case "box":
             return AnyView(VStack(alignment: horizontalAlignment, spacing: gap) {
                 ForEach(tree.children.indices, id: \.self) { index in
-                    WidgetTreeView(tree: tree.children[index], providers: providers, onAction: onAction)
+                    child(tree.children[index])
                 }
             })
-        case .grid:
+        case "grid":
             return AnyView(LazyVGrid(
                 columns: Array(repeating: GridItem(.flexible(), spacing: gap), count: max(tree.columns ?? 1, 1)),
                 alignment: horizontalAlignment,
                 spacing: gap
             ) {
                 ForEach(tree.children.indices, id: \.self) { index in
-                    WidgetTreeView(tree: tree.children[index], providers: providers, onAction: onAction)
+                    child(tree.children[index])
                 }
             })
-        case .spacer:
+        case "spacer":
             return AnyView(SwiftUI.Spacer(minLength: 0))
-        case .divider:
+        case "divider":
             return AnyView(
                 Rectangle()
                     .fill(foregroundColor ?? Color.secondary)
                     .frame(
-                    width: tree.orientation == "vertical" ? 1 : nil,
-                    height: tree.orientation == "vertical" ? nil : 1
+                        width: tree.orientation == "vertical" ? 1 : nil,
+                        height: tree.orientation == "vertical" ? nil : 1
                     )
             )
-        case .text:
+        case "text":
             return AnyView(Text(displayedText))
-        case .textField:
+        case "textField":
             return AnyView(EditableTextField(initialText: tree.text ?? "", style: tree.style))
-        case .toggle:
+        case "toggle":
             return AnyView(EditableToggle(initialValue: (tree.value ?? 0) == 1))
-        case .shape:
+        case "shape":
             return AnyView(RoundedRectangle(cornerRadius: CGFloat(tree.style?.radius ?? 12)).fill(foregroundColor ?? Color.secondary))
-        case .icon:
+        case "icon":
             return AnyView(iconContent)
-        case .image:
+        case "image":
             return AnyView(imageContent)
-        case .button:
+        case "button":
             return AnyView(Button(action: {
                 guard let action = tree.action else { return }
                 onAction?(action)
             }) {
                 HStack(spacing: gap) {
                     ForEach(tree.children.indices, id: \.self) { index in
-                        WidgetTreeView(tree: tree.children[index], providers: providers, onAction: onAction)
+                        child(tree.children[index])
                     }
                 }
-            }.disabled(tree.action == nil))
-        case .gauge:
+            }
+            .buttonStyle(.plain)
+            .disabled(tree.action == nil))
+        case "gauge":
             return AnyView(gaugeContent)
-        case .progress:
+        case "progress":
             return AnyView(progressContent)
+        case "gradient":
+            return gradientContent
+        case "texture":
+            return textureContent
+        case "clip", "transform":
+            return childStack
+        case "segmentedProgress":
+            return segmentedProgressContent
+        case "spectrum":
+            return spectrumContent
+        default:
+            return AnyView(Text("Node unavailable").accessibilityLabel("Node unavailable"))
         }
+    }
+
+    private func child(_ tree: WidgetTree) -> some View {
+        WidgetTreeView(
+            tree: tree,
+            providers: providers,
+            workspace: workspace,
+            declaredAssets: declaredAssets,
+            onAction: onAction
+        )
+    }
+
+    private var childStack: AnyView {
+        AnyView(ZStack(alignment: frameAlignment) {
+            ForEach(tree.children.indices, id: \.self) { index in
+                child(tree.children[index])
+            }
+        })
+    }
+
+    private var gradientContent: AnyView {
+        guard let descriptor = WidgetGradientDescriptor(tree: tree) else {
+            return AnyView(ZStack { Color.clear; childStack })
+        }
+        let stops = descriptor.stops.compactMap { stop -> Gradient.Stop? in
+            guard let color = nativeColor(stop.color) else { return nil }
+            return Gradient.Stop(color: color, location: stop.location)
+        }
+        guard !stops.isEmpty else { return AnyView(ZStack { Color.clear; childStack }) }
+        let points = gradientPoints(descriptor.direction)
+        return AnyView(ZStack {
+            LinearGradient(gradient: Gradient(stops: stops), startPoint: points.start, endPoint: points.end)
+            childStack
+        })
+    }
+
+    private var textureContent: AnyView {
+        guard let descriptor = WidgetTextureDescriptor(tree: tree) else {
+            return AnyView(ZStack { Text("Texture unavailable").accessibilityLabel("Texture unavailable"); childStack })
+        }
+        switch descriptor.kind {
+        case .grain, .grid:
+            return AnyView(ZStack {
+                WidgetTexturePattern(kind: descriptor.kind, color: foregroundColor ?? .primary)
+                childStack
+            })
+        case .asset(let name):
+            guard let image = loadImage(named: name) else {
+                return AnyView(ZStack { Text("Texture unavailable").accessibilityLabel("Texture unavailable"); childStack })
+            }
+            return AnyView(ZStack {
+                WidgetRepeatedImage(image: image, repeatMode: .both, tint: foregroundColor)
+                    .accessibilityLabel(name)
+                childStack
+            })
+        }
+    }
+
+    private var segmentedProgressContent: AnyView {
+        if let state = providerValue?.state, state != .available {
+            return AnyView(Text(state == .loading ? "Loading…" : "Unavailable"))
+        }
+        let maximum = max(tree.maximum ?? 1, 0.0001)
+        let value = min(max(providerValue?.value ?? tree.value ?? 0, 0), maximum)
+        let segments = max(tree.segments ?? 5, 1)
+        return AnyView(WidgetSegmentedProgress(
+            value: value,
+            maximum: maximum,
+            segments: segments,
+            color: foregroundColor ?? .accentColor
+        ))
+    }
+
+    private var spectrumContent: AnyView {
+        if let state = providerValue?.state, state != .available {
+            return AnyView(Text(state == .loading ? "Loading…" : "Unavailable"))
+        }
+        let values = tree.values ?? []
+        guard !values.isEmpty else { return AnyView(Text("Spectrum unavailable").accessibilityLabel("Spectrum unavailable")) }
+        let maximum = max(tree.maximum ?? 1, 0.0001)
+        return AnyView(WidgetSpectrumBars(values: values, maximum: maximum, color: foregroundColor ?? .accentColor))
     }
 
     private var gaugeContent: AnyView {
@@ -143,20 +295,40 @@ struct WidgetTreeView: View {
     }
 
     private var iconContent: AnyView {
-        guard let name = tree.name, let image = NSImage(systemSymbolName: name, accessibilityDescription: name) else {
-            return AnyView(Text("Icon unavailable"))
+        guard let name = tree.name else {
+            return AnyView(Text("Icon unavailable").accessibilityLabel("Icon unavailable"))
+        }
+        if LucideIconView.supports(name) {
+            return AnyView(LucideIconView(name: name, color: foregroundColor ?? .primary))
+        }
+        guard let image = NSImage(systemSymbolName: name, accessibilityDescription: name) else {
+            return AnyView(Text("Icon unavailable").accessibilityLabel("Icon unavailable"))
         }
         return AnyView(Image(nsImage: image).renderingMode(.template).accessibilityLabel(name))
     }
 
     private var imageContent: AnyView {
-        guard let source = tree.source else { return AnyView(Text("Image unavailable")) }
+        guard let source = tree.source else { return AnyView(Text("Image unavailable").accessibilityLabel("Image unavailable")) }
         switch source {
         case .asset(let name):
-            guard let image = NSImage(named: name) else { return AnyView(Text("Image unavailable")) }
-            return AnyView(Image(nsImage: image).resizable().scaledToFit().accessibilityLabel(name))
+            guard let image = loadImage(named: name) else {
+                return AnyView(Text("Image unavailable").accessibilityLabel("Image unavailable"))
+            }
+            let options = WidgetImageOptions(tree: tree, color: nativeColor)
+            let imageAlignment = alignment(for: options.position)
+            if options.repeatMode == .none {
+                return AnyView(WidgetFittedImage(
+                    image: image,
+                    fit: options.fit,
+                    alignment: imageAlignment,
+                    tint: options.tint
+                ).accessibilityLabel(name))
+            }
+            return AnyView(WidgetRepeatedImage(image: image, repeatMode: options.repeatMode, tint: options.tint)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: imageAlignment)
+                .accessibilityLabel(name))
         case .url, .provider:
-            return AnyView(Text("Image unavailable"))
+            return AnyView(Text("Image unavailable").accessibilityLabel("Image unavailable"))
         }
     }
 
@@ -182,7 +354,7 @@ struct WidgetTreeView: View {
     private var fixedHeight: CGFloat? { points(tree.style?.height) }
     private var expandsWidth: Bool { tree.style?.width == .fill }
     private var expandsHeight: Bool { tree.style?.height == .fill }
-    private var gap: CGFloat { CGFloat(tree.style?.gap ?? ((tree.kind == .column || tree.kind == .row) ? 8 : 0)) }
+    private var gap: CGFloat { CGFloat(tree.style?.gap ?? ((tree.kind.rawValue == "column" || tree.kind.rawValue == "row") ? 8 : 0)) }
 
     private var horizontalAlignment: HorizontalAlignment {
         switch tree.style?.alignItems {
@@ -314,6 +486,48 @@ struct WidgetTreeView: View {
         let blue = Double((number >> (expanded.count == 8 ? 8 : 0)) & 0xff) / 255
         let alpha = expanded.count == 8 ? Double(number & 0xff) / 255 : 1
         return Color(red: red, green: green, blue: blue, opacity: alpha)
+    }
+
+    private var animation: WidgetNativeAnimation? { WidgetNativeAnimation(tree: tree) }
+
+    private var clipRadius: CGFloat {
+        CGFloat(tree.style?.radius ?? 0)
+    }
+
+    private func gradientPoints(_ direction: String) -> (start: UnitPoint, end: UnitPoint) {
+        let value = direction.lowercased().replacingOccurrences(of: "-", with: "")
+        switch value {
+        case "leftRight", "leftright": return (.leading, .trailing)
+        case "rightLeft", "rightleft": return (.trailing, .leading)
+        case "bottomTop", "bottomtop": return (.bottom, .top)
+        case "topleft", "topleading": return (.topLeading, .bottomTrailing)
+        case "topright", "toptrailing": return (.topTrailing, .bottomLeading)
+        case "bottomleft", "bottomleading": return (.bottomLeading, .topTrailing)
+        case "bottomright", "bottomtrailing": return (.bottomTrailing, .topLeading)
+        default: return (.top, .bottom)
+        }
+    }
+
+    private func alignment(for position: String) -> Alignment {
+        let value = position.lowercased().replacingOccurrences(of: "-", with: "")
+        switch value {
+        case "topleft", "topleading": return .topLeading
+        case "topright", "toptrailing": return .topTrailing
+        case "bottomleft", "bottomleading": return .bottomLeading
+        case "bottomright", "bottomtrailing": return .bottomTrailing
+        case "top": return .top
+        case "bottom": return .bottom
+        case "left", "leading": return .leading
+        case "right", "trailing": return .trailing
+        default: return .center
+        }
+    }
+
+    private func loadImage(named name: String) -> NSImage? {
+        return WidgetAssetResolver(
+            workspace: workspace.map { URL(fileURLWithPath: $0) },
+            declaredAssets: declaredAssets
+        ).image(named: name)
     }
 }
 

@@ -96,7 +96,10 @@ test("Phase 9 catalog is exact and exported runtime primitives are discoverable"
   const sdk = await import("../packages/sdk/src/index.ts");
   const catalog = await import("../packages/sdk/src/catalog.ts");
   const names = catalog.listSdkCatalog().map((item) => item.name);
-  const primitives = ["Box", "Spacer", "Divider", "Icon", "Image", "Button", "TextField", "Toggle", "Progress", "Grid"];
+  const primitives = [
+    "Box", "Spacer", "Divider", "Icon", "Image", "Gradient", "Texture", "Clip", "Transform",
+    "SegmentedProgress", "Spectrum", "Button", "TextField", "Toggle", "Progress", "Grid"
+  ];
 
   for (const name of primitives) {
     assert.equal(typeof sdk[name], "function", `${name} must be exported`);
@@ -105,11 +108,12 @@ test("Phase 9 catalog is exact and exported runtime primitives are discoverable"
     assert.equal(item.importPath, "@render/sdk");
     assert.ok(item.signature.includes("WidgetNode"));
     assert.ok(item.example.length > 0);
-    assert.ok(item.notes.some((note) => note.includes("native renderer")));
+    assert.ok(item.notes.some((note) => /native (renderer|host)/i.test(note)));
   }
 
-  assert.deepEqual(names.slice(1, 17), [
-    "Column", "Row", "Stack", "Box", "Spacer", "Divider", "Text", "TextField", "Toggle", "Shape", "Icon", "Image", "Button", "Gauge", "Progress", "Grid"
+  assert.deepEqual(names.slice(1, 24), [
+    "Column", "Row", "Stack", "Box", "Spacer", "Divider", "Text", "TextField", "Toggle", "Shape", "Icon", "Image",
+    "Gradient", "Texture", "Clip", "Transform", "SegmentedProgress", "Spectrum", "Animate", "Button", "Gauge", "Progress", "Grid"
   ]);
   assert.equal(catalog.describeSdkCatalog("WidgetStyle").status, "implemented");
   assert.equal(catalog.describeSdkCatalog("WidgetAction").status, "implemented");

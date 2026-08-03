@@ -274,8 +274,9 @@ node bin/render.mjs sdk describe system.memory --json
 The catalog currently exposes these implemented families:
 
 - Layout: `Column`, `Row`, `Stack`, `Box`, `Spacer`, `Divider`, `Grid`.
-- Content and visuals: `Text`, editable native `TextField`, native `Toggle`, `Shape`, `Icon`, native asset `Image`.
-- Controls and progress: `Button`, `Gauge`, `Progress`.
+- Content and visuals: `Text`, editable native `TextField`, native `Toggle`, `Shape`, `Icon`, native asset `Image`, `Gradient`, `Texture`, `Clip`, and `Transform`.
+- Controls and progress: `Button`, `Gauge`, `Progress`, `SegmentedProgress`, and `Spectrum`.
+- Motion: host-owned declarative `Animate` for bounded opacity, transform, and offset changes.
 - Data and lifecycle: `useProvider`, typed provider states, `widget.refresh`, `widget.reload`, and the worker protocol types.
 - Styles: typed color, sizing, spacing, alignment, radius, border, shadow, font, opacity, and semantic tokens.
 
@@ -290,6 +291,21 @@ The catalog also marks contract-only and planned items. Current limitations are 
 - `Toggle` supports direct task completion toggles during the current widget session; shared state and persistence remain planned.
 
 If the catalog cannot express a requested feature, the agent should report the missing contract instead of generating a fake integration or falling back to web technology.
+
+## Visual SDK direction
+
+The visual overhaul extends the same catalog-driven contract. A visual widget must use the exact entries exposed by `render sdk list --json` and `render sdk describe <name> --json`; the fixture at [`examples/visual-shell/widget.tsx`](examples/visual-shell/widget.tsx) exercises the implemented native visual slice.
+
+The implemented visual slice is deliberately small and native:
+
+- `Box` remains the colored shell; `Gradient` supplies a serializable linear gradient and `Texture({ kind: "builtin", name: "grain" | "grid" })` supplies a built-in, host-rendered texture. These are not CSS, image URLs, or web backgrounds.
+- `Image({ kind: "asset", name: "album-art-placeholder.svg" })` is a static bundled asset reference. It is a visual placeholder only; Spotify artwork retrieval and media-specific artwork providers are not part of this fixture.
+- Workspace-backed image files are listed in the manifest's optional `assets` field and are resolved inside the workspace asset directory; built-in grain/grid textures require no file.
+- `Icon("play")`, `Icon("pause")`, and similar names use host-resolved Lucide/Feather-style names for the supported visual subset. Widgets do not bundle icon font files or SVG markup.
+- `SegmentedProgress` renders a bounded progress value as discrete segments, while `Spectrum` accepts a finite array of numeric values for a compact visualizer.
+- `Animate` accepts a serializable property, range, duration, easing, and repeat policy. The host owns the clock; it does not accept callbacks, timers, CSS keyframes, or arbitrary JavaScript.
+
+Icon names derived from Lucide or Feather require the project’s attribution and license notice in the SDK/catalog documentation and in any redistributed fixture bundle. The fixture includes the notice in [`examples/visual-shell/NOTICE.md`](examples/visual-shell/NOTICE.md). Album-art files must likewise carry their source and license; when no binary asset is available, use the checked-in placeholder and do not imply that it is licensed artwork.
 
 ## Useful commands
 

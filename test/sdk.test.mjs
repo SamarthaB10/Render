@@ -59,6 +59,13 @@ test("SDK catalog exposes canonical primitives, providers, styles, and capabilit
     "Shape",
     "Icon",
     "Image",
+    "Gradient",
+    "Texture",
+    "Clip",
+    "Transform",
+    "SegmentedProgress",
+    "Spectrum",
+    "Animate",
     "Button",
     "Gauge",
     "Progress",
@@ -79,6 +86,11 @@ test("SDK catalog exposes canonical primitives, providers, styles, and capabilit
     "WidgetAction",
     "WidgetActionName",
     "ImageSource",
+    "WidgetImageOptions",
+    "WidgetGradientStop",
+    "WidgetTextureSource",
+    "WidgetTransform",
+    "WidgetAnimation",
     "WidgetNode",
     "WidgetNodeKind",
     "WidgetManifest",
@@ -130,6 +142,7 @@ test("SDK catalog gives agents exact contracts and canonical examples", async ()
     'anchor: { corner: "top-left" | "top-right" | "bottom-left" | "bottom-right"; offset: { x: number; y: number } }',
     'capabilities: Array<"network" | "filesystem.read" | "filesystem.write">',
     "subscribe: string[]",
+    "assets?: string[]",
     "accounts?: WidgetAccountRequirement[]"
   ]);
   assert.match(catalog.CANONICAL_WIDGET_SOURCE, /from "@render\/sdk"/);
@@ -162,7 +175,7 @@ test("CLI exposes SDK catalog list and describe operations", () => {
 
   assert.equal(listed.ok, true);
   assert.equal(listed.operation, "sdk.list");
-  assert.equal(listed.items.length, 59);
+  assert.equal(listed.items.length, 71);
   assert.equal(listed.sdkVersion, "0.1.0");
   assert.deepEqual(described.item, {
     name: "system.cpu",

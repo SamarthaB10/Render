@@ -35,7 +35,20 @@ Each described item includes its exact `importPath`, TypeScript `signature`, can
 
 If the request needs something missing—such as a provider, action, or connector whose catalog status is `planned` or `contract-only`—report the exact catalog item and status, explain what host contract is absent, and stop that part of the widget. Do not substitute fake data, a browser fallback, a private native API, or an invented Render API. If the supported design needs network, filesystem, app, account, or other machine access, declare the narrowest capability and ask the user for permission before proceeding.
 
-For the Phase 9 surface, the roadmap families are layout, typography/content, visuals, controls/actions, collections/data, and providers/integrations. The shipped first slice is `Box`, `Spacer`, `Divider`, `Icon`, `Image`, `Button`, `TextField`, `Toggle`, `Progress`, `Grid`, typed actions/provider states, and the JSX runtime. `TextField` and `Toggle` provide current-session native editing and completion controls; persistent widget-owned state and add/remove collection controls are not yet part of the contract. Treat any item as unavailable until `render sdk list --json` and `render sdk describe ... --json` expose its exact contract and support status.
+For the Phase 9 surface, the roadmap families are layout, typography/content, visuals, controls/actions, collections/data, and providers/integrations. The shipped first slice is `Box`, `Spacer`, `Divider`, `Icon`, `Image`, `Button`, `TextField`, `Toggle`, `Progress`, `Grid`, `Gradient`, `Texture`, `Clip`, `Transform`, `SegmentedProgress`, `Spectrum`, `Animate`, typed actions/provider states, and the JSX runtime. `TextField` and `Toggle` provide current-session native editing and completion controls; persistent widget-owned state and add/remove collection controls are not yet part of the contract. Treat any item as unavailable until `render sdk list --json` and `render sdk describe ... --json` expose its exact contract and support status.
+
+### Visual widgets
+
+The visual-shell fixture is a native visual reference, not a Spotify player. Agents may use these implemented visual APIs, but must not substitute CSS, webviews, custom SVG, icon fonts, remote artwork, or fake provider data:
+
+- `Box` + `Gradient` + `Texture({ kind: "builtin", name: "grain" | "grid" })` for a colored native shell.
+- `Image({ kind: "asset", name: "..." })` for a static bundled artwork reference. Spotify artwork retrieval remains a separate provider contract.
+- Declare real workspace files in the manifest `assets` list; built-in grain/grid textures do not need an asset file.
+- `Icon("<cataloged-lucide-or-feather-name>")` for host-resolved icons. Keep the required Lucide/Feather attribution and license notice with redistributed fixtures.
+- `SegmentedProgress` for bounded discrete progress and `Spectrum` for a finite array of numeric bars.
+- `Animate` for a serializable property transition with explicit duration, easing, and repeat policy; no callbacks or timers.
+
+Use [`examples/visual-shell/widget.tsx`](../../examples/visual-shell/widget.tsx) as the reference composition and [`examples/visual-shell/NOTICE.md`](../../examples/visual-shell/NOTICE.md) as the licensing reminder. Verify the exact signatures with `render sdk describe <name> --json`.
 
 ### 2. Create or identify an isolated workspace
 
@@ -104,6 +117,8 @@ render check --workspace "$WORKSPACE" --json
 
 The JSON result is the machine-readable contract. Resolve every diagnostic before invoking the native host.
 
+For a visual widget, this check is mandatory: validate the real workspace against the active catalog and stop if a planned visual item is not implemented. Never report a visual fixture as running merely because its source parses.
+
 ### 5. Run and confirm the live state
 
 ```bash
@@ -140,6 +155,8 @@ render rollback --workspace "$WORKSPACE" --version <snapshot-version>
 ```
 
 Report the resulting active and last-known-good versions to the user.
+
+For visual widgets, the acceptance loop is `check --json`, `run`, visible verification, then an intentional failed edit followed by last-known-good recovery. Keep the prior visible version active while a visual candidate is invalid or unavailable, and record any missing visual catalog entry as the repair path.
 
 ## North-star behavior
 

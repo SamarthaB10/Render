@@ -12,7 +12,11 @@ let package = Package(
     ],
     targets: [
         .target(name: "RenderHostCore"),
-        .executableTarget(name: "RenderHost", dependencies: ["RenderHostCore"]),
+        .executableTarget(
+            name: "RenderHost",
+            dependencies: ["RenderHostCore"],
+            resources: [.copy("LUCIDE-LICENSE.txt")]
+        ),
         .testTarget(name: "RenderHostCoreTests", dependencies: ["RenderHostCore"])
     ]
 )

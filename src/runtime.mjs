@@ -483,7 +483,8 @@ function validateRuntimeTree(node, pathName, subscriptions, capabilities, accoun
   }
   const kinds = new Set([
     "column", "row", "stack", "box", "spacer", "divider", "text", "textField", "toggle", "shape",
-    "icon", "image", "button", "gauge", "progress", "grid"
+    "icon", "image", "button", "gauge", "progress", "grid", "gradient", "texture", "clip", "transform",
+    "segmentedProgress", "spectrum"
   ]);
   if (!kinds.has(node.kind)) {
     throw new Error(`${pathName}.kind: unknown widget primitive`);
@@ -491,7 +492,7 @@ function validateRuntimeTree(node, pathName, subscriptions, capabilities, accoun
   if (node.key !== undefined && !(["string", "number"].includes(typeof node.key))) {
     throw new Error(`${pathName}.key: keys must be strings or numbers`);
   }
-  const containers = new Set(["column", "row", "stack", "box", "grid", "button"]);
+  const containers = new Set(["column", "row", "stack", "box", "grid", "button", "gradient", "clip", "transform"]);
   if (containers.has(node.kind) && node.text !== undefined) {
     throw new Error(`${pathName}.text: container nodes cannot define text`);
   }
@@ -541,18 +542,136 @@ function validateRuntimeTree(node, pathName, subscriptions, capabilities, accoun
     if (typeof sourceValue !== "string" || sourceValue.length === 0) throw new Error(`${pathName}.source: image source value must be non-empty`);
     if (node.source.kind === "url" && !capabilities.has("network")) throw new Error(`${pathName}.source: URL images require the manifest capability \"network\" and user permission`);
     if (node.source.kind !== "asset") throw new Error(`${pathName}.source.kind: ${node.source.kind} image sources are deferred until their capability-backed provider ships; use an asset source`);
+    validateImageOptions(node.options, `${pathName}.options`);
   }
+  if (node.kind === "gradient") validateGradient(node, pathName);
+  if (node.kind === "texture") validateTexture(node, pathName);
+  if (node.kind === "transform") validateTransform(node.transform, `${pathName}.transform`);
   if (node.kind === "divider" && node.orientation !== "horizontal" && node.orientation !== "vertical") {
     throw new Error(`${pathName}.orientation: divider orientation must be horizontal or vertical`);
   }
   if (node.kind === "grid" && (!Number.isInteger(node.columns) || node.columns <= 0)) {
     throw new Error(`${pathName}.columns: grid columns must be a positive integer`);
   }
+  if (node.kind === "segmentedProgress") validateSegmentedProgress(node, pathName, subscriptions, capabilities, accounts);
+  if (node.kind === "spectrum") validateSpectrum(node, pathName);
   if (node.action !== undefined) {
     if (node.kind !== "button") throw new Error(`${pathName}.action: only button nodes may define an action`);
     validateAction(node.action, `${pathName}.action`, accounts);
   }
+  if (node.animation !== undefined) validateAnimation(node.animation, `${pathName}.animation`);
   validateStyle(node.style, `${pathName}.style`);
+}
+
+function validateGradient(node, pathName) {
+  if (!Array.isArray(node.stops) || node.stops.length < 2) {
+    throw new Error(`${pathName}.stops: gradient requires at least two color stops`);
+  }
+  let previousPosition = -Infinity;
+  node.stops.forEach((stop, index) => {
+    const stopPath = `${pathName}.stops[${index}]`;
+    if (!stop || typeof stop !== "object" || Array.isArray(stop)) throw new Error(`${stopPath}: gradient stop must be an object`);
+    validateKeys(stop, ["color", "position"], stopPath);
+    if (typeof stop.color !== "string" || stop.color.length === 0) throw new Error(`${stopPath}.color: gradient stop color must be a non-empty string`);
+    if (typeof stop.position !== "number" || !Number.isFinite(stop.position) || stop.position < 0 || stop.position > 1) {
+      throw new Error(`${stopPath}.position: gradient stop position must be a finite number between zero and one`);
+    }
+    if (stop.position < previousPosition) throw new Error(`${stopPath}.position: gradient stops must be ordered by position`);
+    previousPosition = stop.position;
+  });
+}
+
+function validateTexture(node, pathName) {
+  const sourcePath = `${pathName}.source`;
+  const source = node.source;
+  if (!source || typeof source !== "object" || Array.isArray(source)) throw new Error(`${sourcePath}: texture nodes require a source`);
+  validateKeys(source, ["kind", "name"], sourcePath);
+  if (source.kind !== "builtin" && source.kind !== "asset") throw new Error(`${sourcePath}.kind: texture source kind must be builtin or asset`);
+  if (typeof source.name !== "string" || source.name.length === 0) throw new Error(`${sourcePath}.name: texture source name must be non-empty`);
+  if (source.kind === "builtin" && source.name !== "grain" && source.name !== "grid") {
+    throw new Error(`${sourcePath}.name: built-in texture name must be grain or grid`);
+  }
+}
+
+function validateTransform(transform, pathName) {
+  if (!transform || typeof transform !== "object" || Array.isArray(transform)) throw new Error(`${pathName}: transform must be an object`);
+  validateKeys(transform, ["rotation", "scale", "offsetX", "offsetY"], pathName);
+  for (const key of ["rotation", "offsetX", "offsetY"]) {
+    if (transform[key] !== undefined && (typeof transform[key] !== "number" || !Number.isFinite(transform[key]))) {
+      throw new Error(`${pathName}.${key}: transform value must be a finite number`);
+    }
+  }
+  if (transform.scale !== undefined && (typeof transform.scale !== "number" || !Number.isFinite(transform.scale) || transform.scale <= 0)) {
+    throw new Error(`${pathName}.scale: transform scale must be a finite number greater than zero`);
+  }
+}
+
+function validateSegmentedProgress(node, pathName, subscriptions, capabilities, accounts) {
+  if (!Number.isInteger(node.segments) || node.segments <= 0) throw new Error(`${pathName}.segments: segmented progress segments must be a positive integer`);
+  validateBoundedValueNode(node, pathName, "segmentedProgress");
+  if (node.provider !== undefined) validateProviderNode(node, pathName, subscriptions, capabilities, accounts);
+}
+
+function validateSpectrum(node, pathName) {
+  if (!Array.isArray(node.values) || node.values.length === 0) throw new Error(`${pathName}.values: spectrum requires a non-empty array of values`);
+  if (typeof node.maximum !== "number" || !Number.isFinite(node.maximum) || node.maximum <= 0) throw new Error(`${pathName}.maximum: spectrum maximum must be a positive finite number`);
+  node.values.forEach((value, index) => {
+    if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > node.maximum) {
+      throw new Error(`${pathName}.values[${index}]: spectrum value must be between zero and maximum`);
+    }
+  });
+}
+
+function validateBoundedValueNode(node, pathName, kind) {
+  const hasProvider = typeof node.provider === "string" && node.provider.length > 0;
+  const hasValue = typeof node.value === "number";
+  if ((!hasProvider && !hasValue) || typeof node.maximum !== "number" || !Number.isFinite(node.maximum) || node.maximum <= 0) {
+    throw new Error(`${pathName}: ${kind} nodes require a provider or value and a positive maximum`);
+  }
+  if (hasValue && (!Number.isFinite(node.value) || node.value < 0 || node.value > node.maximum)) {
+    throw new Error(`${pathName}.value: ${kind} value must be between zero and maximum`);
+  }
+}
+
+function validateProviderNode(node, pathName, subscriptions, capabilities, accounts) {
+  if (node.provider !== undefined && !subscriptions.has(node.provider)) {
+    throw new Error(`${pathName}.provider: ${node.provider} must be listed in manifest.subscribe`);
+  }
+  if (node.provider !== undefined && !SUPPORTED_PROVIDERS.has(node.provider)) {
+    throw new Error(`${pathName}.provider: unsupported provider '${node.provider}'; use render sdk list to choose a host provider`);
+  }
+  if (node.provider?.startsWith("spotify.") && !accounts.has("spotify")) {
+    throw new Error(`${pathName}.provider: ${node.provider} requires a spotify account requirement; add manifest.accounts and ask the user for permission`);
+  }
+}
+
+function validateImageOptions(options, pathName) {
+  if (options === undefined) return;
+  if (!options || typeof options !== "object" || Array.isArray(options)) throw new Error(`${pathName}: image options must be an object`);
+  validateKeys(options, ["fit", "repeat", "position", "tint"], pathName);
+  if (options.fit !== undefined && !new Set(["contain", "cover", "fill"]).has(options.fit)) throw new Error(`${pathName}.fit: image fit must be contain, cover, or fill`);
+  if (options.repeat !== undefined && !new Set(["none", "x", "y", "both"]).has(options.repeat)) throw new Error(`${pathName}.repeat: image repeat must be none, x, y, or both`);
+  if (options.position !== undefined && !new Set(["leading", "center", "trailing"]).has(options.position)) throw new Error(`${pathName}.position: image position must be leading, center, or trailing`);
+  if (options.tint !== undefined && (typeof options.tint !== "string" || options.tint.length === 0)) throw new Error(`${pathName}.tint: image tint must be a non-empty color string`);
+}
+
+function validateAnimation(animation, pathName) {
+  if (!animation || typeof animation !== "object" || Array.isArray(animation)) throw new Error(`${pathName}: animation must be an object`);
+  validateKeys(animation, ["property", "from", "to", "duration", "delay", "repeat", "easing"], pathName);
+  if (!new Set(["opacity", "rotation", "scale", "offsetX", "offsetY"]).has(animation.property)) throw new Error(`${pathName}.property: animation property must be opacity, rotation, scale, offsetX, or offsetY`);
+  for (const key of ["from", "to"]) {
+    if (typeof animation[key] !== "number" || !Number.isFinite(animation[key])) throw new Error(`${pathName}.${key}: animation values must be finite numbers`);
+  }
+  if (typeof animation.duration !== "number" || !Number.isFinite(animation.duration) || animation.duration <= 0) throw new Error(`${pathName}.duration: animation duration must be a finite number greater than zero`);
+  if (animation.delay !== undefined && (typeof animation.delay !== "number" || !Number.isFinite(animation.delay) || animation.delay < 0)) throw new Error(`${pathName}.delay: animation delay must be a finite non-negative number`);
+  if (animation.repeat !== undefined && animation.repeat !== "forever" && (!Number.isInteger(animation.repeat) || animation.repeat < 0)) throw new Error(`${pathName}.repeat: animation repeat must be a non-negative integer or forever`);
+  if (animation.easing !== undefined && !new Set(["linear", "ease-in", "ease-out", "ease-in-out"]).has(animation.easing)) throw new Error(`${pathName}.easing: animation easing must be linear, ease-in, ease-out, or ease-in-out`);
+  if (animation.property === "opacity") {
+    for (const key of ["from", "to"]) if (animation[key] < 0 || animation[key] > 1) throw new Error(`${pathName}.${key}: opacity animation values must be between zero and one`);
+  }
+  if (animation.property === "scale") {
+    for (const key of ["from", "to"]) if (animation[key] <= 0) throw new Error(`${pathName}.${key}: scale animation values must be greater than zero`);
+  }
 }
 
 function validateAction(action, pathName, accounts) {
@@ -646,6 +765,10 @@ function validateStyle(style, pathName) {
 
 function validateObjectKeys(value, allowed, pathName) {
   for (const key of Object.keys(value)) if (!allowed.includes(key)) throw new Error(`${pathName}.${key}: unknown style property`);
+}
+
+function validateKeys(value, allowed, pathName) {
+  for (const key of Object.keys(value)) if (!allowed.includes(key)) throw new Error(`${pathName}.${key}: unknown property`);
 }
 
 function validateSpacing(value, pathName) {

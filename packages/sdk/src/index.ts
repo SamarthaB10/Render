@@ -14,7 +14,13 @@ export type WidgetNodeKind =
   | "button"
   | "gauge"
   | "progress"
-  | "grid";
+  | "grid"
+  | "gradient"
+  | "texture"
+  | "clip"
+  | "transform"
+  | "segmentedProgress"
+  | "spectrum";
 
 export { describeSdkCatalog, listSdkCatalog, SDK_PACKAGE, SDK_VERSION } from "./catalog.ts";
 export type { SdkCatalogItem, SdkCatalogKind } from "./catalog.ts";
@@ -137,10 +143,50 @@ export type WidgetAction =
   | { type: "invoke"; name: WidgetActionName; payload?: WidgetJsonValue }
   | { type: "set"; name: WidgetActionName; value: WidgetJsonValue };
 
+export type WidgetImageFit = "contain" | "cover" | "fill";
+export type WidgetImageRepeat = "none" | "x" | "y" | "both";
+export type WidgetImagePosition = "leading" | "center" | "trailing";
+
+export interface WidgetImageOptions {
+  fit?: WidgetImageFit;
+  repeat?: WidgetImageRepeat;
+  position?: WidgetImagePosition;
+  tint?: string;
+}
+
 export type ImageSource =
   | { kind: "asset"; name: string }
   | { kind: "url"; url: string }
   | { kind: "provider"; name: string };
+
+export interface WidgetGradientStop {
+  color: string;
+  position: number;
+}
+
+export type WidgetTextureSource =
+  | { kind: "builtin"; name: "grain" | "grid" }
+  | { kind: "asset"; name: string };
+
+export interface WidgetTransform {
+  rotation?: number;
+  scale?: number;
+  offsetX?: number;
+  offsetY?: number;
+}
+
+export type WidgetAnimationProperty = "opacity" | "rotation" | "scale" | "offsetX" | "offsetY";
+export type WidgetAnimationEasing = "linear" | "ease-in" | "ease-out" | "ease-in-out";
+
+export interface WidgetAnimation {
+  property: WidgetAnimationProperty;
+  from: number;
+  to: number;
+  duration: number;
+  delay?: number;
+  repeat?: number | "forever";
+  easing?: WidgetAnimationEasing;
+}
 
 export interface WidgetNode {
   kind: WidgetNodeKind;
@@ -153,7 +199,13 @@ export interface WidgetNode {
   maximum?: number;
   orientation?: "horizontal" | "vertical";
   name?: string;
-  source?: ImageSource;
+  source?: ImageSource | WidgetTextureSource;
+  options?: WidgetImageOptions;
+  stops?: WidgetGradientStop[];
+  transform?: WidgetTransform;
+  segments?: number;
+  values?: number[];
+  animation?: WidgetAnimation;
   action?: WidgetAction;
   columns?: number;
 }
@@ -201,6 +253,11 @@ export interface IconProps extends WidgetComponentProps {
 
 export interface ImageProps extends WidgetComponentProps {
   source: string | ImageSource;
+  options?: WidgetImageOptions;
+  fit?: WidgetImageFit;
+  repeat?: WidgetImageRepeat;
+  position?: WidgetImagePosition;
+  tint?: string;
 }
 
 export interface ButtonProps extends WidgetComponentProps {
@@ -217,6 +274,36 @@ export interface GridProps extends WidgetComponentProps {
   columns: number;
 }
 
+export interface GradientProps extends WidgetComponentProps {
+  stops: WidgetGradientStop[];
+}
+
+export interface TextureProps extends WidgetComponentProps {
+  source: WidgetTextureSource;
+}
+
+export interface ClipProps extends WidgetComponentProps {}
+
+export interface TransformProps extends WidgetComponentProps {
+  transform: WidgetTransform;
+}
+
+export interface SegmentedProgressProps extends WidgetComponentProps {
+  value: number | ProviderBinding;
+  segments: number;
+  maximum?: number;
+}
+
+export interface SpectrumProps extends WidgetComponentProps {
+  values: number[];
+  maximum?: number;
+}
+
+export interface AnimateProps {
+  node: WidgetNode;
+  animation: WidgetAnimation;
+}
+
 export interface WidgetManifest {
   schemaVersion: 1;
   name: string;
@@ -228,6 +315,7 @@ export interface WidgetManifest {
   };
   capabilities: WidgetCapability[];
   subscribe: string[];
+  assets?: string[];
   accounts?: WidgetAccountRequirement[];
 }
 
@@ -361,13 +449,19 @@ export function Icon(input: string | IconProps, style?: WidgetStyle): WidgetNode
 }
 
 export function Image(source: string | ImageSource, style?: WidgetStyle): WidgetNode;
+export function Image(source: string | ImageSource, options: WidgetImageOptions, style?: WidgetStyle): WidgetNode;
 export function Image(props: ImageProps): WidgetNode;
-export function Image(input: string | ImageSource | ImageProps, style?: WidgetStyle): WidgetNode {
+export function Image(
+  input: string | ImageSource | ImageProps,
+  styleOrOptions?: WidgetStyle | WidgetImageOptions,
+  style?: WidgetStyle
+): WidgetNode {
   if (typeof input === "object" && "source" in input) {
     const props = input as ImageProps;
-    return nodeWithOptionalStyle({ kind: "image", source: imageSource(props.source) }, props.style);
+    return imageNode(props.source, props.style, imageOptionsFrom(props));
   }
-  return nodeWithOptionalStyle({ kind: "image", source: imageSource(input) }, style);
+  const options = isImageOptions(styleOrOptions) ? styleOrOptions : undefined;
+  return imageNode(input, isImageOptions(styleOrOptions) ? style : styleOrOptions, options);
 }
 
 export function Button(label: string | WidgetNode, action?: WidgetAction, style?: WidgetStyle): WidgetNode;
@@ -421,6 +515,80 @@ export function Grid(input: WidgetChildren | GridProps, columns?: number, style?
   return nodeWithOptionalStyle({ kind: "grid", children: childrenFrom(input as WidgetChildren), columns: columns as number }, style);
 }
 
+export function Gradient(children: WidgetChildren, stops: WidgetGradientStop[], style?: WidgetStyle): WidgetNode;
+export function Gradient(props: GradientProps): WidgetNode;
+export function Gradient(input: WidgetChildren | GradientProps, stops?: WidgetGradientStop[], style?: WidgetStyle): WidgetNode {
+  if (isProps(input)) {
+    const props = input as GradientProps;
+    return nodeWithOptionalStyle({ kind: "gradient", children: childrenFrom(props.children), stops: props.stops }, props.style);
+  }
+  return nodeWithOptionalStyle({ kind: "gradient", children: childrenFrom(input as WidgetChildren), stops: stops as WidgetGradientStop[] }, style);
+}
+
+export function Texture(source: WidgetTextureSource, style?: WidgetStyle): WidgetNode;
+export function Texture(props: TextureProps): WidgetNode;
+export function Texture(input: WidgetTextureSource | TextureProps, style?: WidgetStyle): WidgetNode {
+  if (isProps(input) && "source" in input) {
+    const props = input as TextureProps;
+    return nodeWithOptionalStyle({ kind: "texture", source: props.source }, props.style);
+  }
+  return nodeWithOptionalStyle({ kind: "texture", source: input as WidgetTextureSource }, style);
+}
+
+export function Clip(children: WidgetChildren, style?: WidgetStyle): WidgetNode;
+export function Clip(props: ClipProps): WidgetNode;
+export function Clip(input: WidgetChildren | ClipProps, style?: WidgetStyle): WidgetNode {
+  if (isProps(input)) {
+    return nodeWithOptionalStyle({ kind: "clip", children: childrenFrom(input.children) }, input.style);
+  }
+  return nodeWithOptionalStyle({ kind: "clip", children: childrenFrom(input as WidgetChildren) }, style);
+}
+
+export function Transform(children: WidgetChildren, transform: WidgetTransform, style?: WidgetStyle): WidgetNode;
+export function Transform(props: TransformProps): WidgetNode;
+export function Transform(input: WidgetChildren | TransformProps, transform?: WidgetTransform, style?: WidgetStyle): WidgetNode {
+  if (isProps(input)) {
+    const props = input as TransformProps;
+    return nodeWithOptionalStyle({ kind: "transform", children: childrenFrom(props.children), transform: props.transform }, props.style);
+  }
+  return nodeWithOptionalStyle({ kind: "transform", children: childrenFrom(input as WidgetChildren), transform: transform as WidgetTransform }, style);
+}
+
+export function SegmentedProgress(value: number | ProviderBinding, segments: number, maximum?: number, style?: WidgetStyle): WidgetNode;
+export function SegmentedProgress(props: SegmentedProgressProps): WidgetNode;
+export function SegmentedProgress(
+  input: number | ProviderBinding | SegmentedProgressProps,
+  segments?: number,
+  maximum = 100,
+  style?: WidgetStyle
+): WidgetNode {
+  if (isProps(input)) {
+    const props = input as SegmentedProgressProps;
+    return segmentedProgressNode(props.value, props.segments, props.maximum ?? 100, props.style);
+  }
+  return segmentedProgressNode(input as number | ProviderBinding, segments as number, maximum, style);
+}
+
+export function Spectrum(values: number[], maximum?: number, style?: WidgetStyle): WidgetNode;
+export function Spectrum(props: SpectrumProps): WidgetNode;
+export function Spectrum(input: number[] | SpectrumProps, maximum = 1, style?: WidgetStyle): WidgetNode {
+  if (isProps(input)) {
+    const props = input as SpectrumProps;
+    return nodeWithOptionalStyle({ kind: "spectrum", values: [...props.values], maximum: props.maximum ?? 1 }, props.style);
+  }
+  return nodeWithOptionalStyle({ kind: "spectrum", values: [...input as number[]], maximum }, style);
+}
+
+export function Animate(node: WidgetNode, animation: WidgetAnimation): WidgetNode;
+export function Animate(props: AnimateProps): WidgetNode;
+export function Animate(input: WidgetNode | AnimateProps, animation?: WidgetAnimation): WidgetNode {
+  if (isProps(input) && "node" in input) {
+    const props = input as AnimateProps;
+    return { ...props.node, animation: props.animation };
+  }
+  return { ...(input as WidgetNode), animation };
+}
+
 export function useProvider(name: string): ProviderBinding {
   return { kind: "provider", name };
 }
@@ -454,6 +622,27 @@ function imageSource(source: string | ImageSource): ImageSource {
   return typeof source === "string" ? { kind: "asset", name: source } : source;
 }
 
+function imageNode(source: string | ImageSource, style?: WidgetStyle, options?: WidgetImageOptions): WidgetNode {
+  const node = nodeWithOptionalStyle({ kind: "image", source: imageSource(source) }, style);
+  return options === undefined ? node : { ...node, options };
+}
+
+function segmentedProgressNode(value: number | ProviderBinding, segments: number, maximum: number, style?: WidgetStyle): WidgetNode {
+  const node: WidgetNode = typeof value === "number"
+    ? { kind: "segmentedProgress", value, segments, maximum }
+    : { kind: "segmentedProgress", provider: value.name, segments, maximum };
+  return nodeWithOptionalStyle(node, style);
+}
+
+function imageOptionsFrom(props: ImageProps): WidgetImageOptions | undefined {
+  const direct: WidgetImageOptions = {};
+  for (const key of ["fit", "repeat", "position", "tint"] as const) {
+    if (props[key] !== undefined) direct[key] = props[key] as never;
+  }
+  const options = { ...props.options, ...direct };
+  return Object.keys(options).length === 0 ? undefined : options;
+}
+
 function childrenFrom(children: WidgetChildren | undefined): WidgetNode[] {
   if (children === undefined || children === null || typeof children === "boolean") return [];
   if (Array.isArray(children)) return children.flatMap((child) => childrenFrom(child));
@@ -475,6 +664,10 @@ function hasProp(value: object, key: string): boolean {
 
 function isProviderBinding(value: unknown): value is ProviderBinding {
   return isObject(value) && value.kind === "provider" && typeof value.name === "string";
+}
+
+function isImageOptions(value: unknown): value is WidgetImageOptions {
+  return isObject(value) && ["fit", "repeat", "position", "tint"].some((key) => hasProp(value, key));
 }
 
 function isWidgetNode(value: unknown): value is WidgetNode {

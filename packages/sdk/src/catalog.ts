@@ -174,13 +174,90 @@ const SDK_CATALOG: SdkCatalogItem[] = [
   {
     name: "Image",
     kind: "primitive",
-    summary: "Native image surface backed by an asset, URL, or provider",
+    summary: "Native image surface backed by a source and constrained image options",
     importPath: SDK_PACKAGE,
-    signature: "Image(source: string | ImageSource, style?: WidgetStyle): WidgetNode",
-    inputs: ["source", "style"],
-    example: 'Image({ kind: "asset", name: "album-art" })',
+    signature: "Image(source: string | ImageSource, styleOrOptions?: WidgetStyle | WidgetImageOptions, style?: WidgetStyle): WidgetNode",
+    inputs: ["source", "styleOrOptions", "style"],
+    example: 'Image({ kind: "asset", name: "album-art" }, { fit: "cover", position: "center" })',
     status: "implemented",
-    notes: ["The native renderer resolves bundled asset sources.", "URL and provider sources are deferred until capability-backed providers ship; render check rejects them with an actionable diagnostic."]
+    notes: ["The native renderer resolves bundled asset sources and applies the serializable image options when supported.", "URL and provider sources are deferred until capability-backed providers ship; render check rejects them with an actionable diagnostic."]
+  },
+  {
+    name: "Gradient",
+    kind: "primitive",
+    summary: "Serializable multi-stop gradient surface around child content",
+    importPath: SDK_PACKAGE,
+    signature: "Gradient(children: WidgetChildren, stops: WidgetGradientStop[], style?: WidgetStyle): WidgetNode",
+    inputs: ["children", "stops", "style"],
+    example: 'Gradient([Text("CPU")], [{ color: "#0f172a", position: 0 }, { color: "#2563eb", position: 1 }])',
+    status: "implemented",
+    notes: ["The runtime validates ordered color stops and keeps the tree serializable.", "The native host renders linear gradients around child content."]
+  },
+  {
+    name: "Texture",
+    kind: "primitive",
+    summary: "Serializable texture surface from a built-in pattern or asset",
+    importPath: SDK_PACKAGE,
+    signature: "Texture(source: WidgetTextureSource, style?: WidgetStyle): WidgetNode",
+    inputs: ["source", "style"],
+    example: 'Texture({ kind: "builtin", name: "grain" })',
+    status: "implemented",
+    notes: ["Sources are limited to the built-in grain/grid patterns and bundled assets.", "The native host renders built-in textures and explicit unavailable states for missing assets."]
+  },
+  {
+    name: "Clip",
+    kind: "primitive",
+    summary: "Serializable clipping container for child content",
+    importPath: SDK_PACKAGE,
+    signature: "Clip(children: WidgetChildren, style?: WidgetStyle): WidgetNode",
+    inputs: ["children", "style"],
+    example: 'Clip([Image({ kind: "asset", name: "avatar" })], { radius: 24 })',
+    status: "implemented",
+    notes: ["The runtime validates clip trees through the same native style boundary.", "The native host clips child content to the widget radius."]
+  },
+  {
+    name: "Transform",
+    kind: "primitive",
+    summary: "Serializable transform container for rotation, scale, and offsets",
+    importPath: SDK_PACKAGE,
+    signature: "Transform(children: WidgetChildren, transform: WidgetTransform, style?: WidgetStyle): WidgetNode",
+    inputs: ["children", "transform", "style"],
+    example: 'Transform([Icon("sparkles")], { rotation: -8, scale: 1.1 })',
+    status: "implemented",
+    notes: ["Transform fields are finite JSON numbers and are validated at render check.", "The native host applies offsets, scale, and rotation."]
+  },
+  {
+    name: "SegmentedProgress",
+    kind: "primitive",
+    summary: "Serializable determinate progress indicator divided into segments",
+    importPath: SDK_PACKAGE,
+    signature: "SegmentedProgress(value: number | ProviderBinding, segments: number, maximum?: number, style?: WidgetStyle): WidgetNode",
+    inputs: ["value", "segments", "maximum", "style"],
+    example: 'SegmentedProgress(68, 10, 100, { color: "#22c55e" })',
+    status: "implemented",
+    notes: ["Values use the same explicit provider subscription rules as Progress.", "The native host renders bounded discrete progress segments."]
+  },
+  {
+    name: "Spectrum",
+    kind: "primitive",
+    summary: "Serializable bounded array of values for spectrum visualization",
+    importPath: SDK_PACKAGE,
+    signature: "Spectrum(values: number[], maximum?: number, style?: WidgetStyle): WidgetNode",
+    inputs: ["values", "maximum", "style"],
+    example: "Spectrum([0.2, 0.8, 0.4], 1, { color: \"#a78bfa\" })",
+    status: "implemented",
+    notes: ["Values are finite numbers bounded by maximum and remain JSON-safe.", "The native host renders finite static spectrum bars; media and Spotify providers remain separate work."]
+  },
+  {
+    name: "Animate",
+    kind: "function",
+    summary: "Decorates a node with a bounded serializable property animation",
+    importPath: SDK_PACKAGE,
+    signature: "Animate(node: WidgetNode, animation: WidgetAnimation): WidgetNode",
+    inputs: ["node", "animation"],
+    example: 'Animate(Icon("sparkles"), { property: "opacity", from: 0.4, to: 1, duration: 600, repeat: "forever", easing: "ease-in-out" })',
+    status: "implemented",
+    notes: ["Animations contain only JSON-safe numeric fields and an explicit property/easing contract.", "The native host drives animation timing through a host-owned TimelineView clock."]
   },
   {
     name: "Button",
@@ -398,13 +475,68 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     notes: ["URL sources require the network capability and user permission."]
   },
   {
+    name: "WidgetImageOptions",
+    kind: "type",
+    summary: "Constrained fit, repeat, position, and tint options for Image",
+    importPath: SDK_PACKAGE,
+    signature: 'interface WidgetImageOptions { fit?: "contain" | "cover" | "fill"; repeat?: "none" | "x" | "y" | "both"; position?: "leading" | "center" | "trailing"; tint?: string }',
+    fields: ["fit", "repeat", "position", "tint"],
+    example: 'const options: WidgetImageOptions = { fit: "cover", repeat: "none", position: "center", tint: "#ffffff" }',
+    status: "implemented",
+    notes: ["Options are serializable image descriptors rather than arbitrary CSS.", "URL and provider images remain rejected because capability-backed host image loading is not shipped."]
+  },
+  {
+    name: "WidgetGradientStop",
+    kind: "type",
+    summary: "Serializable color and normalized position in a Gradient",
+    importPath: SDK_PACKAGE,
+    signature: "interface WidgetGradientStop { color: string; position: number }",
+    fields: ["color", "position"],
+    example: 'const stop: WidgetGradientStop = { color: "#2563eb", position: 0.5 }',
+    status: "implemented",
+    notes: ["Positions must be finite numbers from zero through one and stops must be ordered.", "The native host renders these stops as a linear gradient."]
+  },
+  {
+    name: "WidgetTextureSource",
+    kind: "type",
+    summary: "Built-in grain/grid or bundled asset source for Texture",
+    importPath: SDK_PACKAGE,
+    signature: 'type WidgetTextureSource = { kind: "builtin"; name: "grain" | "grid" } | { kind: "asset"; name: string }',
+    fields: ["kind", "name"],
+    example: 'const texture: WidgetTextureSource = { kind: "builtin", name: "grid" }',
+    status: "implemented",
+    notes: ["Texture sources never embed URLs, providers, browser content, or executable values.", "The native host renders built-in grain/grid patterns and workspace assets."]
+  },
+  {
+    name: "WidgetTransform",
+    kind: "type",
+    summary: "Serializable rotation, scale, and offset values",
+    importPath: SDK_PACKAGE,
+    signature: "interface WidgetTransform { rotation?: number; scale?: number; offsetX?: number; offsetY?: number }",
+    fields: ["rotation", "scale", "offsetX", "offsetY"],
+    example: 'const transform: WidgetTransform = { rotation: 12, scale: 1.05, offsetX: 4 }',
+    status: "implemented",
+    notes: ["All supplied values must be finite JSON numbers; scale must be positive.", "The native host applies offsets, scale, and rotation."]
+  },
+  {
+    name: "WidgetAnimation",
+    kind: "type",
+    summary: "Serializable bounded animation descriptor for one visual property",
+    importPath: SDK_PACKAGE,
+    signature: 'interface WidgetAnimation { property: "opacity" | "rotation" | "scale" | "offsetX" | "offsetY"; from: number; to: number; duration: number; delay?: number; repeat?: number | "forever"; easing?: "linear" | "ease-in" | "ease-out" | "ease-in-out" }',
+    fields: ["property", "from", "to", "duration", "delay", "repeat", "easing"],
+    example: 'const animation: WidgetAnimation = { property: "rotation", from: -4, to: 4, duration: 800, repeat: "forever", easing: "ease-in-out" }',
+    status: "implemented",
+    notes: ["Animation descriptors contain no callbacks, dates, promises, or host objects.", "The native host evaluates these descriptors on its animation clock."]
+  },
+  {
     name: "WidgetNode",
     kind: "type",
     summary: "Serializable declarative tree node returned by SDK primitives",
     importPath: SDK_PACKAGE,
     signature: "interface WidgetNode { kind: WidgetNodeKind; children?: WidgetNode[]; style?: WidgetStyle; ... }",
     fields: [
-      'kind: "column" | "row" | "stack" | "box" | "spacer" | "divider" | "text" | "textField" | "toggle" | "shape" | "icon" | "image" | "button" | "gauge" | "progress" | "grid"',
+      'kind: "column" | "row" | "stack" | "box" | "spacer" | "divider" | "text" | "textField" | "toggle" | "shape" | "icon" | "image" | "button" | "gauge" | "progress" | "grid" | "gradient" | "texture" | "clip" | "transform" | "segmentedProgress" | "spectrum"',
       "children?: WidgetNode[]",
       "text?: string",
       "provider?: string",
@@ -413,20 +545,26 @@ const SDK_CATALOG: SdkCatalogItem[] = [
       "maximum?: number",
       "orientation?: horizontal | vertical",
       "name?: string",
-      "source?: ImageSource",
+      "source?: ImageSource | WidgetTextureSource",
+      "options?: WidgetImageOptions",
+      "stops?: WidgetGradientStop[]",
+      "transform?: WidgetTransform",
+      "segments?: number",
+      "values?: number[]",
+      "animation?: WidgetAnimation",
       "action?: WidgetAction",
       "columns?: number"
     ],
     example: 'Column([Text("CPU")])',
     status: "implemented",
-    notes: ["Do not return DOM, HTML, CSS, browser objects, or native AppKit values.", "Every listed node kind is decoded and rendered by the native host; unsupported external sources show an explicit unavailable state."]
+    notes: ["Do not return DOM, HTML, CSS, browser objects, or native AppKit values.", "The runtime validates every listed node kind; native host support is called out on each visual entry and unsupported external sources show an explicit unavailable state."]
   },
   {
     name: "WidgetNodeKind",
     kind: "type",
     summary: "Allowed discriminators for declarative widget nodes",
     importPath: SDK_PACKAGE,
-    signature: 'type WidgetNodeKind = "column" | "row" | "stack" | "box" | "spacer" | "divider" | "text" | "textField" | "toggle" | "shape" | "icon" | "image" | "button" | "gauge" | "progress" | "grid"',
+    signature: 'type WidgetNodeKind = "column" | "row" | "stack" | "box" | "spacer" | "divider" | "text" | "textField" | "toggle" | "shape" | "icon" | "image" | "button" | "gauge" | "progress" | "grid" | "gradient" | "texture" | "clip" | "transform" | "segmentedProgress" | "spectrum"',
     example: 'const kind: WidgetNodeKind = "box"',
     status: "implemented"
   },
@@ -444,6 +582,7 @@ const SDK_CATALOG: SdkCatalogItem[] = [
       'anchor: { corner: "top-left" | "top-right" | "bottom-left" | "bottom-right"; offset: { x: number; y: number } }',
       'capabilities: Array<"network" | "filesystem.read" | "filesystem.write">',
       "subscribe: string[]",
+      "assets?: string[]",
       "accounts?: WidgetAccountRequirement[]"
     ],
     example: 'widget({ "schemaVersion": 1, "name": "Example", "sdkVersion": "0.1.0", "size": { "width": 320, "height": 180 }, "anchor": { "corner": "top-left", "offset": { "x": 24, "y": 24 } }, "capabilities": [], "subscribe": [], "accounts": [] }, render)',

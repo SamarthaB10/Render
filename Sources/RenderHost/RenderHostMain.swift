@@ -41,6 +41,7 @@ private final class RenderHostDelegate: NSObject, NSApplicationDelegate {
                     providers: providers,
                     widgetName: manifest.name,
                     workspace: workspace,
+                    declaredAssets: manifest.assets.map(Set.init),
                     onAction: actionDispatcher.dispatch,
                     onAuthorize: {
                         guard let requirement = manifest.accounts.first(where: { $0.connector == SpotifyConnector.connectorID }) else { return }
@@ -244,13 +245,20 @@ private struct WidgetTreeContainer: View {
     @ObservedObject var providers: ProviderStore
     let widgetName: String
     let workspace: String?
+    let declaredAssets: Set<String>?
     let onAction: (WidgetAction) -> Void
     let onAuthorize: () -> Void
     let onStop: () -> Void
 
     var body: some View {
         ZStack {
-            WidgetTreeView(tree: model.tree, providers: providers, onAction: onAction)
+            WidgetTreeView(
+                tree: model.tree,
+                providers: providers,
+                workspace: workspace,
+                declaredAssets: declaredAssets,
+                onAction: onAction
+            )
             WidgetSettingsOverlay(
                 widgetName: widgetName,
                 workspace: workspace,
@@ -270,14 +278,16 @@ private struct RuntimeManifest: Decodable {
     let capabilities: [String]
     let subscribe: [String]
     let accounts: [WidgetAccountRequirement]
+    let assets: [String]?
 
-    init(name: String, size: Size, anchor: Anchor, capabilities: [String], subscribe: [String], accounts: [WidgetAccountRequirement]) {
+    init(name: String, size: Size, anchor: Anchor, capabilities: [String], subscribe: [String], accounts: [WidgetAccountRequirement], assets: [String]? = nil) {
         self.name = name
         self.size = size
         self.anchor = anchor
         self.capabilities = capabilities
         self.subscribe = subscribe
         self.accounts = accounts
+        self.assets = assets
     }
 
     init(from decoder: Decoder) throws {
@@ -288,6 +298,7 @@ private struct RuntimeManifest: Decodable {
         capabilities = try container.decode([String].self, forKey: .capabilities)
         subscribe = try container.decode([String].self, forKey: .subscribe)
         accounts = try container.decodeIfPresent([WidgetAccountRequirement].self, forKey: .accounts) ?? []
+        assets = try container.decodeIfPresent([String].self, forKey: .assets)
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -297,6 +308,7 @@ private struct RuntimeManifest: Decodable {
         case capabilities
         case subscribe
         case accounts
+        case assets
     }
 
     struct Size: Decodable {
@@ -320,7 +332,8 @@ private struct RuntimeManifest: Decodable {
         anchor: Anchor(corner: .topLeft, offset: Offset(x: 24, y: 24)),
         capabilities: [],
         subscribe: [],
-        accounts: []
+        accounts: [],
+        assets: nil
     )
 }
 
