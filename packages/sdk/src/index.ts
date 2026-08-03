@@ -18,7 +18,9 @@ export type WidgetNodeKind =
   | "timer"
   | "taskList"
   | "scrollView"
-  | "textEditor";
+  | "textEditor"
+  | "dateTime"
+  | "dateTimePicker";
 
 export { describeSdkCatalog, listSdkCatalog, SDK_PACKAGE, SDK_VERSION } from "./catalog.ts";
 export type { SdkCatalogItem, SdkCatalogKind } from "./catalog.ts";
@@ -190,6 +192,8 @@ export interface WidgetNode {
   durationSeconds?: number;
   tasks?: WidgetTaskItem[];
   placeholder?: string;
+  dateTime?: string;
+  dateTimeMode?: WidgetDateTimeMode;
 }
 
 export type WidgetChild = WidgetNode | string | number | null | boolean | undefined;
@@ -217,6 +221,18 @@ export interface TextEditorProps extends WidgetComponentProps {
 }
 
 export interface ScrollViewProps extends ContainerProps {}
+
+export type WidgetDateTimeMode = "date" | "time" | "dateTime";
+
+export interface DateTimeProps extends WidgetComponentProps {
+  value: string;
+  mode?: WidgetDateTimeMode;
+}
+
+export interface DateTimePickerProps extends WidgetComponentProps {
+  value?: string;
+  mode?: WidgetDateTimeMode;
+}
 
 export interface ToggleProps extends WidgetComponentProps {
   checked?: boolean;
@@ -407,6 +423,34 @@ export function TextEditor(input: string | TextEditorProps = "", style?: WidgetS
     }, props.style, props.key);
   }
   return nodeWithOptionalStyle({ kind: "textEditor", text: input as string }, style);
+}
+
+export function DateTime(value: string, style?: WidgetStyle): WidgetNode;
+export function DateTime(props: DateTimeProps): WidgetNode;
+export function DateTime(input: string | DateTimeProps, style?: WidgetStyle): WidgetNode {
+  if (isProps(input)) {
+    const props = input as DateTimeProps;
+    return nodeWithOptionalStyle({
+      kind: "dateTime",
+      dateTime: props.value,
+      dateTimeMode: props.mode ?? "dateTime"
+    }, props.style, props.key);
+  }
+  return nodeWithOptionalStyle({ kind: "dateTime", dateTime: input as string, dateTimeMode: "dateTime" }, style);
+}
+
+export function DateTimePicker(value?: string, style?: WidgetStyle): WidgetNode;
+export function DateTimePicker(props: DateTimePickerProps): WidgetNode;
+export function DateTimePicker(input: string | DateTimePickerProps = "", style?: WidgetStyle): WidgetNode {
+  if (isProps(input)) {
+    const props = input as DateTimePickerProps;
+    return nodeWithOptionalStyle({
+      kind: "dateTimePicker",
+      ...(props.value === undefined ? {} : { dateTime: props.value }),
+      dateTimeMode: props.mode ?? "dateTime"
+    }, props.style, props.key);
+  }
+  return nodeWithOptionalStyle({ kind: "dateTimePicker", dateTime: input || undefined, dateTimeMode: "dateTime" }, style);
 }
 
 export function Toggle(checked: boolean, style?: WidgetStyle): WidgetNode;

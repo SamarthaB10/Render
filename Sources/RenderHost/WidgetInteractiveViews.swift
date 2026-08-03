@@ -209,3 +209,56 @@ struct WidgetTaskListView: View {
         EditableTask(id: item.id, text: item.text, completed: item.completed)
     }
 }
+
+struct WidgetDateTimeView: View {
+    let value: String
+    let mode: String
+
+    var body: some View {
+        Text(formattedValue)
+    }
+
+    private var formattedValue: String {
+        guard let date = ISO8601DateFormatter().date(from: value) else { return "Unavailable" }
+        let formatter = DateFormatter()
+        formatter.dateStyle = mode == "time" ? .none : .medium
+        formatter.timeStyle = mode == "date" ? .none : .short
+        return formatter.string(from: date)
+    }
+}
+
+struct WidgetDateTimePickerView: View {
+    let path: String
+    let initialValue: String?
+    let mode: String
+    @ObservedObject var store: WidgetInteractionStore
+    @State private var selectedDate: Date
+
+    init(path: String, initialValue: String?, mode: String, store: WidgetInteractionStore) {
+        self.path = path
+        self.initialValue = initialValue
+        self.mode = mode
+        self.store = store
+        let defaultValue = initialValue.flatMap { ISO8601DateFormatter().date(from: $0) } ?? Date()
+        _selectedDate = State(initialValue: store.dateTimeValue(path: path, defaultValue: defaultValue))
+    }
+
+    var body: some View {
+        Group {
+            switch mode {
+            case "date":
+                DatePicker("", selection: $selectedDate, displayedComponents: .date)
+            case "time":
+                DatePicker("", selection: $selectedDate, displayedComponents: .hourAndMinute)
+            default:
+                DatePicker("", selection: $selectedDate, displayedComponents: [.date, .hourAndMinute])
+            }
+        }
+        .labelsHidden()
+        .datePickerStyle(.compact)
+        .onChange(of: selectedDate) { nextDate in
+            store.saveDateTime(path: path, value: nextDate)
+        }
+        .onDisappear { store.saveDateTime(path: path, value: selectedDate) }
+    }
+}

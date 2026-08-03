@@ -22,6 +22,7 @@ The current reference implementation is a native CPU/RAM widget. It proves the a
 - Host-owned adjustable sizing with native resize handles, persisted size and lock state, responsive modes, and a settings-panel mode selector.
 - Host-owned countdown timers and editable task lists with start/pause/reset, duration editing, completion, add/remove, direct editing, reorder, clear-completed, and persisted state.
 - Native `ScrollView` and persistent multiline `TextEditor` primitives; stateful nodes can use stable keys so user edits survive remixes and reordering.
+- Native `DateTime` display and persistent `DateTimePicker` controls for date, time, or combined date-time values.
 - Generic host-owned account requirements with secure macOS Keychain storage.
 - A Spotify connector for current playback, track metadata, play/pause, previous/next, and volume control.
 - Render-owned Spotify permission prompt and a liquid-glass widget settings panel with metadata and a confirmed stop control.

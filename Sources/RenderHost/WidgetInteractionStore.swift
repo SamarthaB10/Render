@@ -18,10 +18,15 @@ private struct StoredTextEditor: Codable {
     var text: String
 }
 
+private struct StoredDateTime: Codable {
+    var value: Date
+}
+
 private struct StoredInteractionState: Codable {
     var timers: [String: StoredTimer] = [:]
     var taskLists: [String: StoredTaskList] = [:]
     var textEditors: [String: StoredTextEditor]? = nil
+    var dateTimes: [String: StoredDateTime]? = nil
 }
 
 final class WidgetInteractionStore: ObservableObject {
@@ -100,6 +105,17 @@ final class WidgetInteractionStore: ObservableObject {
         var editors = state.textEditors ?? [:]
         editors[path] = StoredTextEditor(text: text)
         state.textEditors = editors
+        persist()
+    }
+
+    func dateTimeValue(path: String, defaultValue: Date) -> Date {
+        state.dateTimes?[path]?.value ?? defaultValue
+    }
+
+    func saveDateTime(path: String, value: Date) {
+        var dateTimes = state.dateTimes ?? [:]
+        dateTimes[path] = StoredDateTime(value: value)
+        state.dateTimes = dateTimes
         persist()
     }
 

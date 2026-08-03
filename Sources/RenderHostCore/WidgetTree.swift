@@ -21,6 +21,8 @@ public enum WidgetNodeKind: String, Codable, Sendable {
     case taskList
     case scrollView
     case textEditor
+    case dateTime
+    case dateTimePicker
 }
 
 public enum WidgetLength: Codable, Equatable, Sendable {
@@ -389,6 +391,8 @@ public struct WidgetTree: Codable, Equatable, Sendable {
     public let durationSeconds: Int?
     public let tasks: [WidgetTaskItem]?
     public let placeholder: String?
+    public let dateTime: String?
+    public let dateTimeMode: String?
 
     public init(
         kind: WidgetNodeKind,
@@ -406,7 +410,9 @@ public struct WidgetTree: Codable, Equatable, Sendable {
         columns: Int? = nil,
         durationSeconds: Int? = nil,
         tasks: [WidgetTaskItem]? = nil,
-        placeholder: String? = nil
+        placeholder: String? = nil,
+        dateTime: String? = nil,
+        dateTimeMode: String? = nil
     ) {
         self.kind = kind
         self.key = key
@@ -424,10 +430,12 @@ public struct WidgetTree: Codable, Equatable, Sendable {
         self.durationSeconds = durationSeconds
         self.tasks = tasks
         self.placeholder = placeholder
+        self.dateTime = dateTime
+        self.dateTimeMode = dateTimeMode
     }
 
     private enum CodingKeys: String, CodingKey {
-        case kind, key, children, text, provider, style, value, maximum, orientation, name, source, action, columns, durationSeconds, tasks, placeholder
+        case kind, key, children, text, provider, style, value, maximum, orientation, name, source, action, columns, durationSeconds, tasks, placeholder, dateTime, dateTimeMode
     }
 
     public init(from decoder: Decoder) throws {
@@ -448,6 +456,8 @@ public struct WidgetTree: Codable, Equatable, Sendable {
         durationSeconds = try container.decodeIfPresent(Int.self, forKey: .durationSeconds)
         tasks = try container.decodeIfPresent([WidgetTaskItem].self, forKey: .tasks)
         placeholder = try container.decodeIfPresent(String.self, forKey: .placeholder)
+        dateTime = try container.decodeIfPresent(String.self, forKey: .dateTime)
+        dateTimeMode = try container.decodeIfPresent(String.self, forKey: .dateTimeMode)
     }
 
     public func validationIssues(path: String = "root") -> [WidgetTreeValidationIssue] {
@@ -526,6 +536,27 @@ public struct WidgetTree: Codable, Equatable, Sendable {
         if kind != .timer && durationSeconds != nil { issues.append(.init(path: "\(path).durationSeconds", message: "only timer nodes may define durationSeconds")) }
         if kind != .taskList && tasks != nil { issues.append(.init(path: "\(path).tasks", message: "only taskList nodes may define tasks")) }
         if kind != .textEditor && placeholder != nil { issues.append(.init(path: "\(path).placeholder", message: "only textEditor nodes may define a placeholder")) }
+        let dateTimeKinds: Set<WidgetNodeKind> = [.dateTime, .dateTimePicker]
+        if let dateTimeMode, !["date", "time", "dateTime"].contains(dateTimeMode) {
+            issues.append(.init(path: "\(path).dateTimeMode", message: "mode must be date, time, or dateTime"))
+        }
+        if kind == .dateTime {
+            guard let dateTime, !dateTime.isEmpty else {
+                issues.append(.init(path: "\(path).dateTime", message: "dateTime nodes require an ISO date-time string"))
+                return issues
+            }
+            if ISO8601DateFormatter().date(from: dateTime) == nil {
+                issues.append(.init(path: "\(path).dateTime", message: "dateTime must be a valid ISO date-time string"))
+            }
+        } else if kind == .dateTimePicker, let dateTime, ISO8601DateFormatter().date(from: dateTime) == nil {
+            issues.append(.init(path: "\(path).dateTime", message: "dateTime picker value must be a valid ISO date-time string"))
+        }
+        if !dateTimeKinds.contains(kind) && dateTime != nil {
+            issues.append(.init(path: "\(path).dateTime", message: "only dateTime nodes may define a date-time value"))
+        }
+        if !dateTimeKinds.contains(kind) && dateTimeMode != nil {
+            issues.append(.init(path: "\(path).dateTimeMode", message: "only dateTime nodes may define a date-time mode"))
+        }
         switch action {
         case .invoke(let name, _), .set(let name, _):
             if name.isEmpty { issues.append(.init(path: "\(path).action.name", message: "action name must be non-empty")) }

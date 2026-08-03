@@ -159,6 +159,28 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     notes: ["The native renderer persists editor content by stable key or node path; widget source supplies the default text."]
   },
   {
+    name: "DateTime",
+    kind: "primitive",
+    summary: "Native localized date or time display",
+    importPath: SDK_PACKAGE,
+    signature: "DateTime(value: string, style?: WidgetStyle): WidgetNode",
+    inputs: ["value", "style"],
+    example: 'DateTime({ value: "2026-08-03T14:30:00Z", mode: "dateTime" })',
+    status: "implemented",
+    notes: ["The native renderer parses an ISO date-time value and formats it using the local macOS locale."]
+  },
+  {
+    name: "DateTimePicker",
+    kind: "primitive",
+    summary: "Native editable and persisted date/time picker",
+    importPath: SDK_PACKAGE,
+    signature: "DateTimePicker(props?: DateTimePickerProps): WidgetNode",
+    inputs: ["value", "mode", "style"],
+    example: 'DateTimePicker({ key: "deadline", mode: "dateTime" })',
+    status: "implemented",
+    notes: ["The native renderer owns date/time selection and persists the selected value by stable key or node path."]
+  },
+  {
     name: "Toggle",
     kind: "primitive",
     summary: "Native interactive checkbox control",
@@ -462,7 +484,9 @@ const SDK_CATALOG: SdkCatalogItem[] = [
       "columns?: number",
       "durationSeconds?: number",
       "tasks?: WidgetTaskItem[]",
-      "placeholder?: string"
+      "placeholder?: string",
+      "dateTime?: string",
+      'dateTimeMode?: "date" | "time" | "dateTime"'
     ],
     example: 'Column([Text("CPU")])',
     status: "implemented",
@@ -473,7 +497,7 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     kind: "type",
     summary: "Allowed discriminators for declarative widget nodes",
     importPath: SDK_PACKAGE,
-    signature: 'type WidgetNodeKind = "column" | "row" | "stack" | "box" | "scrollView" | "spacer" | "divider" | "text" | "textField" | "textEditor" | "toggle" | "timer" | "taskList" | "shape" | "icon" | "image" | "button" | "gauge" | "progress" | "grid"',
+    signature: 'type WidgetNodeKind = "column" | "row" | "stack" | "box" | "scrollView" | "spacer" | "divider" | "text" | "textField" | "textEditor" | "dateTime" | "dateTimePicker" | "toggle" | "timer" | "taskList" | "shape" | "icon" | "image" | "button" | "gauge" | "progress" | "grid"',
     example: 'const kind: WidgetNodeKind = "box"',
     status: "implemented"
   },
@@ -558,6 +582,16 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     example: 'const task: WidgetTaskItem = { id: "read", text: "Read chapter 3" }',
     status: "implemented",
     notes: ["TaskList owns editing, completion, adding, and persistence; widget source supplies defaults."]
+  },
+  {
+    name: "WidgetDateTimeMode",
+    kind: "type",
+    summary: "Display components supported by date/time primitives",
+    importPath: SDK_PACKAGE,
+    signature: 'type WidgetDateTimeMode = "date" | "time" | "dateTime"',
+    fields: ["date", "time", "dateTime"],
+    example: 'const mode: WidgetDateTimeMode = "dateTime"',
+    status: "implemented"
   },
   {
     name: "WidgetAccountRequirement",

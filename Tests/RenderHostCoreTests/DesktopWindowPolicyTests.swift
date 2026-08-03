@@ -153,7 +153,9 @@ final class DesktopWindowPolicyTests: XCTestCase {
           "children": [
             { "kind": "timer", "durationSeconds": 1500 },
             { "kind": "taskList", "tasks": [{ "id": "read", "text": "Read chapter 3", "completed": false }] },
-            { "kind": "scrollView", "children": [{ "kind": "textEditor", "key": "notes", "text": "", "placeholder": "Write a note…" }] }
+            { "kind": "scrollView", "children": [{ "kind": "textEditor", "key": "notes", "text": "", "placeholder": "Write a note…" }] },
+            { "kind": "dateTime", "dateTime": "2026-08-03T14:30:00Z", "dateTimeMode": "date" },
+            { "kind": "dateTimePicker", "key": "deadline", "dateTimeMode": "dateTime" }
           ]
         }
         """#.utf8)
@@ -165,6 +167,9 @@ final class DesktopWindowPolicyTests: XCTestCase {
         XCTAssertEqual(tree.children[2].kind, .scrollView)
         XCTAssertEqual(tree.children[2].children.first?.key, .string("notes"))
         XCTAssertEqual(tree.children[2].children.first?.placeholder, "Write a note…")
+        XCTAssertEqual(tree.children[3].kind, .dateTime)
+        XCTAssertEqual(tree.children[4].kind, .dateTimePicker)
+        XCTAssertEqual(tree.children[4].key, .string("deadline"))
         XCTAssertTrue(tree.validationIssues().isEmpty)
     }
 

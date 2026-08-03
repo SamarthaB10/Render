@@ -100,6 +100,29 @@ test("requires unique sibling keys for persistent state", () => {
   assert.throws(() => buildRuntimeTree(source), /sibling keys must be unique/);
 });
 
+test("builds native date-time display and picker primitives", () => {
+  const source = `
+    import { Column, DateTime, DateTimePicker, widget } from "@render/sdk";
+    export default widget({
+      "schemaVersion": 1, "name": "Dates", "sdkVersion": "0.1.0",
+      "size": { "width": 320, "height": 180 },
+      "anchor": { "corner": "top-left", "offset": { "x": 24, "y": 24 } },
+      "capabilities": [], "subscribe": []
+    }, () => Column([
+      DateTime({ value: "2026-08-03T14:30:00Z", mode: "date" }),
+      DateTimePicker({ key: "deadline", mode: "dateTime" })
+    ]));
+  `;
+
+  assert.deepEqual(buildRuntimeTree(source), {
+    kind: "column",
+    children: [
+      { kind: "dateTime", dateTime: "2026-08-03T14:30:00Z", dateTimeMode: "date" },
+      { kind: "dateTimePicker", dateTimeMode: "dateTime", key: "deadline" }
+    ]
+  });
+});
+
 test("prepareRun atomically writes the candidate tree", () => {
   const workspace = mkdtempSync(path.join(os.tmpdir(), "render-runtime-"));
   try {
