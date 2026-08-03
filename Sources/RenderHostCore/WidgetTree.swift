@@ -563,7 +563,7 @@ public struct WidgetTree: Codable, Equatable, Sendable {
         }
         if kind == .text || kind == .textField {
             if (text == nil || text?.isEmpty == true) && provider == nil {
-                issues.append(.init(path: path, message: "\(kind.rawValue) nodes require non-empty text"))
+                issues.append(.init(path: path, message: "\(kind.rawValue) nodes require non-empty text or a provider"))
             }
             if kind == .textField && provider != nil {
                 issues.append(.init(path: "\(path).provider", message: "textField nodes cannot bind to a provider"))

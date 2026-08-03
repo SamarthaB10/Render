@@ -137,7 +137,8 @@ test("fleet supervisor restarts one crashed widget without replacing another", a
     assert.equal(recovered.widgets[0].state.processId !== firstProcessID, true);
     assert.equal(recovered.widgets[1].state.processId, secondProcessID);
   } finally {
-    fleetStop([first, second], "request-fleet-stop", { statePath });
+    const stopped = fleetStop([first, second], "request-fleet-stop", { statePath });
+    await waitForProcessExit(stopped.supervisor?.processId);
     rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 25 });
   }
 });
@@ -187,7 +188,8 @@ test("fleet supervisor honors an intentional widget stop without relaunching its
     assert.equal(sibling.processId, secondProcessID);
     assert.equal(JSON.parse(readFileSync(firstMetadataPath, "utf8")).processId, null);
   } finally {
-    fleetStop([first, second], "request-fleet-stop", { statePath });
+    const stopped = fleetStop([first, second], "request-fleet-stop", { statePath });
+    await waitForProcessExit(stopped.supervisor?.processId);
     rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 25 });
   }
 });
@@ -199,6 +201,18 @@ async function waitFor(predicate) {
     await new Promise((resolve) => setTimeout(resolve, 25));
   }
   assert.fail("timed out waiting for fleet supervisor recovery");
+}
+
+async function waitForProcessExit(processId) {
+  if (!Number.isInteger(processId) || processId <= 0) return;
+  await waitFor(() => {
+    try {
+      process.kill(processId, 0);
+      return false;
+    } catch (error) {
+      return error.code === "ESRCH";
+    }
+  });
 }
 
 function widgetSource(label) {
