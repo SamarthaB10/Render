@@ -17,7 +17,7 @@ The current reference implementation is a native CPU/RAM widget. It proves the a
 - Automatic TSX compilation to a serializable declarative tree; no DOM, HTML, CSS, browser runtime, or webview.
 - Agent-readable SDK discovery through `render sdk list --json` and `render sdk describe <name> --json`.
 - Workspace-scoped validation, running, watch mode, logical movement, snapshots, rollback, and last-known-good recovery.
-- Host-owned CPU and memory providers.
+- Host-owned CPU, memory, and local-time providers.
 - Native dragging and persisted placement for the first prototype.
 
 MCP is not required for this prototype. The agent boundary is the deterministic local CLI plus the checked-in widget-authoring skill. MCP can wrap that stable contract later if broader interoperability requires it.
@@ -195,7 +195,7 @@ The catalog currently exposes these implemented families:
 
 The catalog also marks contract-only and planned items. Current limitations are deliberate:
 
-- Only `system.cpu` and `system.memory` providers are implemented.
+- `system.cpu`, `system.memory`, and `system.time` are the implemented local providers.
 - URL/provider-backed images are rejected until capability-backed providers ship; native asset images are supported.
 - Only `widget.refresh` and `widget.reload` actions are implemented.
 - Spotify playback, media controls, account authentication, network providers, and filesystem-backed data are not shipped yet.

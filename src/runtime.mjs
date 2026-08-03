@@ -16,7 +16,7 @@ import { extractManifest, updateManifest, validateManifest } from "./manifest.mj
 // Receipt: perf/receipts/phase8-worker.json
 const SUPERVISOR_STARTUP_TIMEOUT_MS = 5000;
 const SUPPORTED_ACTIONS = new Set(["widget.refresh", "widget.reload"]);
-const SUPPORTED_PROVIDERS = new Set(["system.cpu", "system.memory"]);
+const SUPPORTED_PROVIDERS = new Set(["system.cpu", "system.memory", "system.time"]);
 
 export function buildRuntimeTree(source, filename = "widget.tsx") {
   const tree = buildTsxRuntimeTree(source, { sdk, filename });

@@ -253,7 +253,7 @@ struct RenderHostMain {
         }
         if CommandLine.arguments.contains("--provider-self-check") {
             var sampler = SystemMetricsSampler()
-            let subscriptions = Set(["system.cpu", "system.memory"])
+            let subscriptions = Set(["system.cpu", "system.memory", "system.time"])
             let first = sampler.sample(subscriptions: subscriptions)
             Thread.sleep(forTimeInterval: 1.05)
             let second = sampler.sample(subscriptions: subscriptions)

@@ -48,7 +48,7 @@ The first proof is:
 - Native macOS rendering.
 - One CPU/RAM widget.
 - CPU/RAM is the first reference fixture; the platform must not be hard-coded around system metrics.
-- Local CPU/RAM providers only.
+- Local CPU/RAM and current-time providers.
 - TypeScript/TSX authoring.
 - A canonical `@render/sdk`.
 - A deterministic local `render` CLI.
@@ -231,10 +231,11 @@ This is the first slice of a larger Render SDK. Agents compose from the SDK; the
 ### Providers and timers
 
 - Widgets access host data through hooks such as `useProvider("system.cpu")`.
+- The implemented `system.time` provider renders the host-local clock when bound to a `Text` node.
 - The host collects and fans out only subscribed providers.
 - An unavailable provider returns an explicit unavailable state, never fake or silently stale data.
 - Time-based updates use host-scheduled hooks such as `useTimer`, not arbitrary `setInterval` calls.
-- The CPU/RAM prototype refreshes once per second.
+- The CPU/RAM and current-time providers refresh once per second.
 
 ### Actions
 
@@ -362,9 +363,10 @@ The first prototype may be ad-hoc signed for local development. Developer ID sig
 - Enforce the manifest schema and SDK version.
 - Return actionable errors with source locations.
 
-### Phase 4 - CPU/RAM providers
+### Phase 4 - CPU/RAM and current-time providers
 
 - Implement host-owned `system.cpu` and `system.memory` providers.
+- Implement the host-owned `system.time` provider for local clock widgets.
 - Implement explicit unavailable states.
 - Implement host-scheduled one-second updates for the first widget.
 - Deliver only subscribed providers.
