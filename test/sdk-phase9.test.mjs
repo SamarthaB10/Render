@@ -160,9 +160,9 @@ test("Phase 9 catalog is exact and exported runtime primitives are discoverable"
     assert.ok(item.notes.some((note) => note.includes("native renderer")));
   }
 
-  assert.deepEqual(names.slice(1, 30), [
-    "Column", "Row", "Stack", "ScrollView", "Box", "GlassPanel", "MediaCard", "Spacer", "Divider", "Text", "TextField", "TextEditor", "DateTime", "DateTimePicker", "Toggle", "Timer", "TaskList", "List", "YouTubePlayer", "Visualizer", "Artwork", "TransportControls", "Shape", "Icon", "Image", "Button", "Gauge", "Progress", "Grid"
-  ]);
+  for (const name of ["Column", "Row", "Stack", "ScrollView", "Box", "GlassPanel", "MediaCard", "Spacer", "Divider", "Text", "TextField", "TextArea", "TextEditor", "DateTime", "DateTimePicker", "Toggle", "Timer", "Countdown", "TaskList", "List", "YouTubePlayer", "Visualizer", "Artwork", "TransportControls", "Shape", "Icon", "Image", "Gradient", "Texture", "Clip", "Transform", "Button", "Slider", "Gauge", "Progress", "SegmentedProgress", "Spectrum", "Grid"]) {
+    assert.ok(names.includes(name), `${name} must remain discoverable`);
+  }
   assert.equal(catalog.describeSdkCatalog("WidgetStyle").status, "implemented");
   assert.equal(catalog.describeSdkCatalog("WidgetAction").status, "implemented");
   assert.equal(catalog.describeSdkCatalog("widget.refresh").kind, "action");

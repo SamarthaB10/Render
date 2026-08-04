@@ -1,4 +1,4 @@
-import type { WidgetNode, WidgetManifest } from "./index.ts";
+import type { WidgetJsonValue, WidgetNode, WidgetManifest } from "./index.ts";
 
 export const RENDER_WORKER_PROTOCOL_VERSION = 1 as const;
 
@@ -25,6 +25,7 @@ export interface WorkerMessage {
   selectedVersion?: number;
   workspace?: string;
   sourcePath?: string;
+  state?: Record<string, WidgetJsonValue>;
   tree?: WidgetNode;
   manifest?: WidgetManifest;
   diagnostics?: WorkerDiagnostic[];

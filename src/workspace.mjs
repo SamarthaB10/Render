@@ -1,7 +1,9 @@
 import { randomUUID } from "node:crypto";
 import {
+  cpSync,
   existsSync,
   mkdirSync,
+  rmSync,
   readFileSync,
   renameSync,
   writeFileSync
@@ -33,6 +35,7 @@ function createWorkspace(workspace, requestId, operation) {
   mkdirSync(path.join(renderRoot, "snapshots"), { recursive: true });
   mkdirSync(path.join(renderRoot, "logs"), { recursive: true });
   mkdirSync(path.join(renderRoot, "runtime"), { recursive: true });
+  mkdirSync(path.join(root, "assets"), { recursive: true });
   writeFileSync(widgetPath, CANONICAL_WIDGET_SOURCE, "utf8");
 
   const state = {
@@ -76,6 +79,7 @@ export function promoteSnapshot(workspace, requestId = randomUUID()) {
     readFileSync(path.join(renderRoot, "runtime", "manifest.json")),
     "utf8"
   );
+  copyAssets(root, snapshotPath);
 
   const state = readState(root);
   const nextState = {
@@ -109,6 +113,7 @@ export function restoreSnapshot(workspace, version, requestId = randomUUID()) {
   writeAtomically(path.join(root, "widget.tsx"), readFileSync(path.join(snapshotPath, "widget.tsx")));
   writeAtomically(path.join(runtimeRoot, "tree.json"), readFileSync(path.join(snapshotPath, "tree.json")));
   writeAtomically(path.join(runtimeRoot, "manifest.json"), readFileSync(path.join(snapshotPath, "manifest.json")));
+  copyAssets(snapshotPath, root);
 
   const state = readState(root);
   const nextState = {
@@ -199,7 +204,7 @@ export function checkWorkspace(workspace, requestId = randomUUID()) {
 
   try {
     const manifest = extractManifest(source);
-    const issues = validateManifest(manifest);
+    const issues = validateManifest(manifest, { workspace: root });
     if (issues.length > 0) {
       return result(requestId, "check", root, false, issues.map((issue) => ({
         code: "invalid-manifest",
@@ -307,4 +312,24 @@ function writeAtomically(filePath, data) {
   const temporaryPath = `${filePath}.${randomUUID()}.tmp`;
   writeFileSync(temporaryPath, data);
   renameSync(temporaryPath, filePath);
+}
+
+function copyAssets(sourceRoot, destinationRoot) {
+  const source = path.join(sourceRoot, "assets");
+  const destination = path.join(destinationRoot, "assets");
+  const replacement = `${destination}.${randomUUID()}.tmp`;
+  const backup = `${destination}.${randomUUID()}.bak`;
+
+  try {
+    if (existsSync(source)) {
+      cpSync(source, replacement, { recursive: true, force: true });
+    }
+    if (existsSync(destination)) renameSync(destination, backup);
+    if (existsSync(replacement)) renameSync(replacement, destination);
+    if (existsSync(backup)) rmSync(backup, { recursive: true, force: true });
+  } catch (error) {
+    if (existsSync(replacement)) rmSync(replacement, { recursive: true, force: true });
+    if (!existsSync(destination) && existsSync(backup)) renameSync(backup, destination);
+    throw error;
+  }
 }

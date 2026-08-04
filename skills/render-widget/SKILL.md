@@ -14,7 +14,7 @@ Use the installed `render` command when available. When working directly from th
 - Work only inside the requested or newly created Render workspace.
 - Do not edit unrelated projects, repository files, or global configuration.
 - Use primitives and providers from `@render/sdk`; do not invent DOM, HTML, CSS, browser APIs, webviews, or arbitrary native APIs.
-- Keep the manifest explicit: size, logical anchor, capabilities, provider subscriptions, and connector account requirements must be declared.
+- Keep the manifest explicit: size, optional resizability/window shape, logical anchor, capabilities, provider subscriptions, and connector account requirements must be declared.
 - If the widget should be user-resizable, declare `adjustable` with measured min/max bounds and only the responsive modes the widget actually supports. Use the optional render context (`{ mode, size }`) for adaptive layout; do not scale blindly or create a private resize primitive.
 - Treat CLI diagnostics as the source of truth. Fix the reported path and message before trying to run again.
 - A failed candidate must never replace the last-known-good widget.
@@ -35,6 +35,43 @@ render sdk describe <primitive-or-provider-or-type> --json
 Each described item includes its exact `importPath`, TypeScript `signature`, canonical `example`, and any `notes` or required declarations. Select only cataloged primitives, styles, types, providers, actions, and capabilities. A name in the roadmap is not an import: use it only when the catalog describes it as supported for the active SDK version.
 
 If the request needs something missing—such as a provider, action, or connector whose catalog status is `planned` or `contract-only`—report the exact catalog item and status, explain what host contract is absent, and stop that part of the widget. Do not substitute fake data, a browser fallback, a private native API, or an invented Render API. If the supported design needs network, filesystem, app, account, or other machine access, declare the narrowest capability and ask the user for permission before proceeding.
+
+For the Phase 9 surface, the roadmap families are layout, typography/content, visuals, controls/actions, collections/data, and providers/integrations. The shipped first slice is `Box`, `Spacer`, `Divider`, `Icon`, `Image`, `Button`, `TextField`, `TextArea`, `Toggle`, `Slider`, `Countdown`, `Progress`, `Grid`, `Gradient`, `Texture`, `Clip`, `Transform`, `SegmentedProgress`, `Spectrum`, `Animate`, typed actions/provider states, persistent `useWidgetState`, and the JSX runtime. `TextField`, `TextArea`, `Toggle`, `Slider`, and `Countdown` can write host-owned state when passed a state binding; add/remove collection controls and arbitrary state mutation actions are not yet part of the contract. Treat any item as unavailable until `render sdk list --json` and `render sdk describe ... --json` expose its exact contract and support status.
+
+### Visual widgets
+
+The visual-shell fixture is a native visual reference, not a Spotify player. Agents may use these implemented visual APIs, but must not substitute CSS, webviews, inline SVG execution, private icon fonts, remote artwork, or fake provider data:
+
+- `Box` + `Gradient` + `Texture({ kind: "builtin", name: "grain" | "grid" })` for a colored native shell.
+- `Image({ kind: "asset", name: "..." })` for a static bundled artwork reference. Spotify artwork retrieval remains a separate provider contract.
+- Declare real workspace files in the manifest `assets` list; built-in grain/grid textures do not need an asset file.
+- Declare each local `.ttf` or `.otf` in both `assets` and `fonts` (for example, `"fonts": [{ "asset": "Display.ttf", "family": "Display" }]`). The native host registers declared fonts before constructing the Widget tree; use the font's declared family in the existing font style.
+- `Icon("<lucide-name>")` for the complete SDK-owned catalog pinned by `lucide-static@1.26.0`; inspect `SDK_ICON_NAMES` or `render sdk describe Icon --json` instead of guessing. Geometry stays identical across macOS releases and unknown host symbols fail `render check`.
+- For custom icon geometry, keep a non-executable SVG under `assets/`, declare it in `manifest.assets`, and render it through `Image({ kind: "asset", name: "custom.svg" }, { tint: "#ffffff" })`. Inline SVG path parsing is not part of the Widget interface.
+- `SegmentedProgress` for bounded discrete progress and `Spectrum` for a finite array of numeric bars.
+- `Animate` for a serializable property transition with explicit duration, easing, and repeat policy; no callbacks or timers.
+- Use `WidgetStyle.interaction` for native cursor, hover, pressed, focus, and disabled appearances. Keep the state declarative; do not emulate controls with timers or hidden actions.
+
+Use [`examples/visual-shell/widget.tsx`](../../examples/visual-shell/widget.tsx) as the basic reference composition and [`examples/weaver-parity/widget.tsx`](../../examples/weaver-parity/widget.tsx) as the richer native UI reference. Preserve the licensing notices in each fixture. Verify the exact signatures with `render sdk describe <name> --json`.
+
+### Persistent widget-owned state
+
+Use `useWidgetState` for small JSON-safe scalar values (text, numbers, and booleans) that belong to one widget workspace and must survive relaunches:
+
+```tsx
+import { Column, Text, TextField, Toggle, useWidgetState } from "@render/sdk";
+
+const title = useWidgetState("title", "Untitled");
+const completed = useWidgetState("completed", false);
+
+Column([
+  Text(useWidgetState("status", "Ready")),
+  TextField(title),
+  Toggle(completed)
+]);
+```
+
+The native host restores saved values before rendering and persists edits from bound `TextField`, `TextArea`, `Toggle`, `Slider`, and `Countdown` controls. State is scoped to the widget workspace, accepts only JSON-safe scalar values, and does not require a filesystem capability. If a saved value no longer matches its binding, the host uses the declared initial value so a stale preference cannot prevent relaunch. Use distinct keys for independent values; arbitrary state writes and collection mutation are not yet exposed.
 
 For the Phase 9 surface, the roadmap families are layout, typography/content, visuals, controls/actions, collections/data, and providers/integrations. The shipped first slice includes `Box`, `GlassPanel`, `MediaCard`, `Spacer`, `Divider`, `Icon`, `Image`, `Artwork`, `Button`, `TransportControls`, `TextField`, `TextEditor`, `Toggle`, `Timer`, `TaskList`, `List`, `Visualizer`, `YouTubePlayer`, `ScrollView`, `Progress`, and `Grid`, typed actions/provider states, the JSX runtime, and the host-owned `WidgetAdjustable`/`WidgetRenderContext` contract. `GlassPanel`, `MediaCard`, `Artwork`, `TransportControls`, and `Visualizer` are composable patterns, not private widget code: they inherit Render's semantic theme and accept only documented typed overrides. `Timer`, `TaskList`, and `TextEditor` are host-owned stateful primitives: timers persist countdown state across relaunch, task lists support direct editing, completion, adding, removal, and persistence, and editors persist user text. `List` is the generic read-only collection surface in this slice; use `WidgetListItem` for static rows or a structured provider such as `reminders.items`. `YouTubePlayer` is the explicit network-backed media surface: it accepts a validated YouTube video ID, requires `network` in the manifest, and supports a persisted native link-input toggle through `allowLinkInput`. Use stable keys for stateful nodes so user data survives remixes and reordering. Treat any item as unavailable until `render sdk list --json` and `render sdk describe ... --json` expose its exact contract and support status.
 
@@ -85,6 +122,8 @@ export default widget({
   Gauge(useProvider("system.memory"), 100)
 ]));
 ```
+
+The scaffold above is the canonical CPU/RAM example. It is also the canonical example for the first provider-backed widget path. For another composition, inspect every primitive with `render sdk describe <name> --json` and copy its documented signature and example. The current runtime supports all cataloged layout, content, control, and progress primitives, plus constrained typed styles and automatic TSX. Use `Countdown` for a user-facing timer with native start, pause, reset, and duration selection; `useTimer` remains cataloged only for a future generic host-scheduled render-update contract. Image URL/provider sources are cataloged gaps and `render check` rejects them until their capability-backed providers ship. Every future primitive must ship as SDK type, JSX/runtime contract, catalog entry, native renderer, validation, agent documentation, focused tests, and performance evidence before the skill may use it.
 
 The scaffold above is the canonical CPU/RAM example. It is also the canonical example for the first provider-backed widget path. For another composition, inspect every primitive with `render sdk describe <name> --json` and copy its documented signature and example. The current runtime supports all cataloged layout, content, control, task-list, timer, scroll, editor, media-pattern, and progress primitives, plus constrained typed styles and automatic TSX. `useTimer` remains cataloged for a future host-scheduled update binding; use `Timer` for a visible host-owned countdown surface. Image URL/provider sources are cataloged gaps and `render check` rejects them until their capability-backed providers ship. Every future primitive must ship as SDK type, JSX/runtime contract, catalog entry, native renderer, validation, agent documentation, focused tests, and performance evidence before the skill may use it.
 
@@ -192,6 +231,8 @@ render check --workspace "$WORKSPACE" --json
 
 The JSON result is the machine-readable contract. Resolve every diagnostic before invoking the native host.
 
+For a visual widget, this check is mandatory: validate the real workspace against the active catalog and stop if a planned visual item is not implemented. Never report a visual fixture as running merely because its source parses.
+
 ### 5. Run and confirm the live state
 
 ```bash
@@ -246,6 +287,7 @@ Successful edits update the existing widget in place. The first prototype is dra
 
 - For a visual remix, edit the existing `widget.tsx`, then run `render check` and `render run` again.
 - For logical movement, update the manifest anchor rather than hard-coding screen coordinates.
+- `resizable` defaults to `true`, so the native host can resize a widget from its edges and corners. Use `windowShape: "circle"` when the entire desktop surface should be circular; a `Shape` node alone only changes pixels inside the host surface.
 - To move through the lifecycle boundary, use a logical corner and optional offsets:
 
 ```bash
@@ -263,6 +305,8 @@ render rollback --workspace "$WORKSPACE" --version <snapshot-version>
 ```
 
 Report the resulting active and last-known-good versions to the user.
+
+For visual widgets, the acceptance loop is `check --json`, `run`, visible verification, then an intentional failed edit followed by last-known-good recovery. Keep the prior visible version active while a visual candidate is invalid or unavailable, and record any missing visual catalog entry as the repair path.
 
 ## North-star behavior
 

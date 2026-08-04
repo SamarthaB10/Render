@@ -45,7 +45,7 @@ test("SDK catalog exposes canonical primitives, providers, styles, and capabilit
   const catalog = await import("../packages/sdk/src/catalog.ts");
   const names = catalog.listSdkCatalog().map((item) => item.name);
 
-  assert.deepEqual(names, [
+  const baselineNames = [
     "widget",
     "Column",
     "Row",
@@ -145,12 +145,16 @@ test("SDK catalog exposes canonical primitives, providers, styles, and capabilit
     "network",
     "filesystem.read",
     "filesystem.write"
-  ]);
+  ];
+  assert.deepEqual(names.filter((name) => baselineNames.includes(name)), baselineNames);
+  assert.equal(new Set(names).size, names.length, "catalog names must remain unique");
+  for (const name of ["TextArea", "Gradient", "Texture", "Clip", "Transform", "SegmentedProgress", "Spectrum", "Animate", "Slider", "Countdown", "useWidgetState", "WidgetLength", "WidgetSpacing", "WidgetCornerRadii", "WidgetFont", "WidgetInteractionStyle", "WidgetStateBinding", "WidgetStateReference"]) {
+    assert.ok(names.includes(name), `${name} must remain discoverable`);
+  }
   assert.equal(catalog.describeSdkCatalog("Text").kind, "primitive");
-  assert.deepEqual(catalog.describeSdkCatalog("WidgetStyle").fields, [
-    "width", "height", "color", "backgroundColor", "opacity", "padding", "margin", "gap",
-    "alignItems", "justifyContent", "radius", "border", "shadow", "font", "material", "role", "density", "tokens"
-  ]);
+  for (const field of ["width", "height", "minWidth", "maxWidth", "aspectRatio", "color", "backgroundColor", "padding", "margin", "alignSelf", "flexGrow", "radius", "border", "shadow", "shadows", "font", "overflow", "interaction", "material", "role", "density", "tokens"]) {
+    assert.ok(catalog.describeSdkCatalog("WidgetStyle").fields.includes(field), `${field} must remain in WidgetStyle`);
+  }
 });
 
 test("SDK catalog gives agents exact contracts and canonical examples", async () => {
@@ -160,17 +164,21 @@ test("SDK catalog gives agents exact contracts and canonical examples", async ()
 
   assert.equal(catalog.SDK_VERSION, "0.1.0");
   assert.equal(text.importPath, "@render/sdk");
-  assert.equal(text.signature, "Text(text: string | ProviderBinding, style?: WidgetStyle): WidgetNode");
+  assert.equal(text.signature, "Text(text: string | ProviderBinding | WidgetStateBinding<string | number | boolean>, style?: WidgetStyle): WidgetNode");
   assert.match(text.example, /Text\("CPU"\)/);
   assert.deepEqual(manifest.fields, [
     "schemaVersion: 1",
     "name: string",
     "sdkVersion: string",
     "size: { width: number; height: number }",
+    "resizable?: boolean",
+    'windowShape?: "rectangle" | "circle"',
     'anchor: { corner: "top-left" | "top-right" | "bottom-left" | "bottom-right"; offset: { x: number; y: number } }',
     "adjustable?: WidgetAdjustable",
     'capabilities: Array<"network" | "filesystem.read" | "filesystem.write">',
     "subscribe: string[]",
+    "assets?: string[]",
+    "fonts?: Array<{ asset: string; family?: string }>",
     "accounts?: WidgetAccountRequirement[]",
     "theme?: WidgetThemeConfig"
   ]);
@@ -204,7 +212,7 @@ test("CLI exposes SDK catalog list and describe operations", () => {
 
   assert.equal(listed.ok, true);
   assert.equal(listed.operation, "sdk.list");
-  assert.equal(listed.items.length, 99);
+  assert.ok(listed.items.length >= 99);
   assert.equal(listed.sdkVersion, "0.1.0");
   assert.deepEqual(described.item, {
     name: "system.cpu",

@@ -150,24 +150,41 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     kind: "primitive",
     summary: "Text label or provider value",
     importPath: SDK_PACKAGE,
-    signature: "Text(text: string | ProviderBinding, style?: WidgetStyle): WidgetNode",
+    signature: "Text(text: string | ProviderBinding | WidgetStateBinding<string | number | boolean>, style?: WidgetStyle): WidgetNode",
     inputs: ["text", "style"],
     example: 'Text("CPU")',
     status: "implemented",
-    notes: ["Pass useProvider(name) to render a provider value."]
+    notes: ["The native renderer displays provider and persisted values as text.", "Pass useProvider(name) to render a provider value or useWidgetState(key, initial) to render a persisted value."]
   },
   {
     name: "TextField",
     kind: "primitive",
     summary: "Native editable single-line text control",
     importPath: SDK_PACKAGE,
-    signature: "TextField(text: string, style?: WidgetStyle): WidgetNode",
-    inputs: ["text", "style"],
+    signature: "TextField(text: string | WidgetStateBinding<string>, style?: WidgetStyle): WidgetNode",
+    inputs: ["text", "disabled", "style"],
     example: 'TextField("Write a task", { backgroundColor: "#172126" })',
     status: "implemented",
     notes: [
-      "The native renderer keeps the edited value interactive for the current widget session.",
-      "Persistent widget-owned state is a separate storage contract; do not put filesystem writes in widget source."
+      "The native renderer provides an editable text control.",
+      "Pass useWidgetState(key, initial) to persist edits in the widget workspace across relaunches.",
+      "The host owns persistence; widget source must not write state files."
+    ]
+  },
+  {
+    name: "TextArea",
+    kind: "primitive",
+    summary: "Native editable multiline writing surface",
+    importPath: SDK_PACKAGE,
+    signature: "TextArea(text: string | WidgetStateBinding<string>, style?: WidgetStyle): WidgetNode | TextArea({ text, disabled?, style? }): WidgetNode",
+    inputs: ["text", "disabled", "style"],
+    example: 'TextArea({ text: useWidgetState("notes", ""), style: { width: 320, height: 160 } })',
+    status: "implemented",
+    notes: [
+      "The native renderer provides a scrolling multiline editor for notes, drafts, and scratchpads.",
+      "Pass useWidgetState(key, initial) to persist the complete text in the widget workspace across relaunches.",
+      "Give the writing surface an explicit height; point or fill widths are supported by the native host.",
+      "The host owns persistence; widget source must not write state files."
     ]
   },
   {
@@ -208,13 +225,14 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     kind: "primitive",
     summary: "Native interactive checkbox control",
     importPath: SDK_PACKAGE,
-    signature: "Toggle(checked: boolean, style?: WidgetStyle): WidgetNode",
+    signature: "Toggle(checked: boolean | WidgetStateBinding<boolean>, style?: WidgetStyle): WidgetNode",
     inputs: ["checked", "style"],
     example: "Toggle(false, { color: \"#8be9a8\" })",
     status: "implemented",
     notes: [
-      "The native renderer keeps the checked value interactive for the current widget session.",
-      "Shared state between controls and persistent widget-owned state are separate planned contracts."
+      "The native renderer provides a checkbox control.",
+      "Pass useWidgetState(key, initial) to persist the checked value in the widget workspace across relaunches.",
+      "The host owns persistence and restores the last saved value before rendering."
     ]
   },
   {
@@ -307,24 +325,101 @@ const SDK_CATALOG: SdkCatalogItem[] = [
   {
     name: "Icon",
     kind: "primitive",
-    summary: "Native symbol or cataloged icon glyph",
+    summary: "Deterministic SDK-owned icon geometry",
     importPath: SDK_PACKAGE,
     signature: "Icon(name: string, style?: WidgetStyle): WidgetNode",
     inputs: ["name", "style"],
     example: 'Icon("play.fill", { color: "#ffffff" })',
     status: "implemented",
-    notes: ["Icon names are host-resolved; arbitrary image or browser glyphs are not part of the contract.", "The native renderer resolves SF Symbols and shows an explicit unavailable state when a symbol is missing."]
+    notes: ["The native renderer uses the complete catalog pinned by lucide-static@1.26.0; inspect SDK_ICON_NAMES for exact names.", "Legacy SF Symbol spellings play.fill, pause.fill, backward.end.fill, and forward.end.fill lower to stable SDK glyphs; unknown names fail render check.", "For custom geometry, declare a local SVG in manifest.assets and render it with Image({ kind: \"asset\", name: \"custom.svg\" }, { tint: \"#ffffff\" })."]
   },
   {
     name: "Image",
     kind: "primitive",
-    summary: "Native image surface backed by an asset, URL, or provider",
+    summary: "Native image surface backed by a source and constrained image options",
     importPath: SDK_PACKAGE,
-    signature: "Image(source: string | ImageSource, style?: WidgetStyle): WidgetNode",
-    inputs: ["source", "style"],
-    example: 'Image({ kind: "asset", name: "album-art" })',
+    signature: "Image(source: string | ImageSource, styleOrOptions?: WidgetStyle | WidgetImageOptions, style?: WidgetStyle): WidgetNode",
+    inputs: ["source", "styleOrOptions", "style"],
+    example: 'Image({ kind: "asset", name: "album-art" }, { fit: "cover", position: "center" })',
     status: "implemented",
-    notes: ["The native renderer resolves bundled asset sources.", "URL and provider sources are deferred until capability-backed providers ship; render check rejects them with an actionable diagnostic."]
+    notes: ["The native renderer resolves bundled asset sources and applies the serializable image options when supported.", "URL and provider sources are deferred until capability-backed providers ship; render check rejects them with an actionable diagnostic."]
+  },
+  {
+    name: "Gradient",
+    kind: "primitive",
+    summary: "Serializable multi-stop gradient surface around child content",
+    importPath: SDK_PACKAGE,
+    signature: "Gradient(children: WidgetChildren, stops: WidgetGradientStop[], style?: WidgetStyle): WidgetNode",
+    inputs: ["children", "stops", "style"],
+    example: 'Gradient([Text("CPU")], [{ color: "#0f172a", position: 0 }, { color: "#2563eb", position: 1 }])',
+    status: "implemented",
+    notes: ["The runtime validates ordered color stops and keeps the tree serializable.", "The native host renders linear gradients around child content."]
+  },
+  {
+    name: "Texture",
+    kind: "primitive",
+    summary: "Serializable texture surface from a built-in pattern or asset",
+    importPath: SDK_PACKAGE,
+    signature: "Texture(source: WidgetTextureSource, style?: WidgetStyle): WidgetNode",
+    inputs: ["source", "style"],
+    example: 'Texture({ kind: "builtin", name: "grain" })',
+    status: "implemented",
+    notes: ["Sources are limited to the built-in grain/grid patterns and bundled assets.", "The native host renders built-in textures and explicit unavailable states for missing assets."]
+  },
+  {
+    name: "Clip",
+    kind: "primitive",
+    summary: "Serializable clipping container for child content",
+    importPath: SDK_PACKAGE,
+    signature: "Clip(children: WidgetChildren, style?: WidgetStyle): WidgetNode",
+    inputs: ["children", "style"],
+    example: 'Clip([Image({ kind: "asset", name: "avatar" })], { radius: 24 })',
+    status: "implemented",
+    notes: ["The runtime validates clip trees through the same native style boundary.", "The native host clips child content to the widget radius."]
+  },
+  {
+    name: "Transform",
+    kind: "primitive",
+    summary: "Serializable transform container for rotation, scale, and offsets",
+    importPath: SDK_PACKAGE,
+    signature: "Transform(children: WidgetChildren, transform: WidgetTransform, style?: WidgetStyle): WidgetNode",
+    inputs: ["children", "transform", "style"],
+    example: 'Transform([Icon("sparkles")], { rotation: -8, scale: 1.1 })',
+    status: "implemented",
+    notes: ["Transform fields are finite JSON numbers and are validated at render check.", "The native host applies offsets, scale, and rotation."]
+  },
+  {
+    name: "SegmentedProgress",
+    kind: "primitive",
+    summary: "Serializable determinate progress indicator divided into segments",
+    importPath: SDK_PACKAGE,
+    signature: "SegmentedProgress(value: number | ProviderBinding | WidgetStateBinding<number>, segments: number, maximum?: number, style?: WidgetStyle): WidgetNode",
+    inputs: ["value", "segments", "maximum", "style"],
+    example: 'SegmentedProgress(68, 10, 100, { color: "#22c55e" })',
+    status: "implemented",
+    notes: ["Values use the same explicit provider subscription rules as Progress.", "The native host renders bounded discrete progress segments."]
+  },
+  {
+    name: "Spectrum",
+    kind: "primitive",
+    summary: "Serializable bounded array of values for spectrum visualization",
+    importPath: SDK_PACKAGE,
+    signature: "Spectrum(values: number[], maximum?: number, style?: WidgetStyle): WidgetNode",
+    inputs: ["values", "maximum", "style"],
+    example: "Spectrum([0.2, 0.8, 0.4], 1, { color: \"#a78bfa\" })",
+    status: "implemented",
+    notes: ["Values are finite numbers bounded by maximum and remain JSON-safe.", "The native host renders finite static spectrum bars; media and Spotify providers remain separate work."]
+  },
+  {
+    name: "Animate",
+    kind: "function",
+    summary: "Decorates a node with a bounded serializable property animation",
+    importPath: SDK_PACKAGE,
+    signature: "Animate(node: WidgetNode, animation: WidgetAnimation): WidgetNode",
+    inputs: ["node", "animation"],
+    example: 'Animate(Icon("sparkles"), { property: "opacity", from: 0.4, to: 1, duration: 600, repeat: "forever", easing: "ease-in-out" })',
+    status: "implemented",
+    notes: ["Animations contain only JSON-safe numeric fields and an explicit property/easing contract.", "The native host drives animation timing through a host-owned TimelineView clock."]
   },
   {
     name: "Button",
@@ -338,11 +433,33 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     notes: ["Actions are descriptors, never executable callbacks, so the tree remains serializable and permission-auditable.", "The native renderer dispatches buttons only through the host action boundary; unsupported operations are denied and logged."]
   },
   {
+    name: "Slider",
+    kind: "primitive",
+    summary: "Native ranged value control backed by optional persistent Widget state",
+    importPath: SDK_PACKAGE,
+    signature: "Slider(value: number | WidgetStateBinding<number>, maximum?: number, style?: WidgetStyle): WidgetNode",
+    inputs: ["value", "minimum", "maximum", "step", "disabled", "style"],
+    example: 'Slider({ value: useWidgetState("volume", 38), minimum: 0, maximum: 100, step: 1 })',
+    status: "implemented",
+    notes: ["The native renderer updates WidgetStateBinding values through the host-owned persistence boundary.", "Range and step failures identify the exact authored field during render check."]
+  },
+  {
+    name: "Countdown",
+    kind: "primitive",
+    summary: "Native user-selectable countdown with start, pause, and reset controls",
+    importPath: SDK_PACKAGE,
+    signature: "Countdown(seconds: number | WidgetStateBinding<number>, style?: WidgetStyle): WidgetNode | Countdown({ seconds, minimum?, maximum?, step?, disabled?, style? }): WidgetNode",
+    inputs: ["seconds", "minimum", "maximum", "step", "disabled", "style"],
+    example: 'Countdown({ seconds: useWidgetState("timerSeconds", 1500), minimum: 60, maximum: 7200, step: 60 })',
+    status: "implemented",
+    notes: ["The native renderer owns the one-second schedule and built-in start, pause, reset, and duration controls; Widget JavaScript does not poll or execute callbacks.", "A state binding persists the selected duration in seconds, while an active countdown remains host-local runtime state.", "Range and step failures identify the exact authored field during render check."]
+  },
+  {
     name: "Gauge",
     kind: "primitive",
     summary: "Progress gauge with a maximum",
     importPath: SDK_PACKAGE,
-    signature: "Gauge(value: number | ProviderBinding, maximum: number, style?: WidgetStyle): WidgetNode",
+    signature: "Gauge(value: number | ProviderBinding | WidgetStateBinding<number>, maximum: number, style?: WidgetStyle): WidgetNode",
     inputs: ["value", "maximum", "style"],
     example: 'Gauge(useProvider("system.cpu"), 100)',
     status: "implemented",
@@ -353,7 +470,7 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     kind: "primitive",
     summary: "Native determinate progress indicator",
     importPath: SDK_PACKAGE,
-    signature: "Progress(value: number | ProviderBinding, maximum?: number, style?: WidgetStyle): WidgetNode",
+    signature: "Progress(value: number | ProviderBinding | WidgetStateBinding<number>, maximum?: number, style?: WidgetStyle): WidgetNode",
     inputs: ["value", "maximum", "style"],
     example: 'Progress(useProvider("system.cpu"), 100)',
     status: "implemented",
@@ -379,6 +496,20 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     inputs: ["name"],
     example: 'useProvider("system.cpu")',
     notes: ["The provider name must be present in manifest.subscribe."]
+  },
+  {
+    name: "useWidgetState",
+    kind: "function",
+    summary: "Binds a widget node to host-owned persistent scalar state",
+    importPath: SDK_PACKAGE,
+    signature: "useWidgetState<T extends string | number | boolean>(key: string, initial: T): WidgetStateBinding<T>",
+    inputs: ["key", "initial"],
+    example: 'const completed = useWidgetState("completed", false)',
+    status: "implemented",
+    notes: [
+      "State is scoped to the installed widget workspace and survives relaunches; initial values are strings, numbers, or booleans.",
+      "Use the binding with Text, TextField, TextArea, Toggle, Slider, Countdown, Gauge, Progress, or SegmentedProgress; the host owns persistence and widget source never writes files."
+    ]
   },
   {
     name: "useTimer",
@@ -547,28 +678,84 @@ const SDK_CATALOG: SdkCatalogItem[] = [
   {
     name: "WidgetShadow",
     kind: "type",
-    summary: "Native shadow configuration for a widget surface",
+    summary: "Serializable outset, inset, or text shadow",
     importPath: SDK_PACKAGE,
-    signature: "interface WidgetShadow { color?: string; radius?: number; x?: number; y?: number; opacity?: number }",
-    fields: ["color", "radius", "x", "y", "opacity"],
-    example: 'const shadow: WidgetShadow = { color: "#22d3ee", radius: 18, opacity: 0.25 }',
+    signature: 'interface WidgetShadow { color?: string; radius?: number; x?: number; y?: number; opacity?: number; kind?: "outset" | "inset" | "text" }',
+    fields: ["color", "radius", "x", "y", "opacity", "kind"],
+    example: 'const shadow: WidgetShadow = { kind: "text", color: "#000000", radius: 2, y: 1 }',
     status: "implemented",
     notes: ["Shadow is rendered by the native host outside the rounded surface and is not clipped by WidgetStyle.radius."]
   },
   {
     name: "WidgetStyle",
     kind: "style",
-    summary: "Constrained native layout, typography, semantic surface, and theme styling",
+    summary: "Serializable native layout, typography, color, surface, and overflow styling",
     importPath: SDK_PACKAGE,
-    signature: "interface WidgetStyle { width?: WidgetLength; height?: WidgetLength; color?: string; backgroundColor?: string; opacity?: number; padding?: WidgetSpacing; margin?: WidgetSpacing; gap?: number; alignItems?: WidgetAlignment; justifyContent?: WidgetAlignment; radius?: number; border?: WidgetBorder; shadow?: WidgetShadow; font?: WidgetFont; material?: WidgetMaterial; role?: WidgetSemanticRole; density?: WidgetDensity; tokens?: WidgetStyleToken[] }",
-    fields: ["width", "height", "color", "backgroundColor", "opacity", "padding", "margin", "gap", "alignItems", "justifyContent", "radius", "border", "shadow", "font", "material", "role", "density", "tokens"],
-    example: 'Text("CPU", { tokens: ["text.primary"], font: { size: 14, weight: "semibold" } })',
+    signature: "interface WidgetStyle { width?: WidgetLength; height?: WidgetLength; minWidth?: WidgetLength; maxWidth?: WidgetLength; minHeight?: WidgetLength; maxHeight?: WidgetLength; aspectRatio?: number; padding?: WidgetSpacing; margin?: WidgetSpacing; gap?: number; alignItems?: WidgetAlignment; justifyContent?: WidgetAlignment; alignSelf?: WidgetAlignment; flexGrow?: number; flexShrink?: number; flexBasis?: WidgetLength; flexWrap?: 'nowrap' | 'wrap'; radius?: number | WidgetCornerRadii; shadow?: WidgetShadow; shadows?: WidgetShadow[]; font?: WidgetFont; overflow?: 'visible' | 'hidden' | 'clip'; interaction?: WidgetInteractionStyle; material?: WidgetMaterial; role?: WidgetSemanticRole; density?: WidgetDensity; tokens?: WidgetStyleToken[] }",
+    fields: ["width", "height", "minWidth", "maxWidth", "minHeight", "maxHeight", "aspectRatio", "color", "backgroundColor", "opacity", "padding", "margin", "gap", "alignItems", "justifyContent", "alignSelf", "flexGrow", "flexShrink", "flexBasis", "flexWrap", "radius", "border", "shadow", "shadows", "font", "overflow", "interaction", "material", "role", "density", "tokens"],
+    example: 'Text("CPU", { width: { unit: "percent", value: 50 }, padding: { horizontal: 12, vertical: 8 }, font: { size: 14, weight: "semibold", tabularNumbers: true } })',
     status: "implemented",
     notes: [
       "Values are serializable native style fields, not arbitrary CSS declarations.",
-      "Width, height, and font sizes must be positive; spacing, opacity, radii, and border widths are non-negative when provided.",
-      "The native host applies layout, color, typography, semantic role, material, density, surface, border, shadow, opacity, and token fields; radius also clips native child content to the rounded surface."
+      "Legacy numeric, fill, and fit lengths remain supported; auto and tagged percent or fraction lengths add explicit flexible sizing.",
+      "Top, right, bottom, and left spacing override the corresponding horizontal or vertical shorthand when both are provided.",
+      "The native host must lower every accepted field or report it as unavailable; validation never silently converts unsupported values."
     ]
+  },
+  {
+    name: "WidgetLength",
+    kind: "type",
+    summary: "Absolute, intrinsic, automatic, percentage, or fractional native length",
+    importPath: SDK_PACKAGE,
+    signature: 'type WidgetLength = number | "fill" | "fit" | "auto" | { unit: "percent" | "fraction"; value: number }',
+    fields: ["number", "fill", "fit", "auto", "percent", "fraction"],
+    example: 'const half: WidgetLength = { unit: "percent", value: 50 }',
+    status: "implemented",
+    notes: ["Percentage values are greater than zero and at most 100; fraction values are greater than zero."]
+  },
+  {
+    name: "WidgetSpacing",
+    kind: "type",
+    summary: "Uniform or directional native spacing",
+    importPath: SDK_PACKAGE,
+    signature: "type WidgetSpacing = number | { horizontal?: number; vertical?: number; top?: number; right?: number; bottom?: number; left?: number }",
+    fields: ["horizontal", "vertical", "top", "right", "bottom", "left"],
+    example: "const padding: WidgetSpacing = { horizontal: 12, vertical: 8, top: 10 }",
+    status: "implemented",
+    notes: ["Padding values are non-negative; margin values may be finite and negative.", "Top and bottom fall back to vertical, while left and right fall back to horizontal; side-specific values win when both are present."]
+  },
+  {
+    name: "WidgetCornerRadii",
+    kind: "type",
+    summary: "Independent native radius for each corner",
+    importPath: SDK_PACKAGE,
+    signature: "interface WidgetCornerRadii { topLeft?: number; topRight?: number; bottomRight?: number; bottomLeft?: number }",
+    fields: ["topLeft", "topRight", "bottomRight", "bottomLeft"],
+    example: "const radius: WidgetCornerRadii = { topLeft: 16, bottomRight: 16 }",
+    status: "implemented",
+    notes: ["A numeric WidgetStyle radius remains the compatible uniform shorthand."]
+  },
+  {
+    name: "WidgetFont",
+    kind: "type",
+    summary: "Native font, line layout, numeral, and truncation styling",
+    importPath: SDK_PACKAGE,
+    signature: 'interface WidgetFont { family?: string; size?: number; weight?: WidgetFontWeight; monospace?: boolean; leading?: number; tracking?: number; alignment?: "leading" | "center" | "trailing" | "justified"; lineLimit?: number; tabularNumbers?: boolean; truncation?: "head" | "middle" | "tail" | "clip" }',
+    fields: ["family", "size", "weight", "monospace", "leading", "tracking", "alignment", "lineLimit", "tabularNumbers", "truncation"],
+    example: 'const font: WidgetFont = { size: 14, leading: 18, tracking: 0.2, lineLimit: 2, truncation: "tail" }',
+    status: "implemented",
+    notes: ["Leading and size are positive; tracking is any finite number; lineLimit is a positive integer."]
+  },
+  {
+    name: "WidgetInteractionStyle",
+    kind: "style",
+    summary: "Serializable native hover, press, focus, disabled, and cursor appearance",
+    importPath: SDK_PACKAGE,
+    signature: "interface WidgetInteractionStyle { cursor?: WidgetCursor; hover?: WidgetInteractionAppearance; pressed?: WidgetInteractionAppearance; focus?: WidgetInteractionAppearance; disabled?: WidgetInteractionAppearance }",
+    fields: ["cursor", "hover", "pressed", "focus", "disabled"],
+    example: 'const interaction: WidgetInteractionStyle = { cursor: "pointer", hover: { opacity: 0.9 }, pressed: { scale: 0.98 } }',
+    status: "implemented",
+    notes: ["The native renderer resolves appearance states without a Widget JavaScript round trip.", "Interactive state is inherited by descendant Text and Icon nodes so a pressed button can restyle its content."]
   },
   {
     name: "WidgetThemeConfig",
@@ -671,24 +858,89 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     notes: ["URL sources require the network capability and user permission."]
   },
   {
+    name: "WidgetImageOptions",
+    kind: "type",
+    summary: "Constrained fit, repeat, position, and tint options for Image",
+    importPath: SDK_PACKAGE,
+    signature: 'interface WidgetImageOptions { fit?: "contain" | "cover" | "fill"; repeat?: "none" | "x" | "y" | "both"; position?: "leading" | "center" | "trailing"; tint?: string }',
+    fields: ["fit", "repeat", "position", "tint"],
+    example: 'const options: WidgetImageOptions = { fit: "cover", repeat: "none", position: "center", tint: "#ffffff" }',
+    status: "implemented",
+    notes: ["Options are serializable image descriptors rather than arbitrary CSS.", "URL and provider images remain rejected because capability-backed host image loading is not shipped."]
+  },
+  {
+    name: "WidgetGradientStop",
+    kind: "type",
+    summary: "Serializable color and normalized position in a Gradient",
+    importPath: SDK_PACKAGE,
+    signature: "interface WidgetGradientStop { color: string; position: number }",
+    fields: ["color", "position"],
+    example: 'const stop: WidgetGradientStop = { color: "#2563eb", position: 0.5 }',
+    status: "implemented",
+    notes: ["Positions must be finite numbers from zero through one and stops must be ordered.", "The native host renders these stops as a linear gradient."]
+  },
+  {
+    name: "WidgetTextureSource",
+    kind: "type",
+    summary: "Built-in grain/grid or bundled asset source for Texture",
+    importPath: SDK_PACKAGE,
+    signature: 'type WidgetTextureSource = { kind: "builtin"; name: "grain" | "grid" } | { kind: "asset"; name: string }',
+    fields: ["kind", "name"],
+    example: 'const texture: WidgetTextureSource = { kind: "builtin", name: "grid" }',
+    status: "implemented",
+    notes: ["Texture sources never embed URLs, providers, browser content, or executable values.", "The native host renders built-in grain/grid patterns and workspace assets."]
+  },
+  {
+    name: "WidgetTransform",
+    kind: "type",
+    summary: "Serializable rotation, scale, and offset values",
+    importPath: SDK_PACKAGE,
+    signature: "interface WidgetTransform { rotation?: number; scale?: number; offsetX?: number; offsetY?: number }",
+    fields: ["rotation", "scale", "offsetX", "offsetY"],
+    example: 'const transform: WidgetTransform = { rotation: 12, scale: 1.05, offsetX: 4 }',
+    status: "implemented",
+    notes: ["All supplied values must be finite JSON numbers; scale must be positive.", "The native host applies offsets, scale, and rotation."]
+  },
+  {
+    name: "WidgetAnimation",
+    kind: "type",
+    summary: "Serializable bounded animation descriptor for one visual property",
+    importPath: SDK_PACKAGE,
+    signature: 'interface WidgetAnimation { property: "opacity" | "rotation" | "scale" | "offsetX" | "offsetY"; from: number; to: number; duration: number; delay?: number; repeat?: number | "forever"; easing?: "linear" | "ease-in" | "ease-out" | "ease-in-out" }',
+    fields: ["property", "from", "to", "duration", "delay", "repeat", "easing"],
+    example: 'const animation: WidgetAnimation = { property: "rotation", from: -4, to: 4, duration: 800, repeat: "forever", easing: "ease-in-out" }',
+    status: "implemented",
+    notes: ["Animation descriptors contain no callbacks, dates, promises, or host objects.", "The native host evaluates these descriptors on its animation clock."]
+  },
+  {
     name: "WidgetNode",
     kind: "type",
     summary: "Serializable declarative tree node returned by SDK primitives",
     importPath: SDK_PACKAGE,
     signature: "interface WidgetNode { kind: WidgetNodeKind; children?: WidgetNode[]; style?: WidgetStyle; ... }",
     fields: [
-      'kind: "column" | "row" | "stack" | "box" | "glassPanel" | "mediaCard" | "scrollView" | "spacer" | "divider" | "text" | "textField" | "textEditor" | "toggle" | "timer" | "taskList" | "list" | "visualizer" | "youtubePlayer" | "shape" | "icon" | "image" | "button" | "gauge" | "progress" | "grid"',
+      'kind: "column" | "row" | "stack" | "box" | "glassPanel" | "mediaCard" | "scrollView" | "spacer" | "divider" | "text" | "textField" | "textArea" | "textEditor" | "dateTime" | "dateTimePicker" | "toggle" | "timer" | "countdown" | "taskList" | "list" | "visualizer" | "youtubePlayer" | "shape" | "icon" | "image" | "button" | "slider" | "gauge" | "progress" | "segmentedProgress" | "spectrum" | "grid" | "gradient" | "texture" | "clip" | "transform"',
       "children?: WidgetNode[]",
       "text?: string",
       "provider?: string",
       "style?: WidgetStyle",
       "value?: number",
+      "minimum?: number",
       "maximum?: number",
+      "step?: number",
       "orientation?: horizontal | vertical",
       "name?: string",
-      "source?: ImageSource",
+      "source?: ImageSource | WidgetTextureSource",
+      "options?: WidgetImageOptions",
+      "stops?: WidgetGradientStop[]",
+      "transform?: WidgetTransform",
+      "segments?: number",
+      "values?: number[]",
+      "animation?: WidgetAnimation",
       "action?: WidgetAction",
+      "disabled?: boolean",
       "columns?: number",
+      "state?: WidgetStateReference",
       "durationSeconds?: number",
       "tasks?: WidgetTaskItem[]",
       "items?: WidgetListItem[]",
@@ -705,14 +957,14 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     ],
     example: 'Column([Text("CPU")])',
     status: "implemented",
-    notes: ["Do not return DOM, HTML, CSS, browser objects, or native AppKit values.", "Every listed node kind is decoded and rendered by the native host; unsupported external sources show an explicit unavailable state."]
+    notes: ["Do not return DOM, HTML, CSS, browser objects, or native AppKit values.", "The runtime validates every listed node kind; native host support is called out on each visual entry and unsupported external sources show an explicit unavailable state."]
   },
   {
     name: "WidgetNodeKind",
     kind: "type",
     summary: "Allowed discriminators for declarative widget nodes",
     importPath: SDK_PACKAGE,
-    signature: 'type WidgetNodeKind = "column" | "row" | "stack" | "box" | "glassPanel" | "mediaCard" | "scrollView" | "spacer" | "divider" | "text" | "textField" | "textEditor" | "dateTime" | "dateTimePicker" | "toggle" | "timer" | "taskList" | "list" | "visualizer" | "youtubePlayer" | "shape" | "icon" | "image" | "button" | "gauge" | "progress" | "grid"',
+    signature: 'type WidgetNodeKind = "column" | "row" | "stack" | "box" | "glassPanel" | "mediaCard" | "scrollView" | "spacer" | "divider" | "text" | "textField" | "textArea" | "textEditor" | "dateTime" | "dateTimePicker" | "toggle" | "timer" | "countdown" | "taskList" | "list" | "visualizer" | "youtubePlayer" | "shape" | "icon" | "image" | "button" | "slider" | "gauge" | "progress" | "segmentedProgress" | "spectrum" | "grid" | "gradient" | "texture" | "clip" | "transform"',
     example: 'const kind: WidgetNodeKind = "box"',
     status: "implemented"
   },
@@ -727,10 +979,14 @@ const SDK_CATALOG: SdkCatalogItem[] = [
       "name: string",
       "sdkVersion: string",
       "size: { width: number; height: number }",
+      "resizable?: boolean",
+      'windowShape?: "rectangle" | "circle"',
       'anchor: { corner: "top-left" | "top-right" | "bottom-left" | "bottom-right"; offset: { x: number; y: number } }',
       "adjustable?: WidgetAdjustable",
       'capabilities: Array<"network" | "filesystem.read" | "filesystem.write">',
       "subscribe: string[]",
+      "assets?: string[]",
+      "fonts?: Array<{ asset: string; family?: string }>",
       "accounts?: WidgetAccountRequirement[]",
       "theme?: WidgetThemeConfig"
     ],
@@ -925,6 +1181,27 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     example: 'const state: ProviderState = "loading"',
     status: "implemented",
     notes: ["Widgets must render loading and unavailable states explicitly; the host never substitutes fake data."]
+  },
+  {
+    name: "WidgetStateBinding",
+    kind: "type",
+    summary: "Serializable reference to persistent widget-owned state",
+    importPath: SDK_PACKAGE,
+    signature: 'interface WidgetStateBinding<T extends string | number | boolean = string | number | boolean> { kind: "state"; key: string; initial: T }',
+    fields: ['kind: "state"', "key: string", "initial: WidgetJsonValue"],
+    example: 'const theme = useWidgetState("theme", "dark")',
+    status: "implemented",
+    notes: ["Bindings are declarative references; they do not expose filesystem access or host objects."]
+  },
+  {
+    name: "WidgetStateReference",
+    kind: "type",
+    summary: "Native tree metadata identifying a persistent state key",
+    importPath: SDK_PACKAGE,
+    signature: "interface WidgetStateReference { key: string; initial: string | number | boolean }",
+    fields: ["key: string", "initial: WidgetJsonValue"],
+    example: 'const reference: WidgetStateReference = { key: "completed", initial: false }',
+    status: "implemented"
   },
   {
     name: "ProviderValue",

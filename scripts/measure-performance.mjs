@@ -68,6 +68,10 @@ function initTemporaryWorkspace(repoRoot, workspace, sourcePath) {
     throw new Error(result.stderr || "could not initialize performance workspace");
   }
   cpSync(sourcePath, path.join(workspace, "widget.tsx"));
+  const sourceAssets = path.join(path.dirname(sourcePath), "assets");
+  if (existsSync(sourceAssets)) {
+    cpSync(sourceAssets, path.join(workspace, "assets"), { recursive: true, force: true });
+  }
 }
 
 async function measure({ repoRoot, workspace, options }) {

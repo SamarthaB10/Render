@@ -5,6 +5,8 @@ import RenderHostCore
 struct WidgetSettingsOverlay: View {
     let widgetName: String
     let workspace: String?
+    let windowShape: WidgetWindowShape
+    let surfaceSize: CGSize
     let themeConfig: RuntimeManifest.Theme?
     let theme: RenderTheme
     let workerStatePath: String?
@@ -20,6 +22,7 @@ struct WidgetSettingsOverlay: View {
     let onAuthorize: () -> Void
     let onStop: () -> Void
 
+    @State private var isHovered = false
     @State private var isOpen = false
     @State private var showStopConfirmation = false
     @State private var showPermissionPrompt: Bool
@@ -32,6 +35,8 @@ struct WidgetSettingsOverlay: View {
     init(
         widgetName: String,
         workspace: String?,
+        windowShape: WidgetWindowShape = .rectangle,
+        surfaceSize: CGSize = CGSize(width: 320, height: 180),
         themeConfig: RuntimeManifest.Theme?,
         theme: RenderTheme,
         workerStatePath: String?,
@@ -49,6 +54,8 @@ struct WidgetSettingsOverlay: View {
     ) {
         self.widgetName = widgetName
         self.workspace = workspace
+        self.windowShape = windowShape
+        self.surfaceSize = surfaceSize
         self.themeConfig = themeConfig
         self.theme = theme
         self.workerStatePath = workerStatePath
@@ -77,8 +84,12 @@ struct WidgetSettingsOverlay: View {
     var body: some View {
         ZStack(alignment: .topTrailing) {
             Color.clear
-                .frame(width: 52, height: 52)
+                .frame(width: 58, height: 58)
+                .padding(settingsPadding)
                 .contentShape(Rectangle())
+                .onHover { hovering in
+                    withAnimation(.easeOut(duration: 0.16)) { isHovered = hovering }
+                }
                 .zIndex(1)
 
             if showPermissionPrompt, let accountStatus {
@@ -88,8 +99,8 @@ struct WidgetSettingsOverlay: View {
             }
 
             settingsButton
-            .padding(10)
-            .allowsHitTesting(true)
+            .padding(settingsPadding)
+            .allowsHitTesting(isHovered || isOpen)
             .zIndex(3)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
@@ -126,11 +137,18 @@ struct WidgetSettingsOverlay: View {
         .background(theme.control, in: Circle())
         .overlay(Circle().stroke(theme.border, lineWidth: 0.5))
         .frame(width: 32, height: 32)
+        .opacity(isHovered || isOpen ? 1 : 0)
         .accessibilityLabel("Widget settings")
         .accessibilityHint("Opens widget metadata, connection settings, and the stop control")
         .popover(isPresented: $isOpen, attachmentAnchor: .point(.topTrailing), arrowEdge: .top) {
             settingsPanel
         }
+    }
+
+    private var settingsPadding: CGFloat {
+        guard windowShape == .circle else { return 10 }
+        let side = min(surfaceSize.width, surfaceSize.height)
+        return max(10, side * 0.1465 - 9)
     }
 
     private var settingsPanel: some View {

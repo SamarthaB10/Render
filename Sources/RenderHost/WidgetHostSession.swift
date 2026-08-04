@@ -7,6 +7,8 @@ final class WidgetHostSession {
     let manifest: RuntimeManifest
     let contentModel: WidgetContentModel
     let interactionStore: WidgetInteractionStore
+    let interactionCoordinator: WidgetInteractionCoordinator
+    let stateController: WidgetStateController?
     let providers: ProviderStore
     let actionDispatcher: WidgetActionDispatcher
     let registry: RenderRegistry
@@ -27,6 +29,8 @@ final class WidgetHostSession {
         self.preferences = WidgetPreferencesModel(initialPreferences)
         self.contentModel = WidgetContentModel(tree: Self.loadTree(workspace: workspace))
         self.interactionStore = WidgetInteractionStore(workspace: workspace)
+        self.interactionCoordinator = WidgetInteractionCoordinator()
+        self.stateController = workspace.map(WidgetStateController.init)
         self.workerStatePath = statePath
 
         let spotify = SpotifyConnector()
@@ -58,6 +62,7 @@ final class WidgetHostSession {
                 sourcePath: sourcePath,
                 statePath: statePath,
                 treePath: treePath,
+                widgetStatePath: stateController?.url.path,
                 mode: Self.effectiveMode(preferences: initialPreferences, manifest: manifest, size: initialWorkerSize),
                 size: WorkerRenderSize(width: initialWorkerSize.width, height: initialWorkerSize.height)
             )

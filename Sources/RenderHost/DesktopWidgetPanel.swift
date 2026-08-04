@@ -1,15 +1,44 @@
 import AppKit
 import RenderHostCore
 
-final class DesktopWidgetPanel: NSPanel {
-    private let defaultContentSize: NSSize
+enum WidgetWindowShape: String, Codable {
+    case rectangle
+    case circle
+}
 
-    init(contentRect: NSRect, policy: DesktopWindowPolicy, adjustable: RuntimeManifest.Adjustable? = nil, preferences: WidgetPreferences = .defaults) {
-        defaultContentSize = contentRect.size
-        let isAdjustable = adjustable?.enabled == true
+final class DesktopWidgetPanel: NSPanel {
+    let windowShape: WidgetWindowShape
+    let supportsResizing: Bool
+    private let defaultContentSize: NSSize
+    private let manifestResizable: Bool
+
+    init(
+        contentRect: NSRect,
+        policy: DesktopWindowPolicy,
+        resizable: Bool = true,
+        windowShape: WidgetWindowShape = .rectangle,
+        adjustable: RuntimeManifest.Adjustable? = nil,
+        preferences: WidgetPreferences = .defaults
+    ) {
+        self.windowShape = windowShape
+        self.manifestResizable = resizable
+        self.defaultContentSize = contentRect.size
+        let isAdjustable = adjustable?.enabled ?? resizable
+        self.supportsResizing = isAdjustable
+        var styleMask: NSWindow.StyleMask = [.borderless, .nonactivatingPanel]
+        if isAdjustable && windowShape == .rectangle {
+            styleMask.insert(.resizable)
+        }
+        let initialRect: NSRect
+        if windowShape == .circle {
+            let side = min(contentRect.width, contentRect.height)
+            initialRect = NSRect(x: contentRect.minX, y: contentRect.minY, width: side, height: side)
+        } else {
+            initialRect = contentRect
+        }
         super.init(
-            contentRect: contentRect,
-            styleMask: isAdjustable ? [.borderless, .nonactivatingPanel, .resizable] : [.borderless, .nonactivatingPanel],
+            contentRect: initialRect,
+            styleMask: styleMask,
             backing: .buffered,
             defer: false
         )
@@ -19,7 +48,7 @@ final class DesktopWidgetPanel: NSPanel {
         hasShadow = false
         ignoresMouseEvents = policy.ignoresMouseEvents
         isMovable = true
-        isMovableByWindowBackground = true
+        isMovableByWindowBackground = false
         level = NSWindow.Level(rawValue: DesktopWindowLevel.interactive)
         collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary]
         isReleasedWhenClosed = false
@@ -28,6 +57,14 @@ final class DesktopWidgetPanel: NSPanel {
 
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
+
+    func normalizeWindowShape() {
+        guard windowShape == .circle else { return }
+        let contentSize = contentRect(forFrameRect: frame).size
+        let side = min(contentSize.width, contentSize.height)
+        guard side > 0, contentSize.width != side || contentSize.height != side else { return }
+        setContentSize(NSSize(width: side, height: side))
+    }
 
     func apply(preferences: WidgetPreferences, adjustable: RuntimeManifest.Adjustable?) {
         if let minSize = adjustable?.minSize {
@@ -40,12 +77,13 @@ final class DesktopWidgetPanel: NSPanel {
         isMovableByWindowBackground = !preferences.locked
         if preferences.locked {
             styleMask.remove(.resizable)
-        } else if adjustable?.enabled == true {
+        } else if adjustable?.enabled ?? manifestResizable {
             styleMask.insert(.resizable)
         }
         let width = preferences.width ?? defaultContentSize.width
         let height = preferences.height ?? defaultContentSize.height
         setContentSize(NSSize(width: width, height: height))
+        normalizeWindowShape()
     }
 
     func move(to candidateOrigin: NSPoint) {
@@ -62,8 +100,15 @@ final class DesktopWidgetPanel: NSPanel {
         var next = candidate
         let candidateMaxX = candidate.maxX
         let candidateMaxY = candidate.maxY
-        next.size.width = min(max(next.width, minSize.width), maxSize.width)
-        next.size.height = min(max(next.height, minSize.height), maxSize.height)
+        if windowShape == .circle {
+            let minimumSide = max(minSize.width, minSize.height)
+            let maximumSide = min(maxSize.width, maxSize.height)
+            let side = min(max(max(next.width, next.height), minimumSide), maximumSide)
+            next.size = NSSize(width: side, height: side)
+        } else {
+            next.size.width = min(max(next.width, minSize.width), maxSize.width)
+            next.size.height = min(max(next.height, minSize.height), maxSize.height)
+        }
         if preservingRightEdge {
             next.origin.x = candidateMaxX - next.width
         }

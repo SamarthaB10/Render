@@ -7,6 +7,7 @@ final class WorkerSession {
     private let sourcePath: String
     private let workerScript: String
     private let stateURL: URL
+    private let widgetStateURL: URL?
     private let runtimeTreeURL: URL
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
@@ -33,12 +34,22 @@ final class WorkerSession {
     var onTree: ((WidgetTree) -> Void)?
     var onFailure: (([WorkerDiagnostic]) -> Void)?
 
-    init(workspace: String, workerScript: String, sourcePath: String? = nil, statePath: String? = nil, treePath: String? = nil, mode: String = "auto", size: WorkerRenderSize? = nil) {
+    init(
+        workspace: String,
+        workerScript: String,
+        sourcePath: String? = nil,
+        statePath: String? = nil,
+        treePath: String? = nil,
+        widgetStatePath: String? = nil,
+        mode: String = "auto",
+        size: WorkerRenderSize? = nil
+    ) {
         self.workspace = workspace
         self.sourcePath = sourcePath ?? URL(fileURLWithPath: workspace).appendingPathComponent("widget.tsx").path
         self.workerScript = workerScript
         self.stateURL = statePath.map(URL.init(fileURLWithPath:))
             ?? URL(fileURLWithPath: workspace).appendingPathComponent(".render/runtime/worker-state.json")
+        self.widgetStateURL = widgetStatePath.map(URL.init(fileURLWithPath:))
         self.runtimeTreeURL = treePath.map(URL.init(fileURLWithPath:))
             ?? URL(fileURLWithPath: workspace).appendingPathComponent(".render/runtime/tree.json")
         self.renderMode = mode
@@ -148,6 +159,7 @@ final class WorkerSession {
             messageID: UUID().uuidString,
             workspace: workspace,
             sourcePath: sourcePath,
+            state: widgetStateURL.map { loadWidgetState(from: $0) },
             mode: renderMode,
             size: renderSize
         ))
@@ -164,6 +176,18 @@ final class WorkerSession {
             throw WorkerSessionError.invalidTree(treeIssues)
         }
         return tree
+    }
+
+    private func loadWidgetState(from url: URL) -> [String: WidgetJSONValue] {
+        let loaded = WidgetStatePersistence.load(from: url)
+        if let issue = loaded.issue {
+            NSLog(
+                "Render widget state ignored (path=%@): %@. Defaults will be used until a new value is saved.",
+                url.path,
+                issue
+            )
+        }
+        return loaded.values
     }
 
     private func send(_ message: WorkerMessage) throws {

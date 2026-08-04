@@ -26,6 +26,7 @@ private final class RenderHostDelegate: NSObject, NSApplicationDelegate {
         let actionDispatcher = hostSession.actionDispatcher
         let contentModel = hostSession.contentModel
         let interactionStore = hostSession.interactionStore
+        WidgetFontRegistrar.register(manifest.fonts, workspace: workspace, declaredAssets: Set(manifest.assets ?? []))
         let panel = DesktopWidgetPanel(
             contentRect: NSRect(
                 x: 0,
@@ -34,6 +35,8 @@ private final class RenderHostDelegate: NSObject, NSApplicationDelegate {
                 height: manifest.size.height
             ),
             policy: policy,
+            resizable: manifest.resizable,
+            windowShape: manifest.windowShape,
             adjustable: manifest.adjustable,
             preferences: preferences
         )
@@ -43,6 +46,11 @@ private final class RenderHostDelegate: NSObject, NSApplicationDelegate {
                     model: contentModel,
                     providers: providers,
                     interactionStore: interactionStore,
+                    declaredAssets: manifest.assets.map(Set.init),
+                    interactionCoordinator: hostSession.interactionCoordinator,
+                    onStateChange: { [weak hostSession] key, value in
+                        hostSession?.stateController?.set(key, value: value)
+                    },
                     widgetName: manifest.name,
                     workspace: workspace,
                     themeConfig: manifest.theme ?? RuntimeManifest.Theme(
@@ -220,6 +228,9 @@ private struct WidgetTreeContainer: View {
     @ObservedObject var model: WidgetContentModel
     @ObservedObject var providers: ProviderStore
     @ObservedObject var interactionStore: WidgetInteractionStore
+    let declaredAssets: Set<String>?
+    let interactionCoordinator: WidgetInteractionCoordinator
+    let onStateChange: (String, WidgetJSONValue) -> Void
     let widgetName: String
     let workspace: String?
     let themeConfig: RuntimeManifest.Theme?
@@ -238,12 +249,13 @@ private struct WidgetTreeContainer: View {
             WidgetTreeView(
                 tree: model.tree,
                 providers: providers,
-                interactionStore: interactionStore,
+                workspace: workspace,
+                declaredAssets: declaredAssets,
+                interactionCoordinator: interactionCoordinator,
                 theme: RenderTheme(name: selectedTheme),
-                nodePath: "root",
-                fillsAvailableSpace: true,
                 usesThemeOverrides: preferences.value.theme != nil,
-                onAction: onAction
+                onAction: onAction,
+                onStateChange: onStateChange
             )
             WidgetSettingsOverlay(
                 widgetName: widgetName,
@@ -301,16 +313,24 @@ struct RuntimeManifest: Decodable {
     let capabilities: [String]
     let subscribe: [String]
     let accounts: [WidgetAccountRequirement]
+    let assets: [String]?
+    let fonts: [WidgetFontDeclaration]
+    let resizable: Bool
+    let windowShape: WidgetWindowShape
     let adjustable: Adjustable?
     let theme: Theme?
 
-    init(name: String, size: Size, anchor: Anchor, capabilities: [String], subscribe: [String], accounts: [WidgetAccountRequirement], adjustable: Adjustable? = nil, theme: Theme? = nil) {
+    init(name: String, size: Size, anchor: Anchor, capabilities: [String], subscribe: [String], accounts: [WidgetAccountRequirement], assets: [String]? = nil, fonts: [WidgetFontDeclaration] = [], resizable: Bool = true, windowShape: WidgetWindowShape = .rectangle, adjustable: Adjustable? = nil, theme: Theme? = nil) {
         self.name = name
         self.size = size
         self.anchor = anchor
         self.capabilities = capabilities
         self.subscribe = subscribe
         self.accounts = accounts
+        self.assets = assets
+        self.fonts = fonts
+        self.resizable = resizable
+        self.windowShape = windowShape
         self.adjustable = adjustable
         self.theme = theme
     }
@@ -323,6 +343,10 @@ struct RuntimeManifest: Decodable {
         capabilities = try container.decode([String].self, forKey: .capabilities)
         subscribe = try container.decode([String].self, forKey: .subscribe)
         accounts = try container.decodeIfPresent([WidgetAccountRequirement].self, forKey: .accounts) ?? []
+        assets = try container.decodeIfPresent([String].self, forKey: .assets)
+        fonts = try container.decodeIfPresent([WidgetFontDeclaration].self, forKey: .fonts) ?? []
+        resizable = try container.decodeIfPresent(Bool.self, forKey: .resizable) ?? true
+        windowShape = try container.decodeIfPresent(WidgetWindowShape.self, forKey: .windowShape) ?? .rectangle
         adjustable = try container.decodeIfPresent(Adjustable.self, forKey: .adjustable)
         theme = try container.decodeIfPresent(Theme.self, forKey: .theme)
     }
@@ -334,6 +358,10 @@ struct RuntimeManifest: Decodable {
         case capabilities
         case subscribe
         case accounts
+        case assets
+        case fonts
+        case resizable
+        case windowShape
         case adjustable
         case theme
     }

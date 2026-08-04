@@ -14,6 +14,7 @@ import {
 } from "./workspace.mjs";
 import { persistLifecycleState } from "./lifecycle.mjs";
 import { extractManifest, updateManifest, validateManifest } from "./manifest.mjs";
+import { canonicalIconName } from "../packages/sdk/src/icon-catalog.ts";
 import { readPreferences, writePreferences } from "./preferences.mjs";
 
 // Receipt: perf/receipts/phase8-worker.json
@@ -27,8 +28,8 @@ export function buildRuntimeTree(source, filename = "widget.tsx", options = {}) 
   const tree = buildTsxRuntimeTree(source, { sdk, filename, renderContext: { mode, size: options.size } });
   const subscriptions = new Set(manifest.subscribe);
   const accounts = new Map((manifest.accounts ?? []).map((account) => [account.connector, new Set(account.scopes)]));
-  validateRuntimeTree(tree, "root", subscriptions, new Set(manifest.capabilities), accounts);
-  return JSON.parse(JSON.stringify(tree));
+  validateRuntimeTree(tree, "root", subscriptions, new Set(manifest.capabilities), accounts, new Set(manifest.assets ?? []));
+  return JSON.parse(JSON.stringify(materializeWidgetState(tree, options.state ?? {}, "root")));
 }
 
 export function prepareRun(workspace, requestId = randomUUID()) {
@@ -638,7 +639,7 @@ export function watchWorkspace(workspace, requestId = randomUUID(), onResult = (
   };
 }
 
-function validateRuntimeTree(node, pathName, subscriptions, capabilities, accounts) {
+function validateRuntimeTree(node, pathName, subscriptions, capabilities, accounts, assets) {
   if (!node || typeof node !== "object") {
     throw new Error(`${pathName}: render() must return a widget node`);
   }
@@ -649,7 +650,7 @@ function validateRuntimeTree(node, pathName, subscriptions, capabilities, accoun
   if (node.key !== undefined && !(["string", "number"].includes(typeof node.key))) {
     throw new Error(`${pathName}.key: keys must be strings or numbers`);
   }
-  const containers = new Set(["column", "row", "stack", "box", "glassPanel", "mediaCard", "scrollView", "grid", "button"]);
+  const containers = new Set(["column", "row", "stack", "box", "glassPanel", "mediaCard", "scrollView", "grid", "button", "gradient", "clip", "transform"]);
   if (containers.has(node.kind) && node.text !== undefined) {
     throw new Error(`${pathName}.text: container nodes cannot define text`);
   }
@@ -659,7 +660,7 @@ function validateRuntimeTree(node, pathName, subscriptions, capabilities, accoun
   if (node.children !== undefined) {
     if (!Array.isArray(node.children)) throw new Error(`${pathName}.children: must be an array`);
     const childKeys = new Set();
-    node.children.forEach((child, index) => validateRuntimeTree(child, `${pathName}.children[${index}]`, subscriptions, capabilities, accounts));
+    node.children.forEach((child, index) => validateRuntimeTree(child, `${pathName}.children[${index}]`, subscriptions, capabilities, accounts, assets));
     node.children.forEach((child, index) => {
       if (child.key === undefined) return;
       const key = `${typeof child.key}:${String(child.key)}`;
@@ -683,7 +684,7 @@ function validateRuntimeTree(node, pathName, subscriptions, capabilities, accoun
   if (providerConnector === "reminders" && !accounts.get(providerConnector).has("reminders.read")) {
     throw new Error(`${pathName}.provider: ${node.provider} requires the reminders.read scope; add it to manifest.accounts and ask the user for permission`);
   }
-  if ((node.kind === "text" || node.kind === "textField") && (typeof node.text !== "string" || node.text.length === 0) && node.provider === undefined) {
+  if (["text", "textField", "textArea"].includes(node.kind) && (typeof node.text !== "string" || node.text.length === 0) && node.provider === undefined && node.state === undefined) {
     throw new Error(`${pathName}.text: text nodes require text or a provider`);
   }
   if (node.kind === "textEditor" && node.text !== undefined && typeof node.text !== "string") {
@@ -781,8 +782,13 @@ function validateRuntimeTree(node, pathName, subscriptions, capabilities, accoun
       throw new Error(`${pathName}.value: ${node.kind} value must be between zero and maximum`);
     }
   }
+  if (node.kind === "slider") validateSlider(node, pathName);
+  if (node.kind === "countdown") validateCountdown(node, pathName);
   if (node.kind === "icon" && (typeof node.name !== "string" || node.name.length === 0)) {
     throw new Error(`${pathName}.name: icon nodes require a non-empty symbol name`);
+  }
+  if (node.kind === "icon" && canonicalIconName(node.name) === null) {
+    throw new Error(`${pathName}.name: unknown SDK icon '${node.name}'; use render sdk describe Icon for the deterministic catalog`);
   }
   if (node.kind === "image") {
     if (!node.source || typeof node.source !== "object") throw new Error(`${pathName}.source: image nodes require an explicit source`);
@@ -791,19 +797,267 @@ function validateRuntimeTree(node, pathName, subscriptions, capabilities, accoun
     const sourceValue = node.source.kind === "url" ? node.source.url : node.source.name;
     if (typeof sourceValue !== "string" || sourceValue.length === 0) throw new Error(`${pathName}.source: image source value must be non-empty`);
     if (node.source.kind === "url" && !capabilities.has("network")) throw new Error(`${pathName}.source: URL images require the manifest capability \"network\" and user permission`);
+    validateImageOptions(node.options, `${pathName}.options`);
     if (node.source.kind !== "asset") throw new Error(`${pathName}.source.kind: ${node.source.kind} image sources are deferred until their capability-backed provider ships; use an asset source`);
+    if (!assets.has(node.source.name)) throw new Error(`${pathName}.source.name: image asset '${node.source.name}' must be listed in manifest.assets`);
   }
+  if (node.kind === "gradient") validateGradient(node, pathName);
+  if (node.kind === "texture") validateTexture(node, pathName);
+  if (node.kind === "transform") validateTransform(node.transform, `${pathName}.transform`);
   if (node.kind === "divider" && node.orientation !== "horizontal" && node.orientation !== "vertical") {
     throw new Error(`${pathName}.orientation: divider orientation must be horizontal or vertical`);
   }
   if (node.kind === "grid" && (!Number.isInteger(node.columns) || node.columns <= 0)) {
     throw new Error(`${pathName}.columns: grid columns must be a positive integer`);
   }
+  if (node.kind === "segmentedProgress") validateSegmentedProgress(node, pathName, subscriptions, capabilities, accounts);
+  if (node.kind === "spectrum") validateSpectrum(node, pathName);
+  if (node.state !== undefined) validateStateReference(node, pathName);
+  if (node.disabled !== undefined) {
+    if (!["button", "slider", "countdown", "textField", "textArea", "toggle"].includes(node.kind)) {
+      throw new Error(`${pathName}.disabled: only interactive controls may be disabled`);
+    }
+    if (typeof node.disabled !== "boolean") throw new Error(`${pathName}.disabled: disabled must be boolean`);
+  }
+  if (node.minimum !== undefined && !["slider", "countdown"].includes(node.kind)) throw new Error(`${pathName}.minimum: only slider and countdown nodes may define minimum`);
+  if (node.step !== undefined && !["slider", "countdown"].includes(node.kind)) throw new Error(`${pathName}.step: only slider and countdown nodes may define step`);
   if (node.action !== undefined) {
     if (node.kind !== "button") throw new Error(`${pathName}.action: only button nodes may define an action`);
     validateAction(node.action, `${pathName}.action`, accounts);
   }
+  if (node.animation !== undefined) validateAnimation(node.animation, `${pathName}.animation`);
   validateStyle(node.style, `${pathName}.style`);
+}
+
+function validateStateReference(node, pathName) {
+  const statePath = `${pathName}.state`;
+  if (!node.state || typeof node.state !== "object" || Array.isArray(node.state)) {
+    throw new Error(`${statePath}: state reference must be an object`);
+  }
+  validateKeys(node.state, ["key", "initial"], statePath);
+  if (typeof node.state.key !== "string" || node.state.key.length === 0) {
+    throw new Error(`${statePath}.key: state keys must be non-empty strings`);
+  }
+  if (!isJsonValue(node.state.initial)) {
+    throw new Error(`${statePath}.initial: state defaults must be JSON-compatible`);
+  }
+  if (!["text", "textField", "textArea", "toggle", "slider", "countdown", "gauge", "progress", "segmentedProgress"].includes(node.kind)) {
+    throw new Error(`${statePath}: state bindings are not supported by ${node.kind} nodes`);
+  }
+  if (["textField", "textArea"].includes(node.kind) && typeof node.state.initial !== "string") {
+    throw new Error(`${statePath}.initial: ${node.kind} state must start as a string`);
+  }
+  if (node.kind === "toggle" && typeof node.state.initial !== "boolean") {
+    throw new Error(`${statePath}.initial: toggle state must start as a boolean`);
+  }
+  if (["slider", "countdown", "gauge", "progress", "segmentedProgress"].includes(node.kind)
+      && (typeof node.state.initial !== "number" || !Number.isFinite(node.state.initial))) {
+    throw new Error(`${statePath}.initial: ${node.kind} state must start as a finite number`);
+  }
+  const minimum = ["slider", "countdown"].includes(node.kind) ? node.minimum : 0;
+  if (["slider", "countdown", "gauge", "progress", "segmentedProgress"].includes(node.kind)
+      && (typeof minimum !== "number" || !Number.isFinite(minimum)
+        || typeof node.maximum !== "number" || !Number.isFinite(node.maximum) || node.maximum <= minimum
+        || node.state.initial < minimum || node.state.initial > node.maximum)) {
+    const rangeMessage = node.kind === "countdown" ? "within its declared range" : "between zero and maximum";
+    throw new Error(`${statePath}.initial: ${node.kind} state must be ${rangeMessage}`);
+  }
+  if (node.kind === "text" && !["string", "number", "boolean"].includes(typeof node.state.initial)) {
+    throw new Error(`${statePath}.initial: text state must start as a string, number, or boolean`);
+  }
+}
+
+function materializeWidgetState(node, persisted, pathName) {
+  const next = {
+    ...node,
+    children: node.children?.map((child, index) => materializeWidgetState(child, persisted, `${pathName}.children[${index}]`))
+  };
+  if (node.state === undefined) return next;
+
+  const persistedValue = Object.prototype.hasOwnProperty.call(persisted, node.state.key)
+    ? persisted[node.state.key]
+    : undefined;
+  const value = persistedValue !== undefined && isValidStateValue(node, persistedValue)
+    ? persistedValue
+    : node.state.initial;
+  if (node.kind === "text") {
+    next.text = String(value);
+  } else if (node.kind === "textField" || node.kind === "textArea") {
+    next.text = value;
+  } else if (node.kind === "toggle") {
+    next.value = value ? 1 : 0;
+  } else {
+    next.value = value;
+  }
+  return next;
+}
+
+function isValidStateValue(node, value) {
+  if (node.kind === "text") {
+    return ["string", "number", "boolean"].includes(typeof value)
+      && (typeof value !== "number" || Number.isFinite(value));
+  }
+  if (node.kind === "textField" || node.kind === "textArea") return typeof value === "string";
+  if (node.kind === "toggle") return typeof value === "boolean";
+  const minimum = ["slider", "countdown"].includes(node.kind) ? node.minimum : 0;
+  return typeof value === "number"
+    && Number.isFinite(value)
+    && typeof node.maximum === "number"
+    && Number.isFinite(node.maximum)
+    && typeof minimum === "number"
+    && Number.isFinite(minimum)
+    && node.maximum > minimum
+    && value >= minimum
+    && value <= node.maximum;
+}
+
+function isJsonValue(value) {
+  if (value === null || typeof value === "string" || typeof value === "boolean") return true;
+  if (typeof value === "number") return Number.isFinite(value);
+  if (Array.isArray(value)) return value.every(isJsonValue);
+  return value !== null && typeof value === "object"
+    && Object.values(value).every(isJsonValue);
+}
+
+function validateGradient(node, pathName) {
+  if (!Array.isArray(node.stops) || node.stops.length < 2) {
+    throw new Error(`${pathName}.stops: gradient requires at least two color stops`);
+  }
+  let previousPosition = -Infinity;
+  node.stops.forEach((stop, index) => {
+    const stopPath = `${pathName}.stops[${index}]`;
+    if (!stop || typeof stop !== "object" || Array.isArray(stop)) throw new Error(`${stopPath}: gradient stop must be an object`);
+    validateKeys(stop, ["color", "position"], stopPath);
+    if (typeof stop.color !== "string" || stop.color.length === 0) throw new Error(`${stopPath}.color: gradient stop color must be a non-empty string`);
+    if (typeof stop.position !== "number" || !Number.isFinite(stop.position) || stop.position < 0 || stop.position > 1) {
+      throw new Error(`${stopPath}.position: gradient stop position must be a finite number between zero and one`);
+    }
+    if (stop.position < previousPosition) throw new Error(`${stopPath}.position: gradient stops must be ordered by position`);
+    previousPosition = stop.position;
+  });
+}
+
+function validateTexture(node, pathName) {
+  const sourcePath = `${pathName}.source`;
+  const source = node.source;
+  if (!source || typeof source !== "object" || Array.isArray(source)) throw new Error(`${sourcePath}: texture nodes require a source`);
+  validateKeys(source, ["kind", "name"], sourcePath);
+  if (source.kind !== "builtin" && source.kind !== "asset") throw new Error(`${sourcePath}.kind: texture source kind must be builtin or asset`);
+  if (typeof source.name !== "string" || source.name.length === 0) throw new Error(`${sourcePath}.name: texture source name must be non-empty`);
+  if (source.kind === "builtin" && source.name !== "grain" && source.name !== "grid") {
+    throw new Error(`${sourcePath}.name: built-in texture name must be grain or grid`);
+  }
+}
+
+function validateTransform(transform, pathName) {
+  if (!transform || typeof transform !== "object" || Array.isArray(transform)) throw new Error(`${pathName}: transform must be an object`);
+  validateKeys(transform, ["rotation", "scale", "offsetX", "offsetY"], pathName);
+  for (const key of ["rotation", "offsetX", "offsetY"]) {
+    if (transform[key] !== undefined && (typeof transform[key] !== "number" || !Number.isFinite(transform[key]))) {
+      throw new Error(`${pathName}.${key}: transform value must be a finite number`);
+    }
+  }
+  if (transform.scale !== undefined && (typeof transform.scale !== "number" || !Number.isFinite(transform.scale) || transform.scale <= 0)) {
+    throw new Error(`${pathName}.scale: transform scale must be a finite number greater than zero`);
+  }
+}
+
+function validateSegmentedProgress(node, pathName, subscriptions, capabilities, accounts) {
+  if (!Number.isInteger(node.segments) || node.segments <= 0) throw new Error(`${pathName}.segments: segmented progress segments must be a positive integer`);
+  validateBoundedValueNode(node, pathName, "segmentedProgress");
+  if (node.provider !== undefined) validateProviderNode(node, pathName, subscriptions, capabilities, accounts);
+}
+
+function validateSpectrum(node, pathName) {
+  if (!Array.isArray(node.values) || node.values.length === 0) throw new Error(`${pathName}.values: spectrum requires a non-empty array of values`);
+  if (typeof node.maximum !== "number" || !Number.isFinite(node.maximum) || node.maximum <= 0) throw new Error(`${pathName}.maximum: spectrum maximum must be a positive finite number`);
+  node.values.forEach((value, index) => {
+    if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > node.maximum) {
+      throw new Error(`${pathName}.values[${index}]: spectrum value must be between zero and maximum`);
+    }
+  });
+}
+
+function validateBoundedValueNode(node, pathName, kind) {
+  const hasProvider = typeof node.provider === "string" && node.provider.length > 0;
+  const hasValue = typeof node.value === "number";
+  if ((!hasProvider && !hasValue) || typeof node.maximum !== "number" || !Number.isFinite(node.maximum) || node.maximum <= 0) {
+    throw new Error(`${pathName}: ${kind} nodes require a provider or value and a positive maximum`);
+  }
+  if (hasValue && (!Number.isFinite(node.value) || node.value < 0 || node.value > node.maximum)) {
+    throw new Error(`${pathName}.value: ${kind} value must be between zero and maximum`);
+  }
+}
+
+function validateSlider(node, pathName) {
+  if (typeof node.minimum !== "number" || !Number.isFinite(node.minimum)) {
+    throw new Error(`${pathName}.minimum: slider minimum must be a finite number`);
+  }
+  if (typeof node.maximum !== "number" || !Number.isFinite(node.maximum) || node.maximum <= node.minimum) {
+    throw new Error(`${pathName}.maximum: slider maximum must be greater than minimum`);
+  }
+  if (typeof node.value !== "number" || !Number.isFinite(node.value) || node.value < node.minimum || node.value > node.maximum) {
+    throw new Error(`${pathName}.value: slider value must be between minimum and maximum`);
+  }
+  if (node.step !== undefined && (typeof node.step !== "number" || !Number.isFinite(node.step) || node.step <= 0)) {
+    throw new Error(`${pathName}.step: slider step must be a finite number greater than zero`);
+  }
+}
+
+function validateCountdown(node, pathName) {
+  if (typeof node.minimum !== "number" || !Number.isFinite(node.minimum) || node.minimum <= 0) {
+    throw new Error(`${pathName}.minimum: countdown minimum must be a positive number of seconds`);
+  }
+  if (typeof node.maximum !== "number" || !Number.isFinite(node.maximum) || node.maximum <= node.minimum) {
+    throw new Error(`${pathName}.maximum: countdown maximum must be greater than minimum`);
+  }
+  if (typeof node.value !== "number" || !Number.isFinite(node.value) || node.value < node.minimum || node.value > node.maximum) {
+    throw new Error(`${pathName}.value: countdown seconds must be between minimum and maximum`);
+  }
+  if (typeof node.step !== "number" || !Number.isFinite(node.step) || node.step <= 0) {
+    throw new Error(`${pathName}.step: countdown step must be a finite number greater than zero`);
+  }
+}
+
+function validateProviderNode(node, pathName, subscriptions, capabilities, accounts) {
+  if (node.provider !== undefined && !subscriptions.has(node.provider)) {
+    throw new Error(`${pathName}.provider: ${node.provider} must be listed in manifest.subscribe`);
+  }
+  if (node.provider !== undefined && !SUPPORTED_PROVIDERS.has(node.provider)) {
+    throw new Error(`${pathName}.provider: unsupported provider '${node.provider}'; use render sdk list to choose a host provider`);
+  }
+  if (node.provider?.startsWith("spotify.") && !accounts.has("spotify")) {
+    throw new Error(`${pathName}.provider: ${node.provider} requires a spotify account requirement; add manifest.accounts and ask the user for permission`);
+  }
+}
+
+function validateImageOptions(options, pathName) {
+  if (options === undefined) return;
+  if (!options || typeof options !== "object" || Array.isArray(options)) throw new Error(`${pathName}: image options must be an object`);
+  validateKeys(options, ["fit", "repeat", "position", "tint"], pathName);
+  if (options.fit !== undefined && !new Set(["contain", "cover", "fill"]).has(options.fit)) throw new Error(`${pathName}.fit: image fit must be contain, cover, or fill`);
+  if (options.repeat !== undefined && !new Set(["none", "x", "y", "both"]).has(options.repeat)) throw new Error(`${pathName}.repeat: image repeat must be none, x, y, or both`);
+  if (options.position !== undefined && !new Set(["leading", "center", "trailing"]).has(options.position)) throw new Error(`${pathName}.position: image position must be leading, center, or trailing`);
+  if (options.tint !== undefined && (typeof options.tint !== "string" || options.tint.length === 0)) throw new Error(`${pathName}.tint: image tint must be a non-empty color string`);
+}
+
+function validateAnimation(animation, pathName) {
+  if (!animation || typeof animation !== "object" || Array.isArray(animation)) throw new Error(`${pathName}: animation must be an object`);
+  validateKeys(animation, ["property", "from", "to", "duration", "delay", "repeat", "easing"], pathName);
+  if (!new Set(["opacity", "rotation", "scale", "offsetX", "offsetY"]).has(animation.property)) throw new Error(`${pathName}.property: animation property must be opacity, rotation, scale, offsetX, or offsetY`);
+  for (const key of ["from", "to"]) {
+    if (typeof animation[key] !== "number" || !Number.isFinite(animation[key])) throw new Error(`${pathName}.${key}: animation values must be finite numbers`);
+  }
+  if (typeof animation.duration !== "number" || !Number.isFinite(animation.duration) || animation.duration <= 0) throw new Error(`${pathName}.duration: animation duration must be a finite number greater than zero`);
+  if (animation.delay !== undefined && (typeof animation.delay !== "number" || !Number.isFinite(animation.delay) || animation.delay < 0)) throw new Error(`${pathName}.delay: animation delay must be a finite non-negative number`);
+  if (animation.repeat !== undefined && animation.repeat !== "forever" && (!Number.isInteger(animation.repeat) || animation.repeat < 0)) throw new Error(`${pathName}.repeat: animation repeat must be a non-negative integer or forever`);
+  if (animation.easing !== undefined && !new Set(["linear", "ease-in", "ease-out", "ease-in-out"]).has(animation.easing)) throw new Error(`${pathName}.easing: animation easing must be linear, ease-in, ease-out, or ease-in-out`);
+  if (animation.property === "opacity") {
+    for (const key of ["from", "to"]) if (animation[key] < 0 || animation[key] > 1) throw new Error(`${pathName}.${key}: opacity animation values must be between zero and one`);
+  }
+  if (animation.property === "scale") {
+    for (const key of ["from", "to"]) if (animation[key] <= 0) throw new Error(`${pathName}.${key}: scale animation values must be greater than zero`);
+  }
 }
 
 function validateAction(action, pathName, accounts) {
@@ -905,66 +1159,145 @@ function validateStyle(style, pathName) {
   if (style === undefined) return;
   if (!style || typeof style !== "object" || Array.isArray(style)) throw new Error(`${pathName}: style must be an object`);
   const allowed = new Set([
-    "width", "height", "color", "backgroundColor", "opacity", "padding", "margin", "gap",
-    "alignItems", "justifyContent", "radius", "border", "shadow", "font", "material", "role", "density", "tokens"
+    "width", "height", "minWidth", "maxWidth", "minHeight", "maxHeight", "aspectRatio",
+    "color", "backgroundColor", "opacity", "padding", "margin", "gap",
+    "alignItems", "justifyContent", "alignSelf", "flexGrow", "flexShrink", "flexBasis", "flexWrap",
+    "radius", "border", "shadow", "shadows", "font", "overflow", "interaction", "material", "role", "density", "tokens"
   ]);
   for (const key of Object.keys(style)) if (!allowed.has(key)) throw new Error(`${pathName}.${key}: unknown style property`);
-  for (const key of ["width", "height"]) {
-    if (style[key] !== undefined && !(typeof style[key] === "number" || style[key] === "fill" || style[key] === "fit")) {
-      throw new Error(`${pathName}.${key}: length must be a number, fill, or fit`);
-    }
-    if (typeof style[key] === "number" && (!Number.isFinite(style[key]) || style[key] <= 0)) throw new Error(`${pathName}.${key}: length must be greater than zero`);
+  for (const key of ["width", "height", "minWidth", "maxWidth", "minHeight", "maxHeight", "flexBasis"]) {
+    validateLength(style[key], `${pathName}.${key}`);
   }
-  for (const key of ["opacity", "gap", "radius"]) {
+  for (const key of ["opacity", "gap", "aspectRatio", "flexGrow", "flexShrink"]) {
     if (style[key] !== undefined && (typeof style[key] !== "number" || !Number.isFinite(style[key]) || style[key] < 0 || (key === "opacity" && style[key] > 1))) {
       throw new Error(`${pathName}.${key}: must be a valid non-negative number${key === "opacity" ? " between zero and one" : ""}`);
     }
   }
+  if (style.aspectRatio !== undefined && style.aspectRatio <= 0) throw new Error(`${pathName}.aspectRatio: must be greater than zero`);
   for (const key of ["color", "backgroundColor"]) if (style[key] !== undefined && typeof style[key] !== "string") throw new Error(`${pathName}.${key}: color must be a string`);
   const alignments = new Set(["leading", "center", "trailing", "top", "bottom", "fill", "space-between"]);
-  for (const key of ["alignItems", "justifyContent"]) if (style[key] !== undefined && !alignments.has(style[key])) throw new Error(`${pathName}.${key}: unsupported alignment`);
+  for (const key of ["alignItems", "justifyContent", "alignSelf"]) if (style[key] !== undefined && !alignments.has(style[key])) throw new Error(`${pathName}.${key}: unsupported alignment`);
+  if (style.flexWrap !== undefined && !new Set(["nowrap", "wrap"]).has(style.flexWrap)) throw new Error(`${pathName}.flexWrap: must be nowrap or wrap`);
+  if (style.overflow !== undefined && !new Set(["visible", "hidden", "clip"]).has(style.overflow)) throw new Error(`${pathName}.overflow: must be visible, hidden, or clip`);
   validateSpacing(style.padding, `${pathName}.padding`);
-  validateSpacing(style.margin, `${pathName}.margin`);
+  validateSpacing(style.margin, `${pathName}.margin`, { allowNegative: true });
+  validateRadius(style.radius, `${pathName}.radius`);
   if (style.border !== undefined) {
     if (!style.border || typeof style.border !== "object" || Array.isArray(style.border)) throw new Error(`${pathName}.border: border must be an object`);
     validateObjectKeys(style.border, ["color", "width", "radius"], `${pathName}.border`);
     for (const key of ["width", "radius"]) if (style.border[key] !== undefined && (typeof style.border[key] !== "number" || !Number.isFinite(style.border[key]) || style.border[key] < 0)) throw new Error(`${pathName}.border.${key}: must be non-negative`);
     if (style.border.color !== undefined && typeof style.border.color !== "string") throw new Error(`${pathName}.border.color: color must be a string`);
   }
-  if (style.shadow !== undefined) {
-    if (!style.shadow || typeof style.shadow !== "object" || Array.isArray(style.shadow)) throw new Error(`${pathName}.shadow: shadow must be an object`);
-    validateObjectKeys(style.shadow, ["color", "radius", "x", "y", "opacity"], `${pathName}.shadow`);
-    for (const key of ["radius", "x", "y"]) if (style.shadow[key] !== undefined && (typeof style.shadow[key] !== "number" || !Number.isFinite(style.shadow[key]))) throw new Error(`${pathName}.shadow.${key}: must be a finite number`);
-    if (style.shadow.opacity !== undefined && (typeof style.shadow.opacity !== "number" || style.shadow.opacity < 0 || style.shadow.opacity > 1)) throw new Error(`${pathName}.shadow.opacity: must be between zero and one`);
-    if (style.shadow.color !== undefined && typeof style.shadow.color !== "string") throw new Error(`${pathName}.shadow.color: color must be a string`);
+  validateShadow(style.shadow, `${pathName}.shadow`);
+  if (style.shadows !== undefined) {
+    if (!Array.isArray(style.shadows)) throw new Error(`${pathName}.shadows: shadows must be an array`);
+    style.shadows.forEach((shadow, index) => validateShadow(shadow, `${pathName}.shadows[${index}]`));
   }
   if (style.font !== undefined) {
     if (!style.font || typeof style.font !== "object" || Array.isArray(style.font)) throw new Error(`${pathName}.font: font must be an object`);
-    validateObjectKeys(style.font, ["family", "size", "weight", "monospace"], `${pathName}.font`);
+    validateObjectKeys(style.font, ["family", "size", "weight", "monospace", "leading", "tracking", "alignment", "lineLimit", "tabularNumbers", "truncation"], `${pathName}.font`);
     if (style.font.size !== undefined && (typeof style.font.size !== "number" || style.font.size <= 0)) throw new Error(`${pathName}.font.size: must be greater than zero`);
+    if (style.font.leading !== undefined && (typeof style.font.leading !== "number" || !Number.isFinite(style.font.leading) || style.font.leading <= 0)) throw new Error(`${pathName}.font.leading: must be a finite number greater than zero`);
+    if (style.font.tracking !== undefined && (typeof style.font.tracking !== "number" || !Number.isFinite(style.font.tracking))) throw new Error(`${pathName}.font.tracking: must be a finite number`);
+    if (style.font.lineLimit !== undefined && (!Number.isInteger(style.font.lineLimit) || style.font.lineLimit <= 0)) throw new Error(`${pathName}.font.lineLimit: must be a positive integer`);
     if (style.font.weight !== undefined && !new Set(["regular", "medium", "semibold", "bold"]).has(style.font.weight)) throw new Error(`${pathName}.font.weight: unsupported font weight`);
+    if (style.font.alignment !== undefined && !new Set(["leading", "center", "trailing", "justified"]).has(style.font.alignment)) throw new Error(`${pathName}.font.alignment: unsupported text alignment`);
+    if (style.font.truncation !== undefined && !new Set(["head", "middle", "tail", "clip"]).has(style.font.truncation)) throw new Error(`${pathName}.font.truncation: unsupported truncation mode`);
     if (style.font.family !== undefined && typeof style.font.family !== "string") throw new Error(`${pathName}.font.family: family must be a string`);
     if (style.font.monospace !== undefined && typeof style.font.monospace !== "boolean") throw new Error(`${pathName}.font.monospace: must be boolean`);
+    if (style.font.tabularNumbers !== undefined && typeof style.font.tabularNumbers !== "boolean") throw new Error(`${pathName}.font.tabularNumbers: must be boolean`);
   }
+  validateInteraction(style.interaction, `${pathName}.interaction`);
   if (style.material !== undefined && !new Set(["solid", "thin", "thick"]).has(style.material)) throw new Error(`${pathName}.material: unsupported material`);
   if (style.role !== undefined && !new Set(["surface", "panel", "control", "status", "media"]).has(style.role)) throw new Error(`${pathName}.role: unsupported semantic role`);
   if (style.density !== undefined && !new Set(["compact", "comfortable"]).has(style.density)) throw new Error(`${pathName}.density: unsupported density`);
   if (style.tokens !== undefined && (!Array.isArray(style.tokens) || style.tokens.some((token) => !new Set(["surface", "surface.elevated", "surface.panel", "surface.control", "surface.status", "text.primary", "text.secondary", "text.tertiary", "border.subtle", "accent", "accent.muted", "danger", "success", "mono"]).has(token)))) throw new Error(`${pathName}.tokens: contains an unsupported style token`);
 }
 
+function validateInteraction(value, pathName) {
+  if (value === undefined) return;
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error(`${pathName}: interaction must be an object`);
+  validateObjectKeys(value, ["cursor", "hover", "pressed", "focus", "disabled"], pathName);
+  const cursors = new Set(["default", "pointer", "text", "crosshair", "move", "not-allowed"]);
+  if (value.cursor !== undefined && !cursors.has(value.cursor)) {
+    throw new Error(`${pathName}.cursor: cursor must be default, pointer, text, crosshair, move, or not-allowed`);
+  }
+  for (const state of ["hover", "pressed", "focus", "disabled"]) {
+    validateInteractionAppearance(value[state], `${pathName}.${state}`);
+  }
+}
+
+function validateInteractionAppearance(value, pathName) {
+  if (value === undefined) return;
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error(`${pathName}: interaction appearance must be an object`);
+  validateObjectKeys(value, ["color", "backgroundColor", "opacity", "borderColor", "shadow", "scale"], pathName);
+  for (const key of ["color", "backgroundColor", "borderColor"]) {
+    if (value[key] !== undefined && (typeof value[key] !== "string" || value[key].length === 0)) {
+      throw new Error(`${pathName}.${key}: color must be a non-empty string`);
+    }
+  }
+  if (value.opacity !== undefined && (typeof value.opacity !== "number" || !Number.isFinite(value.opacity) || value.opacity < 0 || value.opacity > 1)) {
+    throw new Error(`${pathName}.opacity: must be a finite number between zero and one`);
+  }
+  if (value.scale !== undefined && (typeof value.scale !== "number" || !Number.isFinite(value.scale) || value.scale <= 0)) {
+    throw new Error(`${pathName}.scale: must be a finite number greater than zero`);
+  }
+  validateShadow(value.shadow, `${pathName}.shadow`);
+}
+
 function validateObjectKeys(value, allowed, pathName) {
   for (const key of Object.keys(value)) if (!allowed.includes(key)) throw new Error(`${pathName}.${key}: unknown style property`);
 }
 
-function validateSpacing(value, pathName) {
+function validateKeys(value, allowed, pathName) {
+  for (const key of Object.keys(value)) if (!allowed.includes(key)) throw new Error(`${pathName}.${key}: unknown property`);
+}
+
+function validateSpacing(value, pathName, { allowNegative = false } = {}) {
   if (value === undefined) return;
   if (typeof value === "number") {
-    if (!Number.isFinite(value) || value < 0) throw new Error(`${pathName}: spacing must be non-negative`);
+    if (!Number.isFinite(value) || (!allowNegative && value < 0)) throw new Error(`${pathName}: spacing must be ${allowNegative ? "finite" : "non-negative"}`);
     return;
   }
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error(`${pathName}: spacing must be a number or insets`);
-  validateObjectKeys(value, ["top", "right", "bottom", "left"], pathName);
-  for (const key of ["top", "right", "bottom", "left"]) if (value[key] !== undefined && (typeof value[key] !== "number" || !Number.isFinite(value[key]) || value[key] < 0)) throw new Error(`${pathName}.${key}: spacing must be non-negative`);
+  validateObjectKeys(value, ["horizontal", "vertical", "top", "right", "bottom", "left"], pathName);
+  for (const key of ["horizontal", "vertical", "top", "right", "bottom", "left"]) if (value[key] !== undefined && (typeof value[key] !== "number" || !Number.isFinite(value[key]) || (!allowNegative && value[key] < 0))) throw new Error(`${pathName}.${key}: spacing must be ${allowNegative ? "finite" : "non-negative"}`);
+}
+
+function validateLength(value, pathName) {
+  if (value === undefined) return;
+  if (typeof value === "number") {
+    if (!Number.isFinite(value) || value <= 0) throw new Error(`${pathName}: length must be greater than zero`);
+    return;
+  }
+  if (value === "fill" || value === "fit" || value === "auto") return;
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error(`${pathName}: length must be a number, fill, fit, auto, percent, or fraction`);
+  validateObjectKeys(value, ["unit", "value"], pathName);
+  if (value.unit !== "percent" && value.unit !== "fraction") throw new Error(`${pathName}.unit: length unit must be percent or fraction`);
+  if (typeof value.value !== "number" || !Number.isFinite(value.value) || value.value <= 0) throw new Error(`${pathName}.value: relative length must be greater than zero`);
+  if (value.unit === "percent" && value.value > 100) throw new Error(`${pathName}.value: percentage length must be at most 100`);
+}
+
+function validateRadius(value, pathName) {
+  if (value === undefined) return;
+  if (typeof value === "number") {
+    if (!Number.isFinite(value) || value < 0) throw new Error(`${pathName}: radius must be non-negative`);
+    return;
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error(`${pathName}: radius must be a number or corner radii`);
+  validateObjectKeys(value, ["topLeft", "topRight", "bottomRight", "bottomLeft"], pathName);
+  for (const key of ["topLeft", "topRight", "bottomRight", "bottomLeft"]) if (value[key] !== undefined && (typeof value[key] !== "number" || !Number.isFinite(value[key]) || value[key] < 0)) throw new Error(`${pathName}.${key}: radius must be non-negative`);
+}
+
+function validateShadow(value, pathName) {
+  if (value === undefined) return;
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error(`${pathName}: shadow must be an object`);
+  validateObjectKeys(value, ["color", "radius", "x", "y", "opacity", "kind"], pathName);
+  for (const key of ["radius", "x", "y"]) if (value[key] !== undefined && (typeof value[key] !== "number" || !Number.isFinite(value[key]))) throw new Error(`${pathName}.${key}: must be a finite number`);
+  if (value.radius !== undefined && value.radius < 0) throw new Error(`${pathName}.radius: must be non-negative`);
+  if (value.opacity !== undefined && (typeof value.opacity !== "number" || value.opacity < 0 || value.opacity > 1)) throw new Error(`${pathName}.opacity: must be between zero and one`);
+  if (value.color !== undefined && typeof value.color !== "string") throw new Error(`${pathName}.color: color must be a string`);
+  if (value.kind !== undefined && !new Set(["outset", "inset", "text"]).has(value.kind)) throw new Error(`${pathName}.kind: must be outset, inset, or text`);
 }
 
 function findHostPath() {

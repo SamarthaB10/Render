@@ -16,8 +16,9 @@ let package = Package(
             name: "RenderHost",
             dependencies: ["RenderHostCore"],
             exclude: ["Info.plist"],
+            resources: [.copy("LUCIDE-LICENSE.txt"), .copy("LucideResources")],
             linkerSettings: [.linkedFramework("WebKit")]
         ),
-        .testTarget(name: "RenderHostCoreTests", dependencies: ["RenderHostCore"])
+        .testTarget(name: "RenderHostCoreTests", dependencies: ["RenderHostCore", "RenderHost"])
     ]
 )

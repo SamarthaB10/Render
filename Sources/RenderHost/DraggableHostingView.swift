@@ -4,6 +4,7 @@ import SwiftUI
 final class DraggableHostingView: NSHostingView<AnyView> {
     var onDrag: ((NSPoint) -> Void)?
     var onDragEnded: (() -> Void)?
+    var shouldForwardMouseEvents: (() -> Bool)?
 
     private var dragStartMouseLocation: NSPoint?
     private var dragStartOrigin: NSPoint?
@@ -14,11 +15,11 @@ final class DraggableHostingView: NSHostingView<AnyView> {
     }
 
     override var mouseDownCanMoveWindow: Bool {
-        true
+        false
     }
 
     override func mouseDown(with event: NSEvent) {
-        if hitInteractiveControl(at: event) {
+        if hitInteractiveControl(at: event) || shouldForwardMouseEvents?() == true {
             forwardingMouseDown = true
             super.mouseDown(with: event)
             return
@@ -60,7 +61,7 @@ final class DraggableHostingView: NSHostingView<AnyView> {
         let point = convert(event.locationInWindow, from: nil)
         var view = hitTest(point)
         while let candidate = view {
-            if candidate is NSControl { return true }
+            if candidate is NSControl || candidate is NSText || candidate is NSScrollView { return true }
             view = candidate.superview
         }
         return false

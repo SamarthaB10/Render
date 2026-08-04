@@ -23,6 +23,7 @@ A Widget contains a validated `manifest` and a retained `tree`. A Widget must us
 | `divider` | Horizontal or vertical separator |
 | `text` | Rendered text or provider value |
 | `textField` | Editable single-line text control |
+| `textArea` | Editable multi-line text control with Widget state binding |
 | `textEditor` | Editable multi-line text control |
 | `dateTime` | Formatted date or time value |
 | `dateTimePicker` | Native date and time picker |
@@ -33,9 +34,17 @@ A Widget contains a validated `manifest` and a retained `tree`. A Widget must us
 | `icon` | Native symbol icon |
 | `image` | Asset, URL, or provider-backed image |
 | `button` | Native action control |
+| `slider` | Persistent bounded numeric control |
+| `countdown` | User-adjustable persistent countdown |
 | `gauge` | Bounded value gauge |
 | `progress` | Bounded progress indicator |
+| `segmentedProgress` | Discrete segmented progress indicator |
+| `spectrum` | Finite numeric spectrum visualization |
 | `grid` | Column-based layout container |
+| `gradient` | Native gradient container |
+| `texture` | Built-in or asset texture surface |
+| `clip` | Native clipping container |
+| `transform` | Native transformed container |
 | `list` | Static or provider-backed list |
 | `visualizer` | Provider-backed visualizer surface |
 | `youtubePlayer` | Native YouTube playback surface |

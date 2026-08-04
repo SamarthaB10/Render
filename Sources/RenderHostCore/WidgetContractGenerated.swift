@@ -4,7 +4,7 @@ import Foundation
 
 public enum RenderWidgetContract {
     public static let version = 1
-    public static let nodeKinds: Set<String> = ["column", "row", "stack", "box", "glassPanel", "mediaCard", "scrollView", "spacer", "divider", "text", "textField", "textEditor", "dateTime", "dateTimePicker", "toggle", "timer", "taskList", "shape", "icon", "image", "button", "gauge", "progress", "grid", "list", "visualizer", "youtubePlayer"]
+    public static let nodeKinds: Set<String> = ["column", "row", "stack", "box", "glassPanel", "mediaCard", "scrollView", "spacer", "divider", "text", "textField", "textArea", "textEditor", "dateTime", "dateTimePicker", "toggle", "timer", "taskList", "shape", "icon", "image", "button", "slider", "countdown", "gauge", "progress", "segmentedProgress", "spectrum", "grid", "gradient", "texture", "clip", "transform", "list", "visualizer", "youtubePlayer"]
     public static let capabilities: Set<String> = ["network", "filesystem.read", "filesystem.write"]
     public static let anchorCorners: Set<String> = ["top-left", "top-right", "bottom-left", "bottom-right"]
     public static let themes: Set<String> = ["dark-glass", "light", "monochrome", "retro"]

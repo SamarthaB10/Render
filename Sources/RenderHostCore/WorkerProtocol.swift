@@ -40,6 +40,7 @@ public struct WorkerMessage: Codable, Equatable, Sendable {
     public let selectedVersion: Int?
     public let workspace: String?
     public let sourcePath: String?
+    public let state: [String: WidgetJSONValue]?
     public let mode: String?
     public let size: WorkerRenderSize?
     public let tree: WidgetTree?
@@ -53,6 +54,7 @@ public struct WorkerMessage: Codable, Equatable, Sendable {
         selectedVersion: Int? = nil,
         workspace: String? = nil,
         sourcePath: String? = nil,
+        state: [String: WidgetJSONValue]? = nil,
         mode: String? = nil,
         size: WorkerRenderSize? = nil,
         tree: WidgetTree? = nil,
@@ -67,6 +69,7 @@ public struct WorkerMessage: Codable, Equatable, Sendable {
         self.selectedVersion = selectedVersion
         self.workspace = workspace
         self.sourcePath = sourcePath
+        self.state = state
         self.mode = mode
         self.size = size
         self.tree = tree
