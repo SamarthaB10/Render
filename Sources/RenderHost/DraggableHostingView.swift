@@ -61,7 +61,7 @@ final class DraggableHostingView: NSHostingView<AnyView> {
         let point = convert(event.locationInWindow, from: nil)
         var view = hitTest(point)
         while let candidate = view {
-            if candidate is NSControl { return true }
+            if candidate is NSControl || candidate is NSText || candidate is NSScrollView { return true }
             view = candidate.superview
         }
         return false

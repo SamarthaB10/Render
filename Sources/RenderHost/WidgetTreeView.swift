@@ -181,6 +181,8 @@ struct WidgetTreeView: View {
             return AnyView(EditableTextField(
                 initialText: tree.text ?? "",
                 style: tree.style,
+                multiline: tree.multiline == true,
+                color: foregroundColor ?? .primary,
                 disabled: isDisabled,
                 onChange: stateChange.map { change in { value in change(.string(value)) } }
             ))
@@ -212,6 +214,16 @@ struct WidgetTreeView: View {
                 color: foregroundColor ?? .accentColor,
                 disabled: isDisabled,
                 onChange: stateChange.map { change in { value in change(.number(value)) } }
+            ))
+        case "countdown":
+            return AnyView(WidgetCountdown(
+                seconds: tree.value ?? tree.minimum ?? 60,
+                minimum: tree.minimum ?? 60,
+                maximum: tree.maximum ?? 7_200,
+                step: tree.step ?? 60,
+                color: foregroundColor ?? .primary,
+                disabled: isDisabled,
+                onDurationChange: stateChange.map { change in { value in change(.number(value)) } }
             ))
         case "gauge":
             return AnyView(gaugeContent)
@@ -569,7 +581,7 @@ struct WidgetTreeView: View {
     }
 
     private var isInteractiveControl: Bool {
-        [.button, .slider, .textField, .toggle].contains(tree.kind)
+        [.button, .slider, .countdown, .textField, .toggle].contains(tree.kind)
     }
 
     private var isDisabled: Bool {
@@ -604,7 +616,7 @@ struct WidgetTreeView: View {
                 .accessibilityAddTraits(.isButton)
             )
         }
-        if tree.kind != .textField {
+        if tree.kind != .textField && tree.kind != .countdown {
             result = AnyView(result
                 .focusable(!isDisabled)
                 .focused($isFocused)
@@ -879,28 +891,107 @@ private struct WidgetFlowLayout: Layout {
 private struct EditableTextField: View {
     let initialText: String
     let style: WidgetStyle?
+    let multiline: Bool
+    let color: Color
     let disabled: Bool
     let onChange: ((String) -> Void)?
     @State private var value: String
 
-    init(initialText: String, style: WidgetStyle?, disabled: Bool, onChange: ((String) -> Void)? = nil) {
+    init(initialText: String, style: WidgetStyle?, multiline: Bool, color: Color, disabled: Bool, onChange: ((String) -> Void)? = nil) {
         self.initialText = initialText
         self.style = style
+        self.multiline = multiline
+        self.color = color
         self.disabled = disabled
         self.onChange = onChange
         _value = State(initialValue: initialText)
     }
 
     var body: some View {
-        TextField("", text: $value)
-            .textFieldStyle(.plain)
+        Group {
+            if multiline {
+                NativeMultilineTextField(
+                    text: $value,
+                    color: color,
+                    fontSize: CGFloat(style?.font?.size ?? 13),
+                    disabled: disabled
+                )
+            } else {
+                TextField("", text: $value)
+                    .textFieldStyle(.plain)
+                    .foregroundColor(color)
+            }
+        }
             .padding(8)
             .background(Color.white.opacity(0.06), in: WidgetCornerShape(style?.radius, fallback: 8))
-            .foregroundColor(.primary)
             .disabled(disabled)
             .onChange(of: value) { newValue in
                 onChange?(newValue)
             }
+    }
+}
+
+private struct NativeMultilineTextField: NSViewRepresentable {
+    @Binding var text: String
+    let color: Color
+    let fontSize: CGFloat
+    let disabled: Bool
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(text: $text)
+    }
+
+    func makeNSView(context: Context) -> NSScrollView {
+        let scrollView = NSScrollView()
+        scrollView.drawsBackground = false
+        scrollView.borderType = .noBorder
+        scrollView.hasVerticalScroller = true
+        scrollView.autohidesScrollers = true
+
+        let textView = NSTextView()
+        textView.delegate = context.coordinator
+        textView.string = text
+        textView.drawsBackground = false
+        textView.textColor = NSColor(color)
+        textView.insertionPointColor = NSColor(color)
+        textView.font = .systemFont(ofSize: fontSize)
+        textView.textContainerInset = NSSize(width: 2, height: 3)
+        textView.isEditable = !disabled
+        textView.isSelectable = !disabled
+        textView.isRichText = false
+        textView.importsGraphics = false
+        textView.isVerticallyResizable = true
+        textView.isHorizontallyResizable = false
+        textView.autoresizingMask = [.width]
+        textView.textContainer?.widthTracksTextView = true
+        textView.textContainer?.containerSize = NSSize(width: 0, height: CGFloat.greatestFiniteMagnitude)
+        scrollView.documentView = textView
+        return scrollView
+    }
+
+    func updateNSView(_ scrollView: NSScrollView, context: Context) {
+        guard let textView = scrollView.documentView as? NSTextView else { return }
+        if textView.string != text && textView.window?.firstResponder !== textView {
+            textView.string = text
+        }
+        textView.textColor = NSColor(color)
+        textView.insertionPointColor = NSColor(color)
+        textView.font = .systemFont(ofSize: fontSize)
+        textView.isEditable = !disabled
+        textView.isSelectable = !disabled
+    }
+
+    final class Coordinator: NSObject, NSTextViewDelegate {
+        @Binding private var text: String
+
+        init(text: Binding<String>) {
+            _text = text
+        }
+
+        func textDidChange(_ notification: Notification) {
+            guard let textView = notification.object as? NSTextView else { return }
+            text = textView.string
+        }
     }
 }
 

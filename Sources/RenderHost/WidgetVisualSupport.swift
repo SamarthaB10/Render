@@ -333,3 +333,174 @@ struct WidgetFittedImage: View {
     }
 
 }
+
+struct WidgetCountdown: View {
+    let minimum: Double
+    let maximum: Double
+    let step: Double
+    let color: Color
+    let disabled: Bool
+    let onDurationChange: ((Double) -> Void)?
+
+    @State private var selectedSeconds: Double
+    @State private var remainingSeconds: Double
+    @State private var isRunning = false
+
+    init(
+        seconds: Double,
+        minimum: Double,
+        maximum: Double,
+        step: Double,
+        color: Color,
+        disabled: Bool,
+        onDurationChange: ((Double) -> Void)?
+    ) {
+        let clamped = min(max(seconds, minimum), maximum)
+        self.minimum = minimum
+        self.maximum = maximum
+        self.step = step
+        self.color = color
+        self.disabled = disabled
+        self.onDurationChange = onDurationChange
+        _selectedSeconds = State(initialValue: clamped)
+        _remainingSeconds = State(initialValue: clamped)
+    }
+
+    var body: some View {
+        VStack(spacing: 16) {
+            VStack(spacing: 4) {
+                Text(statusLabel)
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .tracking(1.4)
+                    .foregroundColor(color.opacity(0.62))
+                Text(formattedTime)
+                    .font(.system(size: 48, weight: .medium, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundColor(color)
+                    .accessibilityLabel("Countdown remaining")
+                    .accessibilityValue(formattedTime)
+            }
+
+            HStack(spacing: 12) {
+                countdownButton(icon: "rotate-ccw", label: "Reset", prominent: false, action: reset)
+                countdownButton(
+                    icon: isRunning ? "pause" : "play",
+                    label: isRunning ? "Pause" : "Start",
+                    prominent: true,
+                    action: toggleRunning
+                )
+            }
+
+            VStack(spacing: 6) {
+                Slider(
+                    value: Binding(
+                        get: { selectedSeconds },
+                        set: updateDuration
+                    ),
+                    in: minimum...maximum,
+                    step: step
+                )
+                .tint(color)
+                .disabled(disabled || isRunning)
+                .accessibilityLabel("Timer duration")
+                .accessibilityValue(durationLabel(selectedSeconds))
+
+                HStack {
+                    Text(durationLabel(minimum))
+                    Spacer()
+                    Text("CHOOSE DURATION")
+                    Spacer()
+                    Text(durationLabel(maximum))
+                }
+                .font(.system(size: 9, weight: .medium, design: .rounded))
+                .tracking(0.8)
+                .foregroundColor(color.opacity(0.45))
+            }
+        }
+        .padding(18)
+        .task(id: isRunning) {
+            guard isRunning else { return }
+            while isRunning && remainingSeconds > 0 {
+                do {
+                    try await Task.sleep(nanoseconds: 1_000_000_000)
+                } catch {
+                    return
+                }
+                guard !Task.isCancelled, isRunning else { return }
+                remainingSeconds = max(remainingSeconds - 1, 0)
+            }
+            if remainingSeconds == 0 {
+                isRunning = false
+            }
+        }
+    }
+
+    private var formattedTime: String {
+        let total = max(Int(remainingSeconds.rounded(.up)), 0)
+        let hours = total / 3_600
+        let minutes = (total % 3_600) / 60
+        let seconds = total % 60
+        if hours > 0 {
+            return String(format: "%d:%02d:%02d", hours, minutes, seconds)
+        }
+        return String(format: "%02d:%02d", minutes, seconds)
+    }
+
+    private var statusLabel: String {
+        if isRunning { return "FOCUSING" }
+        if remainingSeconds == 0 { return "COMPLETE" }
+        if remainingSeconds < selectedSeconds { return "PAUSED" }
+        return "READY"
+    }
+
+    private func durationLabel(_ seconds: Double) -> String {
+        if seconds < 60 { return "\(Int(seconds.rounded()))s" }
+        let minutes = Int((seconds / 60).rounded())
+        return "\(minutes)m"
+    }
+
+    private func updateDuration(_ seconds: Double) {
+        let rounded = min(max((seconds / step).rounded() * step, minimum), maximum)
+        selectedSeconds = rounded
+        remainingSeconds = rounded
+        onDurationChange?(rounded)
+    }
+
+    private func toggleRunning() {
+        guard !disabled else { return }
+        if remainingSeconds == 0 {
+            remainingSeconds = selectedSeconds
+        }
+        isRunning.toggle()
+    }
+
+    private func reset() {
+        guard !disabled else { return }
+        isRunning = false
+        remainingSeconds = selectedSeconds
+    }
+
+    @ViewBuilder
+    private func countdownButton(icon: String, label: String, prominent: Bool, action: @escaping () -> Void) -> some View {
+        let button = Button(action: action) {
+            LucideIconView(name: icon, color: prominent ? Color.black : color)
+                .frame(width: 18, height: 18)
+                .frame(width: 48, height: 38)
+                .background(
+                    Capsule().fill(prominent ? color : color.opacity(0.12))
+                )
+                .overlay(
+                    Capsule().stroke(color.opacity(prominent ? 0 : 0.18), lineWidth: 1)
+                )
+        }
+        .buttonStyle(.plain)
+        .disabled(disabled)
+        .accessibilityLabel(label)
+
+        if #available(macOS 14.0, *) {
+            button.focusEffectDisabled()
+        } else {
+            button
+        }
+    }
+}

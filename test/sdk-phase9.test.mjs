@@ -98,7 +98,7 @@ test("Phase 9 catalog is exact and exported runtime primitives are discoverable"
   const names = catalog.listSdkCatalog().map((item) => item.name);
   const primitives = [
     "Box", "Spacer", "Divider", "Icon", "Image", "Gradient", "Texture", "Clip", "Transform",
-    "SegmentedProgress", "Spectrum", "Button", "Slider", "TextField", "Toggle", "Progress", "Grid"
+    "SegmentedProgress", "Spectrum", "Button", "Slider", "Countdown", "TextField", "Toggle", "Progress", "Grid"
   ];
 
   for (const name of primitives) {
@@ -111,9 +111,9 @@ test("Phase 9 catalog is exact and exported runtime primitives are discoverable"
     assert.ok(item.notes.some((note) => /native (renderer|host)/i.test(note)));
   }
 
-  assert.deepEqual(names.slice(1, 25), [
+  assert.deepEqual(names.slice(1, 26), [
     "Column", "Row", "Stack", "Box", "Spacer", "Divider", "Text", "TextField", "Toggle", "Shape", "Icon", "Image",
-    "Gradient", "Texture", "Clip", "Transform", "SegmentedProgress", "Spectrum", "Animate", "Button", "Slider", "Gauge", "Progress", "Grid"
+    "Gradient", "Texture", "Clip", "Transform", "SegmentedProgress", "Spectrum", "Animate", "Button", "Slider", "Countdown", "Gauge", "Progress", "Grid"
   ]);
   assert.equal(catalog.describeSdkCatalog("WidgetStyle").status, "implemented");
   assert.equal(catalog.describeSdkCatalog("WidgetAction").status, "implemented");

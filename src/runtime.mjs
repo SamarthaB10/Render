@@ -484,7 +484,7 @@ function validateRuntimeTree(node, pathName, subscriptions, capabilities, accoun
   }
   const kinds = new Set([
     "column", "row", "stack", "box", "spacer", "divider", "text", "textField", "toggle", "shape",
-    "icon", "image", "button", "slider", "gauge", "progress", "grid", "gradient", "texture", "clip", "transform",
+    "icon", "image", "button", "slider", "countdown", "gauge", "progress", "grid", "gradient", "texture", "clip", "transform",
     "segmentedProgress", "spectrum"
   ]);
   if (!kinds.has(node.kind)) {
@@ -533,6 +533,7 @@ function validateRuntimeTree(node, pathName, subscriptions, capabilities, accoun
     }
   }
   if (node.kind === "slider") validateSlider(node, pathName);
+  if (node.kind === "countdown") validateCountdown(node, pathName);
   if (node.kind === "icon" && (typeof node.name !== "string" || node.name.length === 0)) {
     throw new Error(`${pathName}.name: icon nodes require a non-empty symbol name`);
   }
@@ -563,13 +564,17 @@ function validateRuntimeTree(node, pathName, subscriptions, capabilities, accoun
   if (node.kind === "spectrum") validateSpectrum(node, pathName);
   if (node.state !== undefined) validateStateReference(node, pathName);
   if (node.disabled !== undefined) {
-    if (!["button", "slider", "textField", "toggle"].includes(node.kind)) {
+    if (!["button", "slider", "countdown", "textField", "toggle"].includes(node.kind)) {
       throw new Error(`${pathName}.disabled: only interactive controls may be disabled`);
     }
     if (typeof node.disabled !== "boolean") throw new Error(`${pathName}.disabled: disabled must be boolean`);
   }
-  if (node.minimum !== undefined && node.kind !== "slider") throw new Error(`${pathName}.minimum: only slider nodes may define minimum`);
-  if (node.step !== undefined && node.kind !== "slider") throw new Error(`${pathName}.step: only slider nodes may define step`);
+  if (node.multiline !== undefined) {
+    if (node.kind !== "textField") throw new Error(`${pathName}.multiline: only textField nodes may define multiline`);
+    if (typeof node.multiline !== "boolean") throw new Error(`${pathName}.multiline: multiline must be boolean`);
+  }
+  if (node.minimum !== undefined && !["slider", "countdown"].includes(node.kind)) throw new Error(`${pathName}.minimum: only slider and countdown nodes may define minimum`);
+  if (node.step !== undefined && !["slider", "countdown"].includes(node.kind)) throw new Error(`${pathName}.step: only slider and countdown nodes may define step`);
   if (node.action !== undefined) {
     if (node.kind !== "button") throw new Error(`${pathName}.action: only button nodes may define an action`);
     validateAction(node.action, `${pathName}.action`, accounts);
@@ -590,7 +595,7 @@ function validateStateReference(node, pathName) {
   if (!isJsonValue(node.state.initial)) {
     throw new Error(`${statePath}.initial: state defaults must be JSON-compatible`);
   }
-  if (!["text", "textField", "toggle", "slider", "gauge", "progress", "segmentedProgress"].includes(node.kind)) {
+  if (!["text", "textField", "toggle", "slider", "countdown", "gauge", "progress", "segmentedProgress"].includes(node.kind)) {
     throw new Error(`${statePath}: state bindings are not supported by ${node.kind} nodes`);
   }
   if (node.kind === "textField" && typeof node.state.initial !== "string") {
@@ -599,16 +604,17 @@ function validateStateReference(node, pathName) {
   if (node.kind === "toggle" && typeof node.state.initial !== "boolean") {
     throw new Error(`${statePath}.initial: toggle state must start as a boolean`);
   }
-  if (["slider", "gauge", "progress", "segmentedProgress"].includes(node.kind)
+  if (["slider", "countdown", "gauge", "progress", "segmentedProgress"].includes(node.kind)
       && (typeof node.state.initial !== "number" || !Number.isFinite(node.state.initial))) {
     throw new Error(`${statePath}.initial: ${node.kind} state must start as a finite number`);
   }
-  const minimum = node.kind === "slider" ? node.minimum : 0;
-  if (["slider", "gauge", "progress", "segmentedProgress"].includes(node.kind)
+  const minimum = ["slider", "countdown"].includes(node.kind) ? node.minimum : 0;
+  if (["slider", "countdown", "gauge", "progress", "segmentedProgress"].includes(node.kind)
       && (typeof minimum !== "number" || !Number.isFinite(minimum)
         || typeof node.maximum !== "number" || !Number.isFinite(node.maximum) || node.maximum <= minimum
         || node.state.initial < minimum || node.state.initial > node.maximum)) {
-    throw new Error(`${statePath}.initial: ${node.kind} state must be between zero and maximum`);
+    const rangeMessage = node.kind === "countdown" ? "within its declared range" : "between zero and maximum";
+    throw new Error(`${statePath}.initial: ${node.kind} state must be ${rangeMessage}`);
   }
   if (node.kind === "text" && !["string", "number", "boolean"].includes(typeof node.state.initial)) {
     throw new Error(`${statePath}.initial: text state must start as a string, number, or boolean`);
@@ -647,7 +653,7 @@ function isValidStateValue(node, value) {
   }
   if (node.kind === "textField") return typeof value === "string";
   if (node.kind === "toggle") return typeof value === "boolean";
-  const minimum = node.kind === "slider" ? node.minimum : 0;
+  const minimum = ["slider", "countdown"].includes(node.kind) ? node.minimum : 0;
   return typeof value === "number"
     && Number.isFinite(value)
     && typeof node.maximum === "number"
@@ -749,6 +755,21 @@ function validateSlider(node, pathName) {
   }
   if (node.step !== undefined && (typeof node.step !== "number" || !Number.isFinite(node.step) || node.step <= 0)) {
     throw new Error(`${pathName}.step: slider step must be a finite number greater than zero`);
+  }
+}
+
+function validateCountdown(node, pathName) {
+  if (typeof node.minimum !== "number" || !Number.isFinite(node.minimum) || node.minimum <= 0) {
+    throw new Error(`${pathName}.minimum: countdown minimum must be a positive number of seconds`);
+  }
+  if (typeof node.maximum !== "number" || !Number.isFinite(node.maximum) || node.maximum <= node.minimum) {
+    throw new Error(`${pathName}.maximum: countdown maximum must be greater than minimum`);
+  }
+  if (typeof node.value !== "number" || !Number.isFinite(node.value) || node.value < node.minimum || node.value > node.maximum) {
+    throw new Error(`${pathName}.value: countdown seconds must be between minimum and maximum`);
+  }
+  if (typeof node.step !== "number" || !Number.isFinite(node.step) || node.step <= 0) {
+    throw new Error(`${pathName}.step: countdown step must be a finite number greater than zero`);
   }
 }
 

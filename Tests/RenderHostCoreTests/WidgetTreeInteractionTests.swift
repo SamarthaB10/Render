@@ -77,5 +77,39 @@ final class WidgetTreeInteractionTests: XCTestCase {
         XCTAssertTrue(issues.contains { $0.path == "root.maximum" && $0.message.contains("greater than minimum") })
         XCTAssertTrue(issues.contains { $0.path == "root.step" && $0.message.contains("greater than zero") })
     }
+
+    func testCountdownWireContractAndValidation() throws {
+        let countdown = WidgetTree(
+            kind: .countdown,
+            style: WidgetStyle(color: "#ffffff"),
+            value: 1_500,
+            minimum: 60,
+            maximum: 7_200,
+            step: 60,
+            state: WidgetStateReference(key: "timerSeconds", initial: .number(1_500))
+        )
+
+        XCTAssertTrue(countdown.validationIssues().isEmpty)
+        let encoded = try JSONEncoder().encode(countdown)
+        XCTAssertEqual(try JSONDecoder().decode(WidgetTree.self, from: encoded), countdown)
+
+        let invalid = WidgetTree(kind: .countdown, value: 30, minimum: 60, maximum: 7_200, step: 0)
+        let issues = invalid.validationIssues()
+        XCTAssertTrue(issues.contains { $0.path == "root.value" && $0.message.contains("between minimum and maximum") })
+        XCTAssertTrue(issues.contains { $0.path == "root.step" && $0.message.contains("greater than zero") })
+    }
+
+    func testMultilineTextFieldWireContract() throws {
+        let field = WidgetTree(
+            kind: .textField,
+            text: "Notes",
+            multiline: true,
+            state: WidgetStateReference(key: "notes", initial: .string("Notes"))
+        )
+
+        XCTAssertTrue(field.validationIssues().isEmpty)
+        let encoded = try JSONEncoder().encode(field)
+        XCTAssertEqual(try JSONDecoder().decode(WidgetTree.self, from: encoded), field)
+    }
 }
 #endif

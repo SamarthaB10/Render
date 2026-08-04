@@ -13,6 +13,7 @@ export type WidgetNodeKind =
   | "image"
   | "button"
   | "slider"
+  | "countdown"
   | "gauge"
   | "progress"
   | "grid"
@@ -282,6 +283,7 @@ export interface WidgetNode {
   animation?: WidgetAnimation;
   action?: WidgetAction;
   disabled?: boolean;
+  multiline?: boolean;
   columns?: number;
   state?: WidgetStateReference;
 }
@@ -303,6 +305,7 @@ export interface TextProps extends WidgetComponentProps {
 export interface TextFieldProps extends WidgetComponentProps {
   text?: string | WidgetStateBinding<string>;
   disabled?: boolean;
+  multiline?: boolean;
 }
 
 export interface ToggleProps extends WidgetComponentProps {
@@ -346,6 +349,14 @@ export interface ButtonProps extends WidgetComponentProps {
 
 export interface SliderProps extends WidgetComponentProps {
   value: number | WidgetStateBinding<number>;
+  minimum?: number;
+  maximum?: number;
+  step?: number;
+  disabled?: boolean;
+}
+
+export interface CountdownProps extends WidgetComponentProps {
+  seconds: number | WidgetStateBinding<number>;
   minimum?: number;
   maximum?: number;
   step?: number;
@@ -525,13 +536,15 @@ export function TextField(input: string | WidgetStateBinding<string> | TextField
         kind: "textField",
         text: "",
         state: stateReference(props.text),
-        ...(props.disabled === undefined ? {} : { disabled: props.disabled })
+        ...(props.disabled === undefined ? {} : { disabled: props.disabled }),
+        ...(props.multiline === undefined ? {} : { multiline: props.multiline })
       }, props.style);
     }
     return nodeWithOptionalStyle({
       kind: "textField",
       text: String(props.text ?? firstChild(props.children) ?? ""),
-      ...(props.disabled === undefined ? {} : { disabled: props.disabled })
+      ...(props.disabled === undefined ? {} : { disabled: props.disabled }),
+      ...(props.multiline === undefined ? {} : { multiline: props.multiline })
     }, props.style);
   }
   return nodeWithOptionalStyle({ kind: "textField", text: input as string }, style);
@@ -623,6 +636,23 @@ export function Slider(input: number | WidgetStateBinding<number> | SliderProps,
     return sliderNode(props.value, props.minimum ?? 0, props.maximum ?? 100, props.step, props.disabled, props.style);
   }
   return sliderNode(input as number | WidgetStateBinding<number>, 0, maximum, undefined, undefined, style);
+}
+
+export function Countdown(seconds: number | WidgetStateBinding<number>, style?: WidgetStyle): WidgetNode;
+export function Countdown(props: CountdownProps): WidgetNode;
+export function Countdown(input: number | WidgetStateBinding<number> | CountdownProps, style?: WidgetStyle): WidgetNode {
+  if (isProps(input) && "seconds" in input) {
+    const props = input as CountdownProps;
+    return countdownNode(
+      props.seconds,
+      props.minimum ?? 60,
+      props.maximum ?? 7_200,
+      props.step ?? 60,
+      props.disabled,
+      props.style
+    );
+  }
+  return countdownNode(input as number | WidgetStateBinding<number>, 60, 7_200, 60, undefined, style);
 }
 
 export function Gauge(value: number | ProviderBinding | WidgetStateBinding<number>, maximum: number, style?: WidgetStyle): WidgetNode;
@@ -780,6 +810,35 @@ function sliderNode(
         minimum,
         maximum,
         ...(step === undefined ? {} : { step }),
+        ...(disabled === undefined ? {} : { disabled })
+      };
+  return nodeWithOptionalStyle(node, style);
+}
+
+function countdownNode(
+  seconds: number | WidgetStateBinding<number>,
+  minimum: number,
+  maximum: number,
+  step: number,
+  disabled: boolean | undefined,
+  style: WidgetStyle | undefined
+): WidgetNode {
+  const node: WidgetNode = isStateBinding(seconds)
+    ? {
+        kind: "countdown",
+        value: seconds.initial,
+        minimum,
+        maximum,
+        step,
+        ...(disabled === undefined ? {} : { disabled }),
+        state: stateReference(seconds)
+      }
+    : {
+        kind: "countdown",
+        value: seconds,
+        minimum,
+        maximum,
+        step,
         ...(disabled === undefined ? {} : { disabled })
       };
   return nodeWithOptionalStyle(node, style);
