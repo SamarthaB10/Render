@@ -14,7 +14,7 @@ Use the installed `render` command when available. When working directly from th
 - Work only inside the requested or newly created Render workspace.
 - Do not edit unrelated projects, repository files, or global configuration.
 - Use primitives and providers from `@render/sdk`; do not invent DOM, HTML, CSS, browser APIs, webviews, or arbitrary native APIs.
-- Keep the manifest explicit: size, logical anchor, capabilities, provider subscriptions, and connector account requirements must be declared.
+- Keep the manifest explicit: size, optional resizability/window shape, logical anchor, capabilities, provider subscriptions, and connector account requirements must be declared.
 - Treat CLI diagnostics as the source of truth. Fix the reported path and message before trying to run again.
 - A failed candidate must never replace the last-known-good widget.
 - Do not claim an integration works when its provider, action contract, or capability enforcement is not shipped.
@@ -157,6 +157,7 @@ Successful edits update the existing widget in place. The first prototype is dra
 
 - For a visual remix, edit the existing `widget.tsx`, then run `render check` and `render run` again.
 - For logical movement, update the manifest anchor rather than hard-coding screen coordinates.
+- `resizable` defaults to `true`, so the native host can resize a widget from its edges and corners. Use `windowShape: "circle"` when the entire desktop surface should be circular; a `Shape` node alone only changes pixels inside the host surface.
 - To move through the lifecycle boundary, use a logical corner and optional offsets:
 
 ```bash

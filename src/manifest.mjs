@@ -7,6 +7,8 @@ const ROOT_FIELDS = new Set([
   "name",
   "sdkVersion",
   "size",
+  "resizable",
+  "windowShape",
   "anchor",
   "capabilities",
   "subscribe",
@@ -47,6 +49,23 @@ export function validateManifest(manifest, options = {}) {
   } else {
     requirePositiveNumber(manifest.size, "width", "size.width", issues);
     requirePositiveNumber(manifest.size, "height", "size.height", issues);
+  }
+
+  if (manifest.resizable !== undefined && typeof manifest.resizable !== "boolean") {
+    issues.push({ path: "resizable", message: "must be a boolean" });
+  }
+
+  if (manifest.windowShape !== undefined && !["rectangle", "circle"].includes(manifest.windowShape)) {
+    issues.push({ path: "windowShape", message: "must be \"rectangle\" or \"circle\"" });
+  }
+  if (
+    manifest.windowShape === "circle" &&
+    isRecord(manifest.size) &&
+    typeof manifest.size.width === "number" &&
+    typeof manifest.size.height === "number" &&
+    manifest.size.width !== manifest.size.height
+  ) {
+    issues.push({ path: "size", message: "circle widgets require equal width and height" });
   }
 
   if (!isRecord(manifest.anchor)) {

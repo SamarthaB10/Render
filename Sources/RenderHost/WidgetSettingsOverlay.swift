@@ -47,13 +47,7 @@ struct WidgetSettingsOverlay: View {
                     .zIndex(2)
             }
 
-            VStack(alignment: .trailing, spacing: 8) {
-                settingsButton
-                if isOpen {
-                    settingsPanel
-                        .transition(.opacity.combined(with: .move(edge: .top)))
-                }
-            }
+            settingsButton
             .padding(10)
             .allowsHitTesting(isHovered || isOpen)
             .zIndex(3)
@@ -84,6 +78,9 @@ struct WidgetSettingsOverlay: View {
         .opacity(isHovered || isOpen ? 1 : 0)
         .accessibilityLabel("Widget settings")
         .accessibilityHint("Opens widget metadata, connection settings, and the stop control")
+        .popover(isPresented: $isOpen, attachmentAnchor: .point(.topTrailing), arrowEdge: .top) {
+            settingsPanel
+        }
     }
 
     private var settingsPanel: some View {

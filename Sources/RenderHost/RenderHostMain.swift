@@ -35,15 +35,19 @@ private final class RenderHostDelegate: NSObject, NSApplicationDelegate {
                 width: manifest.size.width,
                 height: manifest.size.height
             ),
-            policy: policy
+            policy: policy,
+            resizable: manifest.resizable,
+            windowShape: manifest.windowShape
         )
-        let contentView = DraggableHostingView(
+        let hostedView = DraggableHostingView(
             rootView: AnyView(
                 WidgetTreeContainer(
                     model: contentModel,
                     providers: providers,
                     widgetName: manifest.name,
                     workspace: workspace,
+                    designSize: CGSize(width: manifest.size.width, height: manifest.size.height),
+                    windowShape: manifest.windowShape,
                     declaredAssets: manifest.assets.map(Set.init),
                     onAction: actionDispatcher.dispatch,
                     onStateChange: { [weak stateController] key, value in
@@ -71,14 +75,19 @@ private final class RenderHostDelegate: NSObject, NSApplicationDelegate {
                 )
             )
         )
-        contentView.onDrag = { [weak panel] origin in
+        hostedView.onDrag = { [weak panel] origin in
             panel?.move(to: origin)
         }
-        contentView.onDragEnded = { [weak self, weak panel] in
+        hostedView.onDragEnded = { [weak self, weak panel] in
             guard let self, let panel else { return }
             self.savePlacement(workspace: workspace, origin: panel.frame.origin, panel: panel)
         }
-        panel.contentView = contentView
+        if manifest.resizable || manifest.windowShape == .circle {
+            panel.contentView = ResizableWidgetContentView(hostedView: hostedView, panel: panel)
+        } else {
+            panel.contentView = hostedView
+        }
+        panel.normalizeWindowShape()
         var pendingWorker: WorkerSession?
         if let workspace {
             let worker = WorkerSession(
@@ -252,6 +261,8 @@ private struct WidgetTreeContainer: View {
     @ObservedObject var providers: ProviderStore
     let widgetName: String
     let workspace: String?
+    let designSize: CGSize
+    let windowShape: WidgetWindowShape
     let declaredAssets: Set<String>?
     let onAction: (WidgetAction) -> Void
     let onStateChange: (String, WidgetJSONValue) -> Void
@@ -260,14 +271,28 @@ private struct WidgetTreeContainer: View {
 
     var body: some View {
         ZStack {
-            WidgetTreeView(
-                tree: model.tree,
-                providers: providers,
-                workspace: workspace,
-                declaredAssets: declaredAssets,
-                onAction: onAction,
-                onStateChange: onStateChange
-            )
+            GeometryReader { proxy in
+                WidgetTreeView(
+                    tree: model.tree,
+                    providers: providers,
+                    workspace: workspace,
+                    declaredAssets: declaredAssets,
+                    onAction: onAction,
+                    onStateChange: onStateChange
+                )
+                .frame(width: max(designSize.width, 1), height: max(designSize.height, 1), alignment: .topLeading)
+                .scaleEffect(
+                    x: windowShape == .circle
+                        ? min(proxy.size.width / max(designSize.width, 1), proxy.size.height / max(designSize.height, 1))
+                        : proxy.size.width / max(designSize.width, 1),
+                    y: windowShape == .circle
+                        ? min(proxy.size.width / max(designSize.width, 1), proxy.size.height / max(designSize.height, 1))
+                        : proxy.size.height / max(designSize.height, 1),
+                    anchor: .topLeading
+                )
+                .frame(width: proxy.size.width, height: proxy.size.height, alignment: .topLeading)
+                .clipped()
+            }
             WidgetSettingsOverlay(
                 widgetName: widgetName,
                 workspace: workspace,
@@ -288,8 +313,10 @@ private struct RuntimeManifest: Decodable {
     let subscribe: [String]
     let accounts: [WidgetAccountRequirement]
     let assets: [String]?
+    let resizable: Bool
+    let windowShape: WidgetWindowShape
 
-    init(name: String, size: Size, anchor: Anchor, capabilities: [String], subscribe: [String], accounts: [WidgetAccountRequirement], assets: [String]? = nil) {
+    init(name: String, size: Size, anchor: Anchor, capabilities: [String], subscribe: [String], accounts: [WidgetAccountRequirement], assets: [String]? = nil, resizable: Bool = true, windowShape: WidgetWindowShape = .rectangle) {
         self.name = name
         self.size = size
         self.anchor = anchor
@@ -297,6 +324,8 @@ private struct RuntimeManifest: Decodable {
         self.subscribe = subscribe
         self.accounts = accounts
         self.assets = assets
+        self.resizable = resizable
+        self.windowShape = windowShape
     }
 
     init(from decoder: Decoder) throws {
@@ -308,6 +337,8 @@ private struct RuntimeManifest: Decodable {
         subscribe = try container.decode([String].self, forKey: .subscribe)
         accounts = try container.decodeIfPresent([WidgetAccountRequirement].self, forKey: .accounts) ?? []
         assets = try container.decodeIfPresent([String].self, forKey: .assets)
+        resizable = try container.decodeIfPresent(Bool.self, forKey: .resizable) ?? true
+        windowShape = try container.decodeIfPresent(WidgetWindowShape.self, forKey: .windowShape) ?? .rectangle
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -318,6 +349,8 @@ private struct RuntimeManifest: Decodable {
         case subscribe
         case accounts
         case assets
+        case resizable
+        case windowShape
     }
 
     struct Size: Decodable {

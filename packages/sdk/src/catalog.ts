@@ -596,6 +596,8 @@ const SDK_CATALOG: SdkCatalogItem[] = [
       "name: string",
       "sdkVersion: string",
       "size: { width: number; height: number }",
+      "resizable?: boolean",
+      'windowShape?: "rectangle" | "circle"',
       'anchor: { corner: "top-left" | "top-right" | "bottom-left" | "bottom-right"; offset: { x: number; y: number } }',
       'capabilities: Array<"network" | "filesystem.read" | "filesystem.write">',
       "subscribe: string[]",

@@ -323,6 +323,8 @@ export interface WidgetManifest {
   name: string;
   sdkVersion: string;
   size: { width: number; height: number };
+  resizable?: boolean;
+  windowShape?: "rectangle" | "circle";
   anchor: {
     corner: "top-left" | "top-right" | "bottom-left" | "bottom-right";
     offset: { x: number; y: number };

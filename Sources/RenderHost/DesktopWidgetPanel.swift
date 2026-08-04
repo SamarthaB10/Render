@@ -1,11 +1,35 @@
 import AppKit
 import RenderHostCore
 
+enum WidgetWindowShape: String, Codable {
+    case rectangle
+    case circle
+}
+
 final class DesktopWidgetPanel: NSPanel {
-    init(contentRect: NSRect, policy: DesktopWindowPolicy) {
+    let windowShape: WidgetWindowShape
+
+    init(
+        contentRect: NSRect,
+        policy: DesktopWindowPolicy,
+        resizable: Bool = true,
+        windowShape: WidgetWindowShape = .rectangle
+    ) {
+        self.windowShape = windowShape
+        var styleMask: NSWindow.StyleMask = [.borderless, .nonactivatingPanel]
+        if resizable {
+            styleMask.insert(.resizable)
+        }
+        let initialRect: NSRect
+        if windowShape == .circle {
+            let side = min(contentRect.width, contentRect.height)
+            initialRect = NSRect(x: contentRect.minX, y: contentRect.minY, width: side, height: side)
+        } else {
+            initialRect = contentRect
+        }
         super.init(
-            contentRect: contentRect,
-            styleMask: [.borderless, .nonactivatingPanel],
+            contentRect: initialRect,
+            styleMask: styleMask,
             backing: .buffered,
             defer: false
         )
@@ -23,6 +47,41 @@ final class DesktopWidgetPanel: NSPanel {
 
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
+
+    func normalizeWindowShape() {
+        guard windowShape == .circle else { return }
+        let contentSize = contentRect(forFrameRect: frame).size
+        let side = min(contentSize.width, contentSize.height)
+        guard side > 0, contentSize.width != side || contentSize.height != side else { return }
+        setContentSize(NSSize(width: side, height: side))
+    }
+
+    func resizeFrame(
+        _ candidate: NSRect,
+        preservingRightEdge: Bool = false,
+        preservingTopEdge: Bool = false
+    ) {
+        var next = candidate
+        let candidateMaxX = candidate.maxX
+        let candidateMaxY = candidate.maxY
+        if windowShape == .circle {
+            let side = max(max(candidate.width, candidate.height), 1)
+            next.size = NSSize(width: side, height: side)
+        } else {
+            next.size.width = max(next.width, 1)
+            next.size.height = max(next.height, 1)
+        }
+        if preservingRightEdge {
+            next.origin.x = candidateMaxX - next.width
+        }
+        if preservingTopEdge {
+            next.origin.y = candidateMaxY - next.height
+        }
+        if let screen = screen(for: next) {
+            next.origin = clampedOrigin(next.origin, to: screen.visibleFrame, size: next.size)
+        }
+        setFrame(next, display: true)
+    }
 
     func move(to candidateOrigin: NSPoint) {
         let targetScreen = screen(containing: candidateOrigin) ?? NSScreen.main ?? NSScreen.screens.first
@@ -65,6 +124,12 @@ final class DesktopWidgetPanel: NSPanel {
         return NSScreen.screens.first { $0.frame.contains(center) }
     }
 
+    private func screen(for frame: NSRect) -> NSScreen? {
+        NSScreen.screens.first { $0.frame.intersects(frame) }
+            ?? screen(containing: frame.origin)
+            ?? NSScreen.main
+    }
+
     private func origin(
         on screen: NSScreen,
         anchor: WidgetAnchor,
@@ -97,12 +162,11 @@ final class DesktopWidgetPanel: NSPanel {
         }
     }
 
-    private func clampedOrigin(_ origin: NSPoint, to visibleFrame: NSRect) -> NSPoint {
-        let maximumX = max(visibleFrame.minX, visibleFrame.maxX - frame.width)
-        let maximumY = max(visibleFrame.minY, visibleFrame.maxY - frame.height)
+    private func clampedOrigin(_ origin: NSPoint, to visibleFrame: NSRect, size: NSSize? = nil) -> NSPoint {
+        let size = size ?? frame.size
         return NSPoint(
-            x: min(max(origin.x, visibleFrame.minX), maximumX),
-            y: min(max(origin.y, visibleFrame.minY), maximumY)
+            x: min(max(origin.x, visibleFrame.minX), max(visibleFrame.minX, visibleFrame.maxX - size.width)),
+            y: min(max(origin.y, visibleFrame.minY), max(visibleFrame.minY, visibleFrame.maxY - size.height))
         )
     }
 }
