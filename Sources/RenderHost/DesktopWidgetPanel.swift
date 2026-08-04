@@ -8,6 +8,7 @@ enum WidgetWindowShape: String, Codable {
 
 final class DesktopWidgetPanel: NSPanel {
     let windowShape: WidgetWindowShape
+    let supportsResizing: Bool
 
     init(
         contentRect: NSRect,
@@ -16,8 +17,9 @@ final class DesktopWidgetPanel: NSPanel {
         windowShape: WidgetWindowShape = .rectangle
     ) {
         self.windowShape = windowShape
+        self.supportsResizing = resizable
         var styleMask: NSWindow.StyleMask = [.borderless, .nonactivatingPanel]
-        if resizable {
+        if resizable && windowShape == .rectangle {
             styleMask.insert(.resizable)
         }
         let initialRect: NSRect

@@ -43,7 +43,7 @@ final class ResizableWidgetContentView: NSView {
 
     override func hitTest(_ point: NSPoint) -> NSView? {
         guard containsSurface(point) else { return nil }
-        if let edge = edge(at: point), panel?.styleMask.contains(.resizable) == true {
+        if let edge = edge(at: point), panel?.supportsResizing == true {
             _ = edge
             return self
         }
@@ -52,7 +52,7 @@ final class ResizableWidgetContentView: NSView {
 
     override func resetCursorRects() {
         super.resetCursorRects()
-        guard panel?.styleMask.contains(.resizable) == true else { return }
+        guard panel?.supportsResizing == true else { return }
         let inset = edgeInset
         addCursorRect(NSRect(x: 0, y: inset, width: inset, height: max(0, bounds.height - inset * 2)), cursor: .resizeLeftRight)
         addCursorRect(NSRect(x: bounds.maxX - inset, y: inset, width: inset, height: max(0, bounds.height - inset * 2)), cursor: .resizeLeftRight)

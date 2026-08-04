@@ -270,8 +270,15 @@ private struct WidgetTreeContainer: View {
     let onStop: () -> Void
 
     var body: some View {
-        ZStack {
-            GeometryReader { proxy in
+        GeometryReader { proxy in
+            let surfaceWidth = windowShape == .circle
+                ? min(proxy.size.width, proxy.size.height)
+                : proxy.size.width
+            let surfaceHeight = windowShape == .circle
+                ? min(proxy.size.width, proxy.size.height)
+                : proxy.size.height
+
+            ZStack(alignment: .topLeading) {
                 WidgetTreeView(
                     tree: model.tree,
                     providers: providers,
@@ -282,25 +289,26 @@ private struct WidgetTreeContainer: View {
                 )
                 .frame(width: max(designSize.width, 1), height: max(designSize.height, 1), alignment: .topLeading)
                 .scaleEffect(
-                    x: windowShape == .circle
-                        ? min(proxy.size.width / max(designSize.width, 1), proxy.size.height / max(designSize.height, 1))
-                        : proxy.size.width / max(designSize.width, 1),
-                    y: windowShape == .circle
-                        ? min(proxy.size.width / max(designSize.width, 1), proxy.size.height / max(designSize.height, 1))
-                        : proxy.size.height / max(designSize.height, 1),
+                    x: surfaceWidth / max(designSize.width, 1),
+                    y: surfaceHeight / max(designSize.height, 1),
                     anchor: .topLeading
                 )
-                .frame(width: proxy.size.width, height: proxy.size.height, alignment: .topLeading)
+                .frame(width: surfaceWidth, height: surfaceHeight, alignment: .topLeading)
                 .clipped()
+
+                WidgetSettingsOverlay(
+                    widgetName: widgetName,
+                    workspace: workspace,
+                    windowShape: windowShape,
+                    surfaceSize: CGSize(width: surfaceWidth, height: surfaceHeight),
+                    accountStatus: providers.accountStatus(for: SpotifyConnector.connectorID),
+                    authorizationMessage: providers.authorizationMessage,
+                    onAuthorize: onAuthorize,
+                    onStop: onStop
+                )
+                .frame(width: surfaceWidth, height: surfaceHeight, alignment: .topLeading)
             }
-            WidgetSettingsOverlay(
-                widgetName: widgetName,
-                workspace: workspace,
-                accountStatus: providers.accountStatus(for: SpotifyConnector.connectorID),
-                authorizationMessage: providers.authorizationMessage,
-                onAuthorize: onAuthorize,
-                onStop: onStop
-            )
+            .frame(width: proxy.size.width, height: proxy.size.height, alignment: .topLeading)
         }
     }
 }
