@@ -60,8 +60,8 @@ final class WidgetStatePersistenceTests: XCTestCase {
         )
         let progress = WidgetTree(
             kind: .progress,
-            maximum: 100,
             value: 0,
+            maximum: 100,
             state: WidgetStateReference(key: "progress", initial: .string("75"))
         )
 
