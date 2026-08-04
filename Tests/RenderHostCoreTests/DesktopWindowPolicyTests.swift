@@ -192,6 +192,28 @@ final class DesktopWindowPolicyTests: XCTestCase {
         XCTAssertTrue(tree.validationIssues().isEmpty)
     }
 
+    func testNativeValidationAcceptsFractionalSecondDateTimes() {
+        let tree = WidgetTree(kind: .dateTime, dateTime: "2026-08-03T14:30:00.123Z")
+
+        XCTAssertTrue(tree.validationIssues().isEmpty)
+    }
+
+    func testProviderBackedListStillValidatesSuppliedItems() {
+        let tree = WidgetTree(
+            kind: .list,
+            provider: "reminders.items",
+            items: [WidgetListItem(id: "", title: "")]
+        )
+
+        XCTAssertEqual(
+            tree.validationIssues(),
+            [
+                .init(path: "root.items[0].id", message: "list item id must be non-empty"),
+                .init(path: "root.items[0].title", message: "list item title must be non-empty")
+            ]
+        )
+    }
+
     func testYouTubePlayerSupportsPersistedLinkInputConfiguration() throws {
         let data = Data(#"""
         {
@@ -217,6 +239,22 @@ final class DesktopWindowPolicyTests: XCTestCase {
         XCTAssertEqual(
             tree.validationIssues(),
             [.init(path: "root.videoId", message: "YouTubePlayer requires an 11-character YouTube video ID")]
+        )
+    }
+
+    func testInvalidNodeReportsEveryIndependentDiagnostic() {
+        let tree = WidgetTree(
+            kind: .youtubePlayer,
+            style: WidgetStyle(width: 0),
+            videoId: "not-a-video-id"
+        )
+
+        XCTAssertEqual(
+            tree.validationIssues(),
+            [
+                .init(path: "root.videoId", message: "YouTubePlayer requires an 11-character YouTube video ID"),
+                .init(path: "root.style.width", message: "width must be greater than zero")
+            ]
         )
     }
 

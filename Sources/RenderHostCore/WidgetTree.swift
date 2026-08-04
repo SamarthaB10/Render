@@ -874,7 +874,12 @@ public struct WidgetTree: Codable, Equatable, Sendable {
         self.orientation = orientation
         self.name = name
         self.source = source
-        self.options = options
+        self.options = options ?? Self.legacyImageOptions(
+            fit: imageFit,
+            repeat: imageRepeat,
+            position: imagePosition,
+            tint: tint
+        )
         self.action = action
         self.disabled = disabled
         self.columns = columns
@@ -938,7 +943,7 @@ public struct WidgetTree: Codable, Equatable, Sendable {
             source = try container.decodeIfPresent(ImageSource.self, forKey: .source)
             textureSource = try container.decodeIfPresent(WidgetTextureSource.self, forKey: .textureSource)
         }
-        options = try container.decodeIfPresent(WidgetImageOptions.self, forKey: .options)
+        let decodedOptions = try container.decodeIfPresent(WidgetImageOptions.self, forKey: .options)
         action = try container.decodeIfPresent(WidgetAction.self, forKey: .action)
         disabled = try container.decodeIfPresent(Bool.self, forKey: .disabled)
         columns = try container.decodeIfPresent(Int.self, forKey: .columns)
@@ -951,6 +956,12 @@ public struct WidgetTree: Codable, Equatable, Sendable {
         imageRepeat = try container.decodeIfPresent(WidgetImageRepeat.self, forKey: .imageRepeat)
         imagePosition = try container.decodeIfPresent(String.self, forKey: .imagePosition)
         tint = try container.decodeIfPresent(String.self, forKey: .tint)
+        options = decodedOptions ?? Self.legacyImageOptions(
+            fit: imageFit,
+            repeat: imageRepeat,
+            position: imagePosition,
+            tint: tint
+        )
         segments = try container.decodeIfPresent(Int.self, forKey: .segments)
         values = try container.decodeIfPresent([Double].self, forKey: .values)
         state = try container.decodeIfPresent(WidgetStateReference.self, forKey: .state)
@@ -1045,7 +1056,8 @@ public struct WidgetTree: Codable, Equatable, Sendable {
         }
         if kind == .text || kind == .textField || kind == .textArea {
             if (text == nil || text?.isEmpty == true) && provider == nil && state == nil {
-                issues.append(.init(path: path, message: "\(kind.rawValue) nodes require non-empty text"))
+                let suffix = kind == .text ? " or a provider" : ""
+                issues.append(.init(path: path, message: "\(kind.rawValue) nodes require non-empty text\(suffix)"))
             }
             if [.textField, .textArea].contains(kind) && provider != nil {
                 issues.append(.init(path: "\(path).provider", message: "editable text nodes cannot bind to a provider"))
@@ -1101,6 +1113,44 @@ public struct WidgetTree: Codable, Equatable, Sendable {
             if let step, !step.isFinite || step <= 0 {
                 issues.append(.init(path: "\(path).step", message: "countdown step must be greater than zero"))
             }
+        }
+        if kind == .timer && (durationSeconds == nil || durationSeconds ?? 0 <= 0) {
+            issues.append(.init(path: "\(path).durationSeconds", message: "timer duration must be a positive integer in seconds"))
+        }
+        if kind == .taskList {
+            if let tasks {
+                var ids = Set<String>()
+                for (index, task) in tasks.enumerated() {
+                    if task.id.isEmpty { issues.append(.init(path: "\(path).tasks[\(index)].id", message: "task id must be non-empty")) }
+                    if !ids.insert(task.id).inserted { issues.append(.init(path: "\(path).tasks[\(index)].id", message: "task ids must be unique")) }
+                    if task.text.isEmpty { issues.append(.init(path: "\(path).tasks[\(index)].text", message: "task text must be non-empty")) }
+                }
+            } else {
+                issues.append(.init(path: "\(path).tasks", message: "taskList nodes require an array of items"))
+            }
+        }
+        if kind == .list {
+            if let items {
+                var ids = Set<String>()
+                for (index, item) in items.enumerated() {
+                    if item.id.isEmpty { issues.append(.init(path: "\(path).items[\(index)].id", message: "list item id must be non-empty")) }
+                    if !ids.insert(item.id).inserted { issues.append(.init(path: "\(path).items[\(index)].id", message: "list item ids must be unique")) }
+                    if item.title.isEmpty { issues.append(.init(path: "\(path).items[\(index)].title", message: "list item title must be non-empty")) }
+                }
+            } else if provider == nil {
+                issues.append(.init(path: "\(path).items", message: "list nodes require an array of items or a provider"))
+            }
+        }
+        if kind == .visualizer {
+            if let visualizerMode, !["bars", "waveform", "rings"].contains(visualizerMode) {
+                issues.append(.init(path: "\(path).visualizerMode", message: "mode must be bars, waveform, or rings"))
+            }
+            if let visualizerTempo, !visualizerTempo.isFinite || visualizerTempo <= 0 {
+                issues.append(.init(path: "\(path).visualizerTempo", message: "tempo must be a positive number"))
+            }
+        } else {
+            if visualizerMode != nil { issues.append(.init(path: "\(path).visualizerMode", message: "only visualizer nodes may define a visualizer mode")) }
+            if visualizerTempo != nil { issues.append(.init(path: "\(path).visualizerTempo", message: "only visualizer nodes may define a visualizer tempo")) }
         }
         if kind == .spectrum && values == nil && provider == nil {
             issues.append(.init(path: path, message: "spectrum nodes require values or a provider"))
@@ -1236,6 +1286,48 @@ public struct WidgetTree: Codable, Equatable, Sendable {
         if kind != .image && tint != nil { issues.append(.init(path: "\(path).tint", message: "only image nodes may define a tint")) }
         if kind != .segmentedProgress && segments != nil { issues.append(.init(path: "\(path).segments", message: "only segmentedProgress nodes may define segments")) }
         if kind != .spectrum && values != nil { issues.append(.init(path: "\(path).values", message: "only spectrum nodes may define values")) }
+        if kind != .timer && durationSeconds != nil { issues.append(.init(path: "\(path).durationSeconds", message: "only timer nodes may define durationSeconds")) }
+        if kind != .taskList && tasks != nil { issues.append(.init(path: "\(path).tasks", message: "only taskList nodes may define tasks")) }
+        if kind != .list && items != nil { issues.append(.init(path: "\(path).items", message: "only list nodes may define items")) }
+        if kind == .youtubePlayer {
+            if videoId == nil && allowLinkInput != true {
+                issues.append(.init(path: "\(path).videoId", message: "YouTubePlayer requires a video ID or allowLinkInput: true"))
+            }
+            if let videoId, videoId.range(of: "^[A-Za-z0-9_-]{11}$", options: .regularExpression) == nil {
+                issues.append(.init(path: "\(path).videoId", message: "YouTubePlayer requires an 11-character YouTube video ID"))
+            }
+            if let startSeconds, startSeconds < 0 || !startSeconds.isFinite {
+                issues.append(.init(path: "\(path).startSeconds", message: "YouTubePlayer startSeconds must be a non-negative number"))
+            }
+        } else {
+            if videoId != nil { issues.append(.init(path: "\(path).videoId", message: "only youtubePlayer nodes may define a videoId")) }
+            if allowLinkInput != nil { issues.append(.init(path: "\(path).allowLinkInput", message: "only youtubePlayer nodes may define allowLinkInput")) }
+            if autoplay != nil { issues.append(.init(path: "\(path).autoplay", message: "only youtubePlayer nodes may define autoplay")) }
+            if controls != nil { issues.append(.init(path: "\(path).controls", message: "only youtubePlayer nodes may define controls")) }
+            if startSeconds != nil { issues.append(.init(path: "\(path).startSeconds", message: "only youtubePlayer nodes may define startSeconds")) }
+        }
+        if kind != .textEditor && placeholder != nil { issues.append(.init(path: "\(path).placeholder", message: "only textEditor nodes may define a placeholder")) }
+        let dateTimeKinds: Set<WidgetNodeKind> = [.dateTime, .dateTimePicker]
+        if let dateTimeMode, !["date", "time", "dateTime"].contains(dateTimeMode) {
+            issues.append(.init(path: "\(path).dateTimeMode", message: "mode must be date, time, or dateTime"))
+        }
+        if kind == .dateTime {
+            if let dateTime, !dateTime.isEmpty {
+                if !Self.isValidISO8601Date(dateTime) {
+                    issues.append(.init(path: "\(path).dateTime", message: "dateTime must be a valid ISO date-time string"))
+                }
+            } else {
+                issues.append(.init(path: "\(path).dateTime", message: "dateTime nodes require an ISO date-time string"))
+            }
+        } else if kind == .dateTimePicker, let dateTime, !Self.isValidISO8601Date(dateTime) {
+            issues.append(.init(path: "\(path).dateTime", message: "dateTime picker value must be a valid ISO date-time string"))
+        }
+        if !dateTimeKinds.contains(kind) && dateTime != nil {
+            issues.append(.init(path: "\(path).dateTime", message: "only dateTime nodes may define a date-time value"))
+        }
+        if !dateTimeKinds.contains(kind) && dateTimeMode != nil {
+            issues.append(.init(path: "\(path).dateTimeMode", message: "only dateTime nodes may define a date-time mode"))
+        }
         switch action {
         case .invoke(let name, _), .set(let name, _):
             if name.isEmpty { issues.append(.init(path: "\(path).action.name", message: "action name must be non-empty")) }
@@ -1292,7 +1384,37 @@ public struct WidgetTree: Codable, Equatable, Sendable {
             }
         }
 
+        var childKeys = Set<String>()
+        for (index, child) in children.enumerated() {
+            guard let key = child.key else { continue }
+            let keyName: String
+            switch key {
+            case .string(let value): keyName = "string:\(value)"
+            case .number(let value): keyName = "number:\(value)"
+            }
+            if !childKeys.insert(keyName).inserted {
+                issues.append(.init(path: "\(path).children[\(index)].key", message: "sibling keys must be unique"))
+            }
+        }
+
         return issues
+    }
+
+    private static func legacyImageOptions(
+        fit: WidgetImageFit?,
+        repeat: WidgetImageRepeat?,
+        position: String?,
+        tint: String?
+    ) -> WidgetImageOptions? {
+        guard fit != nil || `repeat` != nil || position != nil || tint != nil else { return nil }
+        return WidgetImageOptions(fit: fit, repeat: `repeat`, position: position, tint: tint)
+    }
+
+    private static func isValidISO8601Date(_ value: String) -> Bool {
+        let formatter = ISO8601DateFormatter()
+        if formatter.date(from: value) != nil { return true }
+        formatter.formatOptions.insert(.withFractionalSeconds)
+        return formatter.date(from: value) != nil
     }
 
     private func validateSpacing(_ spacing: WidgetSpacing?, path: String, allowNegative: Bool, issues: inout [WidgetTreeValidationIssue]) {
@@ -1311,7 +1433,8 @@ public struct WidgetTree: Codable, Equatable, Sendable {
     private func validateLength(_ length: WidgetLength?, path: String, issues: inout [WidgetTreeValidationIssue]) {
         switch length {
         case .points(let value) where !value.isFinite || value <= 0:
-            issues.append(.init(path: path, message: "length must be greater than zero"))
+            let field = path.split(separator: ".").last.map(String.init) ?? "length"
+            issues.append(.init(path: path, message: "\(field) must be greater than zero"))
         case .percent(let value) where !value.isFinite || value < 0 || value > 100:
             issues.append(.init(path: path, message: "percent length must be between zero and 100"))
         case .fraction(let value) where !value.isFinite || value <= 0:
