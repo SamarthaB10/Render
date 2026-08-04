@@ -1,47 +1,33 @@
 import { randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
-import { existsSync, readFileSync, renameSync, unlinkSync, watch, writeFileSync } from "node:fs";
+import { closeSync, existsSync, openSync, readFileSync, renameSync, statSync, unlinkSync, watch, writeFileSync } from "node:fs";
 import path from "node:path";
 import * as sdk from "../packages/sdk/src/index.ts";
 import { buildTsxRuntimeTree } from "./tsx-runtime.mjs";
 import {
   checkWorkspace,
+  markWorkspaceStopped,
   promoteSnapshot,
   recordFailure,
   restoreSnapshot,
   statusWorkspace
 } from "./workspace.mjs";
+import { persistLifecycleState } from "./lifecycle.mjs";
 import { extractManifest, updateManifest, validateManifest } from "./manifest.mjs";
 import { canonicalIconName } from "../packages/sdk/src/icon-catalog.ts";
+import { readPreferences, writePreferences } from "./preferences.mjs";
 
 // Receipt: perf/receipts/phase8-worker.json
 const SUPERVISOR_STARTUP_TIMEOUT_MS = 5000;
-const SUPPORTED_ACTIONS = new Set([
-  "widget.refresh",
-  "widget.reload",
-  "spotify.play",
-  "spotify.pause",
-  "spotify.next",
-  "spotify.previous",
-  "spotify.set-volume"
-]);
-const SUPPORTED_PROVIDERS = new Set([
-  "system.cpu",
-  "system.memory",
-  "system.time",
-  "spotify.account",
-  "spotify.track.title",
-  "spotify.track.artist",
-  "spotify.playback.isPlaying",
-  "spotify.playback.progress",
-  "spotify.playback.volume"
-]);
+const SUPPORTED_ACTIONS = new Set(sdk.WIDGET_ACTION_NAMES);
+const SUPPORTED_PROVIDERS = new Set(sdk.WIDGET_PROVIDER_NAMES);
 
 export function buildRuntimeTree(source, filename = "widget.tsx", options = {}) {
-  const tree = buildTsxRuntimeTree(source, { sdk, filename });
   const manifest = extractManifest(source);
+  const mode = options.mode ?? manifest.adjustable?.responsive?.default ?? "auto";
+  const tree = buildTsxRuntimeTree(source, { sdk, filename, renderContext: { mode, size: options.size } });
   const subscriptions = new Set(manifest.subscribe);
-  const accounts = new Set((manifest.accounts ?? []).map((account) => account.connector));
+  const accounts = new Map((manifest.accounts ?? []).map((account) => [account.connector, new Set(account.scopes)]));
   validateRuntimeTree(tree, "root", subscriptions, new Set(manifest.capabilities), accounts, new Set(manifest.assets ?? []));
   return JSON.parse(JSON.stringify(materializeWidgetState(tree, options.state ?? {}, "root")));
 }
@@ -109,7 +95,7 @@ export function runWorkspace(workspace, requestId = randomUUID(), options = {}) 
 
   const prepared = prepareRun(workspace, requestId);
   if (!prepared.ok) {
-    recordFailure(workspace, prepared.diagnostics);
+    recordFailure(workspace, prepared.diagnostics, requestId);
     return prepared;
   }
 
@@ -119,32 +105,50 @@ export function runWorkspace(workspace, requestId = randomUUID(), options = {}) 
       ok: false,
       diagnostics: [{
         code: "host-not-built",
-        path: ".build/debug/RenderHost",
-        message: "build the RenderHost executable before running a widget"
+        path: ".build/debug/RenderHost.app/Contents/MacOS/RenderHost",
+        message: "run npm run package:host before running a native widget"
       }]
     };
-    recordFailure(root, result.diagnostics);
+    recordFailure(root, result.diagnostics, requestId);
     return result;
   }
 
   const promotion = promoteSnapshot(root, requestId);
   stopPreviousHost(root);
-  const child = spawn(hostPath, ["--workspace", root], {
-    detached: true,
-    stdio: "ignore",
-    env: { ...process.env, RENDER_WORKSPACE: root }
-  });
+  const hostLogPath = createHostLogPath(root);
+  const logHandle = openSync(hostLogPath, "a");
+  let child;
+  try {
+    child = spawn(hostPath, ["--workspace", root], {
+      detached: true,
+      stdio: ["ignore", logHandle, logHandle],
+      env: { ...process.env, RENDER_WORKSPACE: root }
+    });
+  } finally {
+    closeSync(logHandle);
+  }
   child.unref();
   const state = {
     ...promotion.state,
+    status: "running",
     running: true,
-    processId: child.pid
+    stopRequested: false,
+    processId: child.pid,
+    workerProcessId: null,
+    hostLogPath,
+    lastTransitionAt: new Date().toISOString()
   };
-  updateState(root, state);
+  updateState(root, { ...state, lifecycleState: "running" }, {
+    requestId,
+    event: "host.started",
+    reason: "native host started with a validated snapshot",
+    to: "running"
+  });
   return {
     ...prepared,
     running: true,
     processId: child.pid,
+    hostLogPath,
     activeVersion: promotion.version,
     lastKnownGoodVersion: promotion.version
   };
@@ -153,7 +157,7 @@ export function runWorkspace(workspace, requestId = randomUUID(), options = {}) 
 function runSupervisedWorkspace(root, requestId, hostPath) {
   const check = checkWorkspace(root, requestId);
   if (!check.ok) {
-    recordFailure(root, check.diagnostics);
+    recordFailure(root, check.diagnostics, requestId);
     return { ...check, operation: "run" };
   }
 
@@ -172,7 +176,7 @@ function runSupervisedWorkspace(root, requestId, hostPath) {
         message: "run render init before running a widget"
       }]
     };
-    recordFailure(root, result.diagnostics);
+    recordFailure(root, result.diagnostics, requestId);
     return result;
   }
 
@@ -182,7 +186,7 @@ function runSupervisedWorkspace(root, requestId, hostPath) {
   );
   const launched = launchNativeSupervisor(root, hostPath);
   if (!launched.ok) {
-    recordFailure(root, launched.diagnostics);
+    recordFailure(root, launched.diagnostics, requestId);
     return {
       requestId,
       operation: "run",
@@ -196,11 +200,21 @@ function runSupervisedWorkspace(root, requestId, hostPath) {
   const promotion = promoteSnapshot(root, requestId);
   const state = {
     ...promotion.state,
+    status: "running",
     running: true,
+    stopRequested: false,
     processId: launched.processId,
-    workerStatePath: launched.workerStatePath
+    workerProcessId: launched.worker?.processId ?? null,
+    workerStatePath: launched.workerStatePath,
+    hostLogPath: launched.hostLogPath,
+    lastTransitionAt: new Date().toISOString()
   };
-  updateState(root, state);
+  updateState(root, { ...state, lifecycleState: "running" }, {
+    requestId,
+    event: "host.started",
+    reason: "native supervisor started with a validated snapshot",
+    to: "running"
+  });
   return {
     requestId,
     operation: "run",
@@ -208,10 +222,12 @@ function runSupervisedWorkspace(root, requestId, hostPath) {
     ok: true,
     running: true,
     processId: launched.processId,
+    workerProcessId: launched.worker?.processId ?? null,
     activeVersion: promotion.version,
     lastKnownGoodVersion: promotion.version,
     worker: launched.worker,
-    workerStatePath: launched.workerStatePath
+    workerStatePath: launched.workerStatePath,
+    hostLogPath: launched.hostLogPath
   };
 }
 
@@ -228,17 +244,24 @@ function launchNativeSupervisor(root, hostPath) {
   }
 
   const workerScript = process.env.RENDER_WORKER_SCRIPT ?? path.resolve("src/worker.mjs");
-  const child = spawn(hostPath, [
-    "--workspace", root,
-    "--worker-script", workerScript,
-    "--worker-source-path", workerSourcePath,
-    "--worker-state-path", workerStatePath,
-    "--worker-tree-path", workerTreePath
-  ], {
-    detached: true,
-    stdio: "ignore",
-    env: { ...process.env, RENDER_WORKER_SCRIPT: workerScript }
-  });
+  const hostLogPath = path.join(root, ".render", "logs", `host-${supervisorID}.log`);
+  const logHandle = openSync(hostLogPath, "a");
+  let child;
+  try {
+    child = spawn(hostPath, [
+      "--workspace", root,
+      "--worker-script", workerScript,
+      "--worker-source-path", workerSourcePath,
+      "--worker-state-path", workerStatePath,
+      "--worker-tree-path", workerTreePath
+    ], {
+      detached: true,
+      stdio: ["ignore", logHandle, logHandle],
+      env: { ...process.env, RENDER_WORKER_SCRIPT: workerScript }
+    });
+  } finally {
+    closeSync(logHandle);
+  }
   child.unref();
 
   const worker = waitForWorkerState(workerStatePath, SUPERVISOR_STARTUP_TIMEOUT_MS);
@@ -276,7 +299,7 @@ function launchNativeSupervisor(root, hostPath) {
     path.join(root, ".render/runtime/tree.json"),
     readFileSync(workerTreePath)
   );
-  return { ok: true, processId: child.pid, worker, workerSourcePath, workerStatePath, workerTreePath };
+  return { ok: true, processId: child.pid, worker, workerSourcePath, workerStatePath, workerTreePath, hostLogPath };
 }
 
 function waitForWorkerState(workerStatePath, timeoutMs) {
@@ -383,6 +406,89 @@ export function moveWorkspace(
   return { ...result, operation: "move", anchor: nextAnchor };
 }
 
+export function resizeWorkspace(workspace, { width, height } = {}, requestId = randomUUID()) {
+  const root = path.resolve(workspace);
+  const check = checkWorkspace(root, requestId);
+  if (!check.ok) return { ...check, operation: "resize" };
+  const manifest = extractManifest(readFileSync(path.join(root, "widget.tsx"), "utf8"));
+  const adjustable = manifest.adjustable;
+  if (!adjustable?.enabled) return {
+    requestId,
+    operation: "resize",
+    workspace: root,
+    ok: false,
+    diagnostics: [{ code: "resize-disabled", path: "adjustable.enabled", message: "widget does not declare adjustable resizing" }]
+  };
+  const invalidDimension = ["width", "height"].find((axis) => {
+    const value = { width, height }[axis];
+    return value !== undefined && value !== null && (!Number.isFinite(Number(value)) || Number(value) <= 0);
+  });
+  if (invalidDimension) return {
+    requestId,
+    operation: "resize",
+    workspace: root,
+    ok: false,
+    diagnostics: [{
+      code: "invalid-size",
+      path: invalidDimension,
+      message: `${invalidDimension} must be a finite positive number`
+    }]
+  };
+  const current = readPreferences(root);
+  const next = {
+    ...current,
+    width: clampDimension(width ?? current.width ?? manifest.size.width, adjustable, "width"),
+    height: clampDimension(height ?? current.height ?? manifest.size.height, adjustable, "height")
+  };
+  writePreferences(root, next);
+  const launched = runWorkspace(root, requestId);
+  return { ...launched, operation: "resize", preferences: next };
+}
+
+export function setWidgetMode(workspace, mode = "auto", requestId = randomUUID()) {
+  const root = path.resolve(workspace);
+  const check = checkWorkspace(root, requestId);
+  if (!check.ok) return { ...check, operation: "mode" };
+  const manifest = extractManifest(readFileSync(path.join(root, "widget.tsx"), "utf8"));
+  const modes = manifest.adjustable?.responsive?.modes ?? {};
+  if (mode !== "auto" && !Object.hasOwn(modes, mode)) {
+    return {
+      requestId,
+      operation: "mode",
+      workspace: root,
+      ok: false,
+      diagnostics: [{ code: "invalid-mode", path: "adjustable.responsive.modes", message: `mode '${mode}' is not declared by the widget` }]
+    };
+  }
+  const current = readPreferences(root);
+  const selected = modes[mode];
+  const next = {
+    ...current,
+    mode,
+    width: selected ? Math.max(current.width ?? manifest.size.width, selected.minWidth) : current.width,
+    height: selected ? Math.max(current.height ?? manifest.size.height, selected.minHeight) : current.height
+  };
+  writePreferences(root, next);
+  const launched = runWorkspace(root, requestId);
+  return { ...launched, operation: "mode", preferences: next };
+}
+
+export function resetWidgetSize(workspace, requestId = randomUUID()) {
+  const root = path.resolve(workspace);
+  const check = checkWorkspace(root, requestId);
+  if (!check.ok) return { ...check, operation: "reset-size" };
+  const next = { ...readPreferences(root), width: null, height: null };
+  writePreferences(root, next);
+  const launched = runWorkspace(root, requestId);
+  return { ...launched, operation: "reset-size", preferences: next };
+}
+
+function clampDimension(value, adjustable, axis) {
+  const minimum = adjustable.minSize?.[axis] ?? 1;
+  const maximum = adjustable.maxSize?.[axis] ?? Number.POSITIVE_INFINITY;
+  return Math.min(Math.max(Number(value), minimum), maximum);
+}
+
 export function rollbackWorkspace(workspace, version, requestId = randomUUID(), options = {}) {
   const root = path.resolve(workspace);
   const status = statusWorkspace(root, requestId);
@@ -411,8 +517,8 @@ export function rollbackWorkspace(workspace, version, requestId = randomUUID(), 
       ok: false,
       diagnostics: [{
         code: "host-not-built",
-        path: ".build/debug/RenderHost",
-        message: "build the RenderHost executable before rolling back"
+        path: ".build/debug/RenderHost.app/Contents/MacOS/RenderHost",
+        message: "run npm run package:host before rolling back a native widget"
       }]
     };
   }
@@ -422,7 +528,7 @@ export function rollbackWorkspace(workspace, version, requestId = randomUUID(), 
   if (isNativeHost(hostPath) && options.supervised !== false) {
     const launched = launchNativeSupervisor(root, hostPath);
     if (!launched.ok) {
-      recordFailure(root, launched.diagnostics);
+      recordFailure(root, launched.diagnostics, requestId);
       return {
         ...launched,
         operation: "rollback",
@@ -432,27 +538,82 @@ export function rollbackWorkspace(workspace, version, requestId = randomUUID(), 
     stopPreviousHost(root);
     updateState(root, {
       ...restored.state,
+      status: "running",
       running: true,
+      lifecycleState: "running",
+      stopRequested: false,
       processId: launched.processId,
-      workerStatePath: launched.workerStatePath
+      workerProcessId: launched.worker?.processId ?? null,
+      workerStatePath: launched.workerStatePath,
+      hostLogPath: launched.hostLogPath,
+      lastTransitionAt: new Date().toISOString()
+    }, {
+      requestId,
+      event: "rollback.started",
+      reason: "restored last-known-good snapshot is running",
+      to: "running"
     });
     return {
       ...restored,
       running: true,
       processId: launched.processId,
+      workerProcessId: launched.worker?.processId ?? null,
       worker: launched.worker,
-      workerStatePath: launched.workerStatePath
+      workerStatePath: launched.workerStatePath,
+      hostLogPath: launched.hostLogPath
     };
   }
   stopPreviousHost(root);
-  const child = spawn(hostPath, ["--workspace", root], {
-    detached: true,
-    stdio: "ignore",
-    env: { ...process.env, RENDER_WORKSPACE: root }
-  });
+  const hostLogPath = createHostLogPath(root);
+  const logHandle = openSync(hostLogPath, "a");
+  let child;
+  try {
+    child = spawn(hostPath, ["--workspace", root], {
+      detached: true,
+      stdio: ["ignore", logHandle, logHandle],
+      env: { ...process.env, RENDER_WORKSPACE: root }
+    });
+  } finally {
+    closeSync(logHandle);
+  }
   child.unref();
-  updateState(root, { ...restored.state, running: true, processId: child.pid });
-  return { ...restored, running: true, processId: child.pid };
+  updateState(root, { ...restored.state, status: "running", running: true, lifecycleState: "running", stopRequested: false, processId: child.pid, workerProcessId: null, hostLogPath, lastTransitionAt: new Date().toISOString() }, {
+    requestId,
+    event: "rollback.started",
+    reason: "restored last-known-good snapshot is running",
+    to: "running"
+  });
+  return { ...restored, running: true, processId: child.pid, hostLogPath };
+}
+
+function createHostLogPath(root) {
+  return path.join(root, ".render", "logs", `host-${randomUUID()}.log`);
+}
+
+export function stopWorkspace(workspace, requestId = randomUUID()) {
+  const root = path.resolve(workspace);
+  const status = statusWorkspace(root, requestId);
+  if (!status.ok) return { ...status, operation: "stop" };
+
+  const processId = status.state.processId;
+  if (processId && processId !== process.pid) {
+    try {
+      process.kill(processId);
+    } catch (error) {
+      if (error.code !== "ESRCH") throw error;
+    }
+  }
+
+  const state = markWorkspaceStopped(root, true, requestId);
+  return {
+    requestId,
+    operation: "stop",
+    workspace: root,
+    ok: true,
+    stopped: Boolean(processId),
+    state,
+    diagnostics: []
+  };
 }
 
 export function watchWorkspace(workspace, requestId = randomUUID(), onResult = () => {}, options = {}) {
@@ -482,18 +643,14 @@ function validateRuntimeTree(node, pathName, subscriptions, capabilities, accoun
   if (!node || typeof node !== "object") {
     throw new Error(`${pathName}: render() must return a widget node`);
   }
-  const kinds = new Set([
-    "column", "row", "stack", "box", "spacer", "divider", "text", "textField", "textArea", "toggle", "shape",
-    "icon", "image", "button", "slider", "countdown", "gauge", "progress", "grid", "gradient", "texture", "clip", "transform",
-    "segmentedProgress", "spectrum"
-  ]);
+  const kinds = new Set(sdk.WIDGET_NODE_KINDS);
   if (!kinds.has(node.kind)) {
     throw new Error(`${pathName}.kind: unknown widget primitive`);
   }
   if (node.key !== undefined && !(["string", "number"].includes(typeof node.key))) {
     throw new Error(`${pathName}.key: keys must be strings or numbers`);
   }
-  const containers = new Set(["column", "row", "stack", "box", "grid", "button", "gradient", "clip", "transform"]);
+  const containers = new Set(["column", "row", "stack", "box", "glassPanel", "mediaCard", "scrollView", "grid", "button", "gradient", "clip", "transform"]);
   if (containers.has(node.kind) && node.text !== undefined) {
     throw new Error(`${pathName}.text: container nodes cannot define text`);
   }
@@ -502,7 +659,14 @@ function validateRuntimeTree(node, pathName, subscriptions, capabilities, accoun
   }
   if (node.children !== undefined) {
     if (!Array.isArray(node.children)) throw new Error(`${pathName}.children: must be an array`);
+    const childKeys = new Set();
     node.children.forEach((child, index) => validateRuntimeTree(child, `${pathName}.children[${index}]`, subscriptions, capabilities, accounts, assets));
+    node.children.forEach((child, index) => {
+      if (child.key === undefined) return;
+      const key = `${typeof child.key}:${String(child.key)}`;
+      if (childKeys.has(key)) throw new Error(`${pathName}.children[${index}].key: sibling keys must be unique`);
+      childKeys.add(key);
+    });
   }
   if (node.provider !== undefined && (typeof node.provider !== "string" || node.provider.length === 0)) {
     throw new Error(`${pathName}.provider: provider bindings require a name`);
@@ -513,14 +677,100 @@ function validateRuntimeTree(node, pathName, subscriptions, capabilities, accoun
   if (node.provider !== undefined && !SUPPORTED_PROVIDERS.has(node.provider)) {
     throw new Error(`${pathName}.provider: unsupported provider '${node.provider}'; use render sdk list to choose a host provider`);
   }
-  if (node.provider?.startsWith("spotify.") && !accounts.has("spotify")) {
-    throw new Error(`${pathName}.provider: ${node.provider} requires a spotify account requirement; add manifest.accounts and ask the user for permission`);
+  const providerConnector = connectorForName(node.provider);
+  if (providerConnector && !accounts.has(providerConnector)) {
+    throw new Error(`${pathName}.provider: ${node.provider} requires a ${providerConnector} account requirement; add manifest.accounts and ask the user for permission`);
+  }
+  if (providerConnector === "reminders" && !accounts.get(providerConnector).has("reminders.read")) {
+    throw new Error(`${pathName}.provider: ${node.provider} requires the reminders.read scope; add it to manifest.accounts and ask the user for permission`);
   }
   if (["text", "textField", "textArea"].includes(node.kind) && (typeof node.text !== "string" || node.text.length === 0) && node.provider === undefined && node.state === undefined) {
     throw new Error(`${pathName}.text: text nodes require text or a provider`);
   }
+  if (node.kind === "textEditor" && node.text !== undefined && typeof node.text !== "string") {
+    throw new Error(`${pathName}.text: textEditor content must be a string`);
+  }
+  if (node.placeholder !== undefined && (node.kind !== "textEditor" || typeof node.placeholder !== "string")) {
+    throw new Error(`${pathName}.placeholder: only textEditor nodes may define a string placeholder`);
+  }
+  if (node.dateTimeMode !== undefined && !["date", "time", "dateTime"].includes(node.dateTimeMode)) {
+    throw new Error(`${pathName}.dateTimeMode: mode must be date, time, or dateTime`);
+  }
+  if (node.kind === "dateTime" && (typeof node.dateTime !== "string" || !Number.isFinite(Date.parse(node.dateTime)))) {
+    throw new Error(`${pathName}.dateTime: DateTime nodes require a valid ISO date-time string`);
+  }
+  if (node.kind === "dateTimePicker" && node.dateTime !== undefined && (typeof node.dateTime !== "string" || !Number.isFinite(Date.parse(node.dateTime)))) {
+    throw new Error(`${pathName}.dateTime: DateTimePicker values must be valid ISO date-time strings`);
+  }
+  if (!new Set(["dateTime", "dateTimePicker"]).has(node.kind) && node.dateTime !== undefined) {
+    throw new Error(`${pathName}.dateTime: only dateTime nodes may define a date-time value`);
+  }
+  if (!new Set(["dateTime", "dateTimePicker"]).has(node.kind) && node.dateTimeMode !== undefined) {
+    throw new Error(`${pathName}.dateTimeMode: only dateTime nodes may define a date-time mode`);
+  }
   if (node.kind === "toggle" && node.value !== 0 && node.value !== 1) {
     throw new Error(`${pathName}.value: toggle value must be boolean`);
+  }
+  if (node.kind === "timer" && (!Number.isInteger(node.durationSeconds) || node.durationSeconds <= 0)) {
+    throw new Error(`${pathName}.durationSeconds: timer duration must be a positive integer in seconds`);
+  }
+  if (node.kind === "taskList") {
+    if (!Array.isArray(node.tasks)) throw new Error(`${pathName}.tasks: task lists require an array of items`);
+    const ids = new Set();
+    node.tasks.forEach((task, index) => {
+      if (!task || typeof task !== "object") throw new Error(`${pathName}.tasks[${index}]: task must be an object`);
+      if (typeof task.id !== "string" || task.id.length === 0) throw new Error(`${pathName}.tasks[${index}].id: task id must be non-empty`);
+      if (ids.has(task.id)) throw new Error(`${pathName}.tasks[${index}].id: task ids must be unique`);
+      ids.add(task.id);
+      if (typeof task.text !== "string" || task.text.length === 0) throw new Error(`${pathName}.tasks[${index}].text: task text must be non-empty`);
+      if (task.completed !== undefined && typeof task.completed !== "boolean") throw new Error(`${pathName}.tasks[${index}].completed: task completion must be boolean`);
+    });
+  }
+  if (node.kind === "list") {
+    if (node.provider === undefined && !Array.isArray(node.items)) {
+      throw new Error(`${pathName}.items: list nodes require an array of items or a provider`);
+    }
+    if (node.items !== undefined) validateListItems(node.items, `${pathName}.items`);
+  }
+  if (node.kind === "visualizer") {
+    if (node.visualizerMode !== undefined && !new Set(["bars", "waveform", "rings"]).has(node.visualizerMode)) {
+      throw new Error(`${pathName}.visualizerMode: mode must be bars, waveform, or rings`);
+    }
+    if (node.visualizerTempo !== undefined && (typeof node.visualizerTempo !== "number" || !Number.isFinite(node.visualizerTempo) || node.visualizerTempo <= 0)) {
+      throw new Error(`${pathName}.visualizerTempo: tempo must be a positive number`);
+    }
+  }
+  if (node.kind !== "visualizer" && (node.visualizerMode !== undefined || node.visualizerTempo !== undefined)) {
+    throw new Error(`${pathName}: visualizer fields may only be used by visualizer nodes`);
+  }
+  if (node.kind !== "list" && node.items !== undefined) {
+    throw new Error(`${pathName}.items: only list nodes may define items`);
+  }
+  if (node.kind === "youtubePlayer") {
+    if (!capabilities.has("network")) {
+      throw new Error(`${pathName}: YouTubePlayer requires the \"network\" capability; add it to manifest.capabilities and ask the user for permission`);
+    }
+    if (node.videoId === undefined && node.allowLinkInput !== true) {
+      throw new Error(`${pathName}.videoId: YouTubePlayer requires a video ID or allowLinkInput: true`);
+    }
+    if (node.videoId !== undefined && (typeof node.videoId !== "string" || !/^[A-Za-z0-9_-]{11}$/.test(node.videoId))) {
+      throw new Error(`${pathName}.videoId: YouTubePlayer requires an 11-character YouTube video ID`);
+    }
+    if (node.allowLinkInput !== undefined && typeof node.allowLinkInput !== "boolean") {
+      throw new Error(`${pathName}.allowLinkInput: YouTubePlayer allowLinkInput must be boolean`);
+    }
+    if (node.autoplay !== undefined && typeof node.autoplay !== "boolean") {
+      throw new Error(`${pathName}.autoplay: YouTubePlayer autoplay must be boolean`);
+    }
+    if (node.controls !== undefined && typeof node.controls !== "boolean") {
+      throw new Error(`${pathName}.controls: YouTubePlayer controls must be boolean`);
+    }
+    if (node.startSeconds !== undefined && (!Number.isFinite(node.startSeconds) || node.startSeconds < 0)) {
+      throw new Error(`${pathName}.startSeconds: YouTubePlayer startSeconds must be a non-negative number`);
+    }
+  }
+  if (node.kind !== "youtubePlayer" && (node.videoId !== undefined || node.allowLinkInput !== undefined || node.autoplay !== undefined || node.controls !== undefined || node.startSeconds !== undefined)) {
+    throw new Error(`${pathName}: YouTubePlayer fields may only be used by youtubePlayer nodes`);
   }
   if ((node.kind === "gauge" || node.kind === "progress")) {
     const hasProvider = typeof node.provider === "string" && node.provider.length > 0;
@@ -820,18 +1070,72 @@ function validateAction(action, pathName, accounts) {
   if (!SUPPORTED_ACTIONS.has(action.name)) {
     throw new Error(`${pathName}.name: unsupported action '${action.name}'; use render sdk describe WidgetActionName`);
   }
-  if (action.name.startsWith("spotify.") && !accounts.has("spotify")) {
-    throw new Error(`${pathName}.name: ${action.name} requires a spotify account requirement; add manifest.accounts and ask the user for permission`);
+  const actionConnector = connectorForName(action.name);
+  if (actionConnector && !accounts.has(actionConnector)) {
+    throw new Error(`${pathName}.name: ${action.name} requires a ${actionConnector} account requirement; add manifest.accounts and ask the user for permission`);
+  }
+  if (actionConnector === "reminders" && !accounts.get(actionConnector).has("reminders.write")) {
+    throw new Error(`${pathName}.name: ${action.name} requires the reminders.write scope; add it to manifest.accounts and ask the user for permission`);
   }
   if (action.name === "spotify.set-volume") {
     if (action.type !== "set" || typeof action.value !== "number" || !Number.isInteger(action.value) || action.value < 0 || action.value > 100) {
       throw new Error(`${pathName}: spotify.set-volume requires an integer set value between 0 and 100`);
     }
+  } else if (action.name.startsWith("reminders.")) {
+    if (action.type !== "invoke") throw new Error(`${pathName}: ${action.name} requires an invoke action`);
+    validateReminderAction(action.name, action.payload, pathName);
   } else if (action.type !== "invoke") {
     throw new Error(`${pathName}: ${action.name} requires an invoke action`);
   }
   if (action.type === "invoke" && action.payload !== undefined) validateJsonValue(action.payload, `${pathName}.payload`);
   if (action.type === "set") validateJsonValue(action.value, `${pathName}.value`);
+}
+
+function connectorForName(name) {
+  if (typeof name !== "string") return undefined;
+  return sdk.WIDGET_PROVIDER_CONNECTORS[name] ?? sdk.WIDGET_ACTION_CONNECTORS[name];
+}
+
+function validateReminderAction(name, payload, pathName) {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    throw new Error(`${pathName}.payload: ${name} requires an object payload; use render sdk describe ${name}`);
+  }
+  const requiredString = (field) => {
+    if (typeof payload[field] !== "string" || payload[field].trim() === "") {
+      throw new Error(`${pathName}.payload.${field}: ${name} requires a non-empty string`);
+    }
+  };
+  if (name === "reminders.create") requiredString("title");
+  if (["reminders.update", "reminders.complete", "reminders.delete"].includes(name)) requiredString("id");
+  if (name === "reminders.update" && payload.completed !== undefined && typeof payload.completed !== "boolean") {
+    throw new Error(`${pathName}.payload.completed: reminders.update requires a boolean when completed is supplied`);
+  }
+  if (name === "reminders.complete" && payload.completed !== undefined && typeof payload.completed !== "boolean") {
+    throw new Error(`${pathName}.payload.completed: reminders.complete requires a boolean when completed is supplied`);
+  }
+  for (const field of ["listName", "dueDate", "title"]) {
+    if (payload[field] !== undefined && typeof payload[field] !== "string") {
+      throw new Error(`${pathName}.payload.${field}: ${name} requires a string when supplied`);
+    }
+  }
+  for (const field of ["dueDate"]) {
+    if (payload[field] !== undefined && (typeof payload[field] !== "string" || !Number.isFinite(Date.parse(payload[field])))) {
+      throw new Error(`${pathName}.payload.${field}: ${name} requires a valid ISO date string when supplied`);
+    }
+  }
+}
+
+function validateListItems(items, pathName) {
+  const ids = new Set();
+  items.forEach((item, index) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) throw new Error(`${pathName}[${index}]: list item must be an object`);
+    if (typeof item.id !== "string" || item.id.trim() === "") throw new Error(`${pathName}[${index}].id: list item id must be non-empty`);
+    if (ids.has(item.id)) throw new Error(`${pathName}[${index}].id: list item ids must be unique`);
+    ids.add(item.id);
+    if (typeof item.title !== "string" || item.title.trim() === "") throw new Error(`${pathName}[${index}].title: list item title must be non-empty`);
+    if (item.subtitle !== undefined && typeof item.subtitle !== "string") throw new Error(`${pathName}[${index}].subtitle: list item subtitle must be a string`);
+    if (item.completed !== undefined && typeof item.completed !== "boolean") throw new Error(`${pathName}[${index}].completed: list item completion must be boolean`);
+  });
 }
 
 function validateJsonValue(value, pathName) {
@@ -858,7 +1162,7 @@ function validateStyle(style, pathName) {
     "width", "height", "minWidth", "maxWidth", "minHeight", "maxHeight", "aspectRatio",
     "color", "backgroundColor", "opacity", "padding", "margin", "gap",
     "alignItems", "justifyContent", "alignSelf", "flexGrow", "flexShrink", "flexBasis", "flexWrap",
-    "radius", "border", "shadow", "shadows", "font", "overflow", "interaction", "tokens"
+    "radius", "border", "shadow", "shadows", "font", "overflow", "interaction", "material", "role", "density", "tokens"
   ]);
   for (const key of Object.keys(style)) if (!allowed.has(key)) throw new Error(`${pathName}.${key}: unknown style property`);
   for (const key of ["width", "height", "minWidth", "maxWidth", "minHeight", "maxHeight", "flexBasis"]) {
@@ -904,7 +1208,10 @@ function validateStyle(style, pathName) {
     if (style.font.tabularNumbers !== undefined && typeof style.font.tabularNumbers !== "boolean") throw new Error(`${pathName}.font.tabularNumbers: must be boolean`);
   }
   validateInteraction(style.interaction, `${pathName}.interaction`);
-  if (style.tokens !== undefined && (!Array.isArray(style.tokens) || style.tokens.some((token) => !new Set(["surface", "surface.elevated", "text.primary", "text.secondary", "accent", "danger", "success", "mono"]).has(token)))) throw new Error(`${pathName}.tokens: contains an unsupported style token`);
+  if (style.material !== undefined && !new Set(["solid", "thin", "thick"]).has(style.material)) throw new Error(`${pathName}.material: unsupported material`);
+  if (style.role !== undefined && !new Set(["surface", "panel", "control", "status", "media"]).has(style.role)) throw new Error(`${pathName}.role: unsupported semantic role`);
+  if (style.density !== undefined && !new Set(["compact", "comfortable"]).has(style.density)) throw new Error(`${pathName}.density: unsupported density`);
+  if (style.tokens !== undefined && (!Array.isArray(style.tokens) || style.tokens.some((token) => !new Set(["surface", "surface.elevated", "surface.panel", "surface.control", "surface.status", "text.primary", "text.secondary", "text.tertiary", "border.subtle", "accent", "accent.muted", "danger", "success", "mono"]).has(token)))) throw new Error(`${pathName}.tokens: contains an unsupported style token`);
 }
 
 function validateInteraction(value, pathName) {
@@ -994,12 +1301,28 @@ function validateShadow(value, pathName) {
 }
 
 function findHostPath() {
-  const candidates = [
-    process.env.RENDER_HOST_PATH,
+  const configured = process.env.RENDER_HOST_PATH;
+  if (configured && existsSync(configured)) return configured;
+
+  const packaged = [
+    path.resolve(".build/debug/RenderHost.app/Contents/MacOS/RenderHost"),
+    path.resolve(".build/arm64-apple-macosx/debug/RenderHost.app/Contents/MacOS/RenderHost")
+  ].find((candidate) => existsSync(candidate)) ?? null;
+  const raw = [
     path.resolve(".build/debug/RenderHost"),
     path.resolve(".build/arm64-apple-macosx/debug/RenderHost")
-  ].filter(Boolean);
-  return candidates.find((candidate) => existsSync(candidate)) ?? null;
+  ].find((candidate) => existsSync(candidate)) ?? null;
+
+  return selectHostPath(packaged, raw);
+}
+
+export function selectHostPath(packaged, raw) {
+  if (!packaged || !raw) return packaged ?? raw;
+  try {
+    return statSync(packaged).mtimeMs >= statSync(raw).mtimeMs ? packaged : raw;
+  } catch {
+    return packaged;
+  }
 }
 
 function isNativeHost(hostPath) {
@@ -1025,11 +1348,8 @@ function stopPreviousHost(root) {
   }
 }
 
-function updateState(root, state) {
-  const metadataPath = path.join(root, ".render", "metadata.json");
-  const temporaryPath = `${metadataPath}.${randomUUID()}.tmp`;
-  writeFileSync(temporaryPath, `${JSON.stringify(state, null, 2)}\n`, "utf8");
-  renameSync(temporaryPath, metadataPath);
+function updateState(root, state, transition = {}) {
+  return persistLifecycleState(root, state, transition);
 }
 
 function writeAtomically(filePath, data) {

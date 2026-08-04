@@ -13,15 +13,24 @@ The current reference implementation is a native CPU/RAM widget. It proves the a
 - Native macOS desktop-layer rendering through SwiftUI/AppKit.
 - One active widget per workspace.
 - `widget.tsx` as the readable source of truth.
-- A canonical `@render/sdk` with native layout, content, image, control, progress, provider, action, and typed-style contracts.
+- A canonical `@render/sdk` with native layout, content, image, control, task-list, timer, list, progress, provider, action, and typed-style contracts.
 - Automatic TSX compilation to a serializable declarative tree; no DOM, HTML, CSS, browser runtime, or webview.
 - Agent-readable SDK discovery through `render sdk list --json` and `render sdk describe <name> --json`.
 - Workspace-scoped validation, running, watch mode, logical movement, snapshots, rollback, and last-known-good recovery.
+- An experimental fleet lifecycle seam can run, inspect, reconcile, and stop multiple isolated widget workspaces with repeated `--workspace` flags; each workspace keeps its own snapshots and runtime metadata.
 - Host-owned CPU, memory, and local-time providers.
 - Native dragging and persisted placement for the first prototype.
+- Host-owned adjustable sizing with native resize handles, persisted size and lock state, responsive modes, and a settings-panel mode selector.
+- Host-owned countdown timers and editable task lists with start/pause/reset, duration editing, completion, add/remove, direct editing, reorder, clear-completed, and persisted state.
+- Native `ScrollView` and persistent multiline `TextEditor` primitives; stateful nodes can use stable keys so user edits survive remixes and reordering.
+- Native `DateTime` display and persistent `DateTimePicker` controls for date, time, or combined date-time values.
 - Generic host-owned account requirements with secure macOS Keychain storage.
 - A Spotify connector for current playback, track metadata, play/pause, previous/next, and volume control.
+- A macOS Reminders connector with permission-gated account state, incomplete-count and next-reminder providers, and explicit create/update/complete/delete actions.
+- A generic native `List` primitive for static rows or structured provider-backed rows such as `reminders.items`.
+- A native `YouTubePlayer` primitive backed by an isolated WebKit surface, with explicit network capability, validated video IDs, and an optional persisted link-input toggle.
 - Render-owned Spotify permission prompt and a liquid-glass widget settings panel with metadata and a confirmed stop control.
+- Worker crash loops remain quiet while they recover and become a visible liquid-glass settings diagnostic only after five consecutive restart failures; the last-known-good tree remains visible.
 
 MCP is not required for this prototype. The agent boundary is the deterministic local CLI plus the checked-in widget-authoring skill. MCP can wrap that stable contract later if broader interoperability requires it.
 
@@ -55,9 +64,10 @@ git clone https://github.com/SamarthaB10/Render.git
 cd Render
 npm install
 swift build
+npm run package:host
 ```
 
-The native executable is written to `.build/debug/RenderHost`. The repository's Node CLI is `bin/render.mjs`; while working from the checkout, invoke it with `node bin/render.mjs`.
+`swift build` produces the development executable at `.build/debug/RenderHost`. `npm run package:host` additionally creates and ad-hoc signs `.build/debug/RenderHost.app`, embedding the macOS usage metadata needed for permission-gated providers such as Reminders. Set `RENDER_SIGNING_IDENTITY` when using a local signing identity. The repository's Node CLI is `bin/render.mjs`; while working from the checkout, invoke it with `node bin/render.mjs`.
 
 ## Create and run your first widget
 
@@ -70,7 +80,10 @@ node bin/render.mjs check --workspace "$HOME/RenderWidgets/system-monitor" --jso
 node bin/render.mjs run --workspace "$HOME/RenderWidgets/system-monitor" --json
 ```
 
-`run` automatically finds `.build/debug/RenderHost`. To select a specific host binary, set `RENDER_HOST_PATH`:
+`run` prefers the packaged app when it is at least as new as the raw SwiftPM
+executable, and automatically falls back to the newer raw executable after a
+plain `swift build` so an old app bundle cannot silently run stale native code.
+To select a specific host binary, set `RENDER_HOST_PATH`:
 
 ```bash
 RENDER_HOST_PATH="$PWD/.build/debug/RenderHost" \
@@ -82,6 +95,36 @@ Confirm that the native worker is ready:
 ```bash
 node bin/render.mjs status --workspace "$HOME/RenderWidgets/system-monitor" --json
 ```
+
+For multiple widgets, use the fleet commands. They persist a local registry at
+`~/.render/fleet.json` (or the path supplied with `--state-path`) and keep each
+workspace's lifecycle state separate:
+
+```bash
+node bin/render.mjs fleet run \
+  --workspace "$HOME/RenderWidgets/system-monitor" \
+  --workspace "$HOME/RenderWidgets/study-timer" \
+  --json
+node bin/render.mjs fleet status \
+  --workspace "$HOME/RenderWidgets/system-monitor" \
+  --workspace "$HOME/RenderWidgets/study-timer" \
+  --json
+node bin/render.mjs fleet stop \
+  --workspace "$HOME/RenderWidgets/system-monitor" \
+  --workspace "$HOME/RenderWidgets/study-timer" \
+  --json
+node bin/render.mjs fleet logs \
+  --workspace "$HOME/RenderWidgets/system-monitor" \
+  --json
+node bin/render.mjs fleet relaunch --json
+```
+
+The completed F1 fleet lifecycle keeps a detached supervisor over the existing
+per-widget host boundary. It monitors each widget independently, records its
+host/worker PIDs and log path, and relaunches a dead host without replacing the
+other widgets. The future XPC transport can replace the supervisor plumbing
+without changing this widget-facing contract. `fleet relaunch` consumes the
+persisted registry, which is the lifecycle seam a future login item will call.
 
 The status response should report a running widget and, when the native supervisor is active, `worker.status` as `ready`. The widget appears on the desktop at its logical anchor. The first prototype can be dragged by the user, and its placement is persisted by the native host.
 
@@ -126,6 +169,51 @@ export default widget({
   </Column>
 ));
 ```
+
+### Adjustable widgets and responsive modes
+
+Widgets that should be resizable declare the host-owned adjustable contract in their manifest. The widget receives the active mode and current size as the optional render context; existing widgets that use `() => ...` remain valid.
+
+```tsx
+import { Column, Text, widget } from "@render/sdk";
+
+export default widget({
+  "schemaVersion": 1,
+  "name": "Responsive Notes",
+  "sdkVersion": "0.1.0",
+  "size": { "width": 320, "height": 220 },
+  "anchor": { "corner": "top-left", "offset": { "x": 24, "y": 24 } },
+  "capabilities": [],
+  "subscribe": [],
+  "adjustable": {
+    "enabled": true,
+    "minSize": { "width": 220, "height": 160 },
+    "maxSize": { "width": 720, "height": 640 },
+    "responsive": {
+      "modes": {
+        "compact": { "minWidth": 220, "minHeight": 160 },
+        "regular": { "minWidth": 320, "minHeight": 220 },
+        "expanded": { "minWidth": 520, "minHeight": 360 }
+      },
+      "default": "regular"
+    }
+  }
+}, ({ mode, size }) => Column([
+  Text(mode),
+  Text(`${Math.round(size?.width ?? 320)} × ${Math.round(size?.height ?? 220)}`)
+]));
+```
+
+The native host owns resize handles, placement, lock state, and the settings gear. Runtime preferences are stored in the workspace and are not part of shared widget source. Agents can also operate the same contract explicitly:
+
+```bash
+node bin/render.mjs resize --workspace "$WORKSPACE" --width 420 --height 300 --json
+node bin/render.mjs mode --workspace "$WORKSPACE" --mode compact --json
+node bin/render.mjs mode --workspace "$WORKSPACE" --mode auto --json
+node bin/render.mjs reset-size --workspace "$WORKSPACE" --json
+```
+
+`resize` clamps to the declared bounds and `mode` accepts only declared responsive modes. `Auto` chooses the largest mode that fits the current size. Invalid requests produce a repairable JSON diagnostic and do not replace the active widget.
 
 The function-call form generated by `scaffold` is also valid. Both forms produce the same native `WidgetNode` tree. Do not use `<div>`, CSS, `document`, `window`, React DOM, HTML, browser APIs, webviews, or private native APIs. Intrinsic HTML elements are intentionally not part of Render's TypeScript JSX contract.
 
@@ -253,7 +341,11 @@ node bin/render.mjs run --workspace "$WORKSPACE" --watch
 node bin/render.mjs move --workspace "$WORKSPACE" \
   --corner top-right --offset-x 24 --offset-y 24 --json
 
-# 8. Restore a prior successful snapshot after a failed remix
+# 8. Resize or select a declared responsive mode without editing source
+node bin/render.mjs resize --workspace "$WORKSPACE" --width 420 --height 300 --json
+node bin/render.mjs mode --workspace "$WORKSPACE" --mode regular --json
+
+# 9. Restore a prior successful snapshot after a failed remix
 node bin/render.mjs rollback --workspace "$WORKSPACE" \
   --version <snapshot-version>
 ```
@@ -281,6 +373,30 @@ The catalog currently exposes these implemented families:
 - Motion: host-owned declarative `Animate` for bounded opacity, transform, and offset changes.
 - Data and lifecycle: `useProvider`, `useWidgetState`, typed provider states, `widget.refresh`, `widget.reload`, and the worker protocol types.
 - Styles: typed point/fill/fit/percent/fraction sizing, constraints, spacing, flex descriptors, per-corner radius, ordered shadows, typography, overflow, native interaction states, opacity, and semantic tokens.
+- Layout: `Column`, `Row`, `Stack`, `Box`, `GlassPanel`, `MediaCard`, `Spacer`, `Divider`, `ScrollView`, `Grid`.
+- Collections: `List` for static rows or structured provider-backed rows; `TaskList` remains the editable task-specific primitive.
+- Media: `YouTubePlayer` for official embedded playback inside a native widget surface; `Artwork` for clipped media; `Visualizer` for honest clock-driven playback response; use a valid 11-character YouTube video ID.
+- Content and visuals: `Text`, editable native `TextField`, native `Toggle`, `Shape`, `Icon`, native asset `Image`.
+- Controls and progress: `Button`, `TransportControls`, `Gauge`, `Progress`.
+- Data and lifecycle: `useProvider`, typed provider states, `widget.refresh`, `widget.reload`, and the worker protocol types.
+- Styles: typed color, sizing, spacing, alignment, radius, border, shadow, font, opacity, semantic tokens, materials, roles, density, and selectable themes (`dark-glass`, `light`, `monochrome`, `retro`). `radius` clips child content as well as rounding the surface, so embedded media fits cleanly inside curved cards; `border` controls the stroke color, width, and optional corner radius.
+
+### Native visual language
+
+The default Render surface is a restrained dark-glass system: rounded native cards, semantic hierarchy, quiet borders, and purposeful motion. Agents should start with `GlassPanel`, `MediaCard`, `Artwork`, `TransportControls`, and `Visualizer`, then use documented `WidgetStyle` fields for the requested visual direction. Explicit authored styling is the default; when a user selects a theme in Widget settings, that runtime preference applies the selected theme's palette, typography, geometry, borders, and surface treatment across the Widget while semantic SDK tokens continue resolving through the active theme. Arbitrary DOM/CSS and private native views are never widget primitives. Every widget also receives host-managed settings, resize, lock, and recovery chrome with keyboard-accessible focus behavior.
+
+For a theme-aware widget, declare the available variants in the manifest:
+
+```tsx
+theme: {
+  default: "dark-glass",
+  options: ["dark-glass", "light", "monochrome", "retro"]
+}
+```
+
+The host stores the selected theme, size, mode, lock state, and placement locally. Sharing or remixing a widget carries its declared defaults and responsive rules, not another user's desktop preferences. `Visualizer` is intentionally honest: it can respond to playback metadata and the host clock, but it does not invent audio data or change Spotify playback tempo.
+
+Retro in Render means Vaporwave/Outrun, not sepia or brown: a near-black purple void, deep violet surfaces, chrome text, hot magenta and electric cyan accents, terminal-style monospace typography, angular geometry, cyan/magenta borders, colored glow, and subtle CRT scanlines behind the content. Select `retro` when the user asks for that complete treatment. Agents can still compose `Box`, `Stack`, `Shape`, `Text`, and `Divider` for intentional retro structure, but should not recreate the theme with private CSS, HTML, or arbitrary native views.
 
 The catalog also marks contract-only and planned items. Current limitations are deliberate:
 
@@ -291,6 +407,11 @@ The catalog also marks contract-only and planned items. Current limitations are 
 - One active widget, local development, and a locally built host are the current scope; packaging, notarization, and distribution are future work.
 - `TextField`, `TextArea`, `Toggle`, `Slider`, and `Countdown` support persistent widget-owned state when bound with `useWidgetState(key, initial)`. The host stores JSON-safe values in the widget workspace and restores them before rendering; widget source never writes state files.
 - State bindings currently cover text, text fields, toggles, sliders, countdown duration, gauges, progress, and segmented progress. Collection editing and arbitrary state mutation actions remain planned.
+- Reminders requires native macOS full access. The host keeps EventKit objects and reminder identifiers out of widget source; the packaged host must include `NSRemindersFullAccessUsageDescription` for the system permission prompt.
+- `YouTubePlayer` requires the manifest `network` capability. Set `allowLinkInput: true` to expose a native toggle and persisted link editor in the widget's hover settings panel for `youtube.com` or `youtu.be` links; source code still cannot provide arbitrary HTML, iframe markup, or URLs.
+- One active widget, local development, and a locally packaged host are the current scope; notarization and distribution are future work.
+- `TextField` supports direct editing during the current widget session. `Timer` and `TaskList` provide host-owned persisted interaction state; `TaskList` supports direct task editing, completion, adding, and removal. Use `render sdk describe Timer --json`, `render sdk describe TaskList --json`, and `render sdk describe WidgetTaskItem --json` for the exact contracts.
+- For Reminders widgets, inspect `reminders`, `reminders.account`, `reminders.items`, `reminders.incompleteCount`, `reminders.next.title`, `reminders.next.dueDate`, and the four `reminders.*` actions before authoring. Use `List(useProvider("reminders.items"))` for native read-only rows, and declare `reminders.read`; add `reminders.write` when the widget edits the user’s lists.
 
 If the catalog cannot express a requested feature, the agent should report the missing contract instead of generating a fake integration or falling back to web technology.
 
@@ -337,6 +458,7 @@ Icon names derived from Lucide or Feather require the project’s attribution an
 | `npm test` | Run the Node test suite |
 | `swift build` | Build the native macOS host |
 | `swift test` | Run Swift package tests |
+| `npm run package:host` | Build an ad-hoc signed `RenderHost.app` with permission metadata |
 | `npm run measure:performance` | Run the checked-in performance measurements |
 | `node bin/render.mjs sdk list --json` | Discover the agent-readable SDK catalog |
 | `node bin/render.mjs check --workspace <path> --json` | Validate a widget without promoting it |

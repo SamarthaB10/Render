@@ -15,6 +15,7 @@ Use the installed `render` command when available. When working directly from th
 - Do not edit unrelated projects, repository files, or global configuration.
 - Use primitives and providers from `@render/sdk`; do not invent DOM, HTML, CSS, browser APIs, webviews, or arbitrary native APIs.
 - Keep the manifest explicit: size, optional resizability/window shape, logical anchor, capabilities, provider subscriptions, and connector account requirements must be declared.
+- If the widget should be user-resizable, declare `adjustable` with measured min/max bounds and only the responsive modes the widget actually supports. Use the optional render context (`{ mode, size }`) for adaptive layout; do not scale blindly or create a private resize primitive.
 - Treat CLI diagnostics as the source of truth. Fix the reported path and message before trying to run again.
 - A failed candidate must never replace the last-known-good widget.
 - Do not claim an integration works when its provider, action contract, or capability enforcement is not shipped.
@@ -72,6 +73,23 @@ Column([
 
 The native host restores saved values before rendering and persists edits from bound `TextField`, `TextArea`, `Toggle`, `Slider`, and `Countdown` controls. State is scoped to the widget workspace, accepts only JSON-safe scalar values, and does not require a filesystem capability. If a saved value no longer matches its binding, the host uses the declared initial value so a stale preference cannot prevent relaunch. Use distinct keys for independent values; arbitrary state writes and collection mutation are not yet exposed.
 
+For the Phase 9 surface, the roadmap families are layout, typography/content, visuals, controls/actions, collections/data, and providers/integrations. The shipped first slice includes `Box`, `GlassPanel`, `MediaCard`, `Spacer`, `Divider`, `Icon`, `Image`, `Artwork`, `Button`, `TransportControls`, `TextField`, `TextEditor`, `Toggle`, `Timer`, `TaskList`, `List`, `Visualizer`, `YouTubePlayer`, `ScrollView`, `Progress`, and `Grid`, typed actions/provider states, the JSX runtime, and the host-owned `WidgetAdjustable`/`WidgetRenderContext` contract. `GlassPanel`, `MediaCard`, `Artwork`, `TransportControls`, and `Visualizer` are composable patterns, not private widget code: they inherit Render's semantic theme and accept only documented typed overrides. `Timer`, `TaskList`, and `TextEditor` are host-owned stateful primitives: timers persist countdown state across relaunch, task lists support direct editing, completion, adding, removal, and persistence, and editors persist user text. `List` is the generic read-only collection surface in this slice; use `WidgetListItem` for static rows or a structured provider such as `reminders.items`. `YouTubePlayer` is the explicit network-backed media surface: it accepts a validated YouTube video ID, requires `network` in the manifest, and supports a persisted native link-input toggle through `allowLinkInput`. Use stable keys for stateful nodes so user data survives remixes and reordering. Treat any item as unavailable until `render sdk list --json` and `render sdk describe ... --json` expose its exact contract and support status.
+
+### Native design system
+
+Render widgets are dark-first, rounded native surfaces with semantic styling rather than arbitrary CSS. Declare the widget's theme in the manifest when it should offer a user-selectable visual family; the host persists the user's choice locally while shared source retains only declared defaults:
+
+```tsx
+theme: {
+  default: "dark-glass",
+  options: ["dark-glass", "light", "monochrome", "retro"]
+}
+```
+
+Prefer the pattern primitives for polished compositions. `GlassPanel` is the general translucent panel, `MediaCard` is a compact media surface, `Artwork` is a clipped media image, `TransportControls` composes explicit playback actions, and `Visualizer` provides honest clock-driven bars, waveform, or rings. A visualizer may bind to a playback state provider; it must show loading/unavailable states and must not fabricate audio bands. `tempo` changes visual response rate only—it does not alter third-party playback speed.
+
+Use `WidgetStyle` semantic fields (`material`, `role`, `density`, and `tokens`) before explicit color overrides. The native host resolves those fields through the active theme and keeps the settings, resize, lock, and recovery controls in host-managed chrome for every widget. Keyboard focus and accessible labels are provided by the native surface. If a request needs a raw CSS property, browser view, or private native control, report the missing SDK contract instead of bypassing the catalog.
+
 ### 2. Create or identify an isolated workspace
 
 For a new widget, use the canonical scaffold. It creates an isolated workspace and a valid SDK-only `widget.tsx`:
@@ -107,6 +125,42 @@ export default widget({
 
 The scaffold above is the canonical CPU/RAM example. It is also the canonical example for the first provider-backed widget path. For another composition, inspect every primitive with `render sdk describe <name> --json` and copy its documented signature and example. The current runtime supports all cataloged layout, content, control, and progress primitives, plus constrained typed styles and automatic TSX. Use `Countdown` for a user-facing timer with native start, pause, reset, and duration selection; `useTimer` remains cataloged only for a future generic host-scheduled render-update contract. Image URL/provider sources are cataloged gaps and `render check` rejects them until their capability-backed providers ship. Every future primitive must ship as SDK type, JSX/runtime contract, catalog entry, native renderer, validation, agent documentation, focused tests, and performance evidence before the skill may use it.
 
+The scaffold above is the canonical CPU/RAM example. It is also the canonical example for the first provider-backed widget path. For another composition, inspect every primitive with `render sdk describe <name> --json` and copy its documented signature and example. The current runtime supports all cataloged layout, content, control, task-list, timer, scroll, editor, media-pattern, and progress primitives, plus constrained typed styles and automatic TSX. `useTimer` remains cataloged for a future host-scheduled update binding; use `Timer` for a visible host-owned countdown surface. Image URL/provider sources are cataloged gaps and `render check` rejects them until their capability-backed providers ship. Every future primitive must ship as SDK type, JSX/runtime contract, catalog entry, native renderer, validation, agent documentation, focused tests, and performance evidence before the skill may use it.
+
+For stateful study or planning widgets, inspect the exact contracts before authoring. `Timer` includes an in-widget duration editor; `TaskList` includes direct editing, completion, add/remove, reorder, and clear-completed controls; `DateTimePicker` provides a native persisted date/time selection:
+
+```bash
+render sdk describe Timer --json
+render sdk describe TaskList --json
+render sdk describe WidgetTaskItem --json
+render sdk describe List --json
+render sdk describe WidgetListItem --json
+render sdk describe YouTubePlayer --json
+render sdk describe YouTubePlayerProps --json
+render sdk describe ScrollView --json
+render sdk describe TextEditor --json
+render sdk describe DateTime --json
+render sdk describe DateTimePicker --json
+```
+
+For an adjustable widget, inspect the exact contract before authoring:
+
+```bash
+render sdk describe WidgetAdjustable --json
+render sdk describe WidgetRenderContext --json
+```
+
+The host exposes native resize handles when `adjustable.enabled` is true. The settings panel also exposes width/height, lock, reset, and declared responsive modes. Use these explicit operations for agent-driven changes:
+
+```bash
+render resize --workspace "$WORKSPACE" --width 420 --height 300 --json
+render mode --workspace "$WORKSPACE" --mode compact --json
+render mode --workspace "$WORKSPACE" --mode auto --json
+render reset-size --workspace "$WORKSPACE" --json
+```
+
+Size, mode, lock state, and placement persist locally across relaunches. They are runtime preferences, not shared source state. If a remix removes the saved mode, Render switches to `auto`, reports the recovery, and keeps the last-known-good widget active.
+
 For network or filesystem access, declare the narrowest required capability and ask the user for permission before proceeding. Never place credentials or tokens in `widget.tsx`.
 
 For an authenticated integration, declare the connector and exact scopes in the manifest. The current contract-only Spotify shape is:
@@ -131,6 +185,44 @@ and keep the widget in an explicit unavailable state. Do not invent track,
 progress, volume, or device data and do not ask the agent to regenerate the
 widget as though this were a TSX error.
 
+For native macOS Reminders, inspect the implemented connector and each
+provider/action before authoring:
+
+```bash
+render sdk describe reminders --json
+render sdk describe reminders.account --json
+render sdk describe reminders.items --json
+render sdk describe reminders.incompleteCount --json
+render sdk describe reminders.next.title --json
+render sdk describe reminders.next.dueDate --json
+render sdk describe reminders.create --json
+render sdk describe reminders.update --json
+render sdk describe reminders.complete --json
+render sdk describe reminders.delete --json
+```
+
+Declare the exact account scopes in the manifest:
+
+```tsx
+"accounts": [{
+  "connector": "reminders",
+  "scopes": ["reminders.read", "reminders.write"]
+}]
+```
+
+Use provider bindings for redacted status/count/next-item display and
+explicit action payloads for mutations. `reminders.create` requires
+`{ title }` and accepts optional `listName` and ISO `dueDate`;
+`reminders.update` requires an opaque `id` and accepts `title`, `dueDate`
+(or `null`), and `completed`; `reminders.complete` requires `id` and
+defaults `completed` to `true`; `reminders.delete` requires `id`. The
+native host asks for permission through the settings panel and keeps
+EventKit objects out of the widget. Run `npm run package:host` before using
+permission-gated providers; the generated app bundle carries
+`NSRemindersFullAccessUsageDescription` so macOS can show the system prompt.
+`List(useProvider("reminders.items"))` is read-only in this slice; use the
+explicit Reminders actions for mutations until row action bindings ship.
+
 ### 4. Validate before running
 
 ```bash
@@ -153,6 +245,41 @@ Wait for the status result to report the active widget as running and, when nati
 ```bash
 render run --workspace "$WORKSPACE" --watch
 ```
+
+When several isolated widgets need lifecycle operations, use the fleet seam.
+Repeat `--workspace` for each widget; the operation continues for the other
+workspaces if one workspace reports a diagnostic:
+
+```bash
+render fleet run \
+  --workspace "$HOME/RenderWidgets/system-monitor" \
+  --workspace "$HOME/RenderWidgets/study-timer" \
+  --json
+render fleet status \
+  --workspace "$HOME/RenderWidgets/system-monitor" \
+  --workspace "$HOME/RenderWidgets/study-timer" \
+  --json
+render fleet stop \
+  --workspace "$HOME/RenderWidgets/system-monitor" \
+  --workspace "$HOME/RenderWidgets/study-timer" \
+  --json
+render fleet logs \
+  --workspace "$HOME/RenderWidgets/system-monitor" \
+  --json
+render fleet relaunch --json
+```
+
+Fleet status reconciles stale process records and marks a workspace stopped
+instead of reporting a dead process as running. Native fleet runs keep a
+detached supervisor over the per-widget host processes; a dead widget host is
+restarted without replacing another widget. Each workspace exposes its host
+and worker process records and a widget-scoped log stream. The Settings
+button's Stop Widget action records an intentional stop for that workspace
+before terminating it, so it does not get relaunched as a crash while sibling
+widgets continue running. The future XPC transport may replace the supervisor
+plumbing without changing this contract.
+`fleet relaunch` consumes the persisted registry, so a future login item can
+restore registered widgets without reconstructing workspace paths.
 
 Successful edits update the existing widget in place. The first prototype is draggable; placement is persisted by the native host. The implemented local providers are `system.cpu`, `system.memory`, and `system.time`; `system.time` is rendered as the host-local clock when bound to `Text`. Spotify providers/actions are host-backed and remain explicit unavailable states until the user connects an account.
 

@@ -18,6 +18,11 @@ test("Render agent skill defines the complete widget lifecycle", () => {
     "render check",
     "render run",
     "render status",
+    "render fleet run",
+    "render fleet status",
+    "render fleet stop",
+    "render fleet logs",
+    "render fleet relaunch",
     "render rollback"
   ]) {
     assert.match(skill, new RegExp(command.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")));

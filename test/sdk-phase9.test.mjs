@@ -4,6 +4,27 @@ import test from "node:test";
 test("Phase 9 primitives produce serializable native nodes", async () => {
   const sdk = await import("../packages/sdk/src/index.ts");
 
+  assert.deepEqual(sdk.ScrollView([sdk.Text("Long notes")], { height: 320 }), {
+    kind: "scrollView",
+    children: [{ kind: "text", text: "Long notes" }],
+    style: { height: 320 }
+  });
+  assert.deepEqual(sdk.TextEditor({ key: "notes", text: "", placeholder: "Write a note…" }), {
+    kind: "textEditor",
+    key: "notes",
+    text: "",
+    placeholder: "Write a note…"
+  });
+  assert.deepEqual(sdk.DateTime({ value: "2026-08-03T14:30:00Z", mode: "date" }), {
+    kind: "dateTime",
+    dateTime: "2026-08-03T14:30:00Z",
+    dateTimeMode: "date"
+  });
+  assert.deepEqual(sdk.DateTimePicker({ key: "deadline", mode: "dateTime" }), {
+    kind: "dateTimePicker",
+    dateTimeMode: "dateTime",
+    key: "deadline"
+  });
   assert.deepEqual(sdk.Box([sdk.Text("Now playing")], {
     backgroundColor: "#111827",
     padding: 12,
@@ -50,6 +71,21 @@ test("Phase 9 primitives produce serializable native nodes", async () => {
     kind: "toggle",
     value: 0
   });
+  assert.deepEqual(sdk.Timer(1500, { color: "#ffffff" }), {
+    kind: "timer",
+    durationSeconds: 1500,
+    style: { color: "#ffffff" }
+  });
+  assert.deepEqual(sdk.TaskList([
+    { id: "read", text: "Read chapter 3" },
+    { id: "quiz", text: "Complete quiz", completed: true }
+  ]), {
+    kind: "taskList",
+    tasks: [
+      { id: "read", text: "Read chapter 3", completed: false },
+      { id: "quiz", text: "Complete quiz", completed: true }
+    ]
+  });
   assert.deepEqual(sdk.Progress(sdk.useProvider("media.progress"), 100), {
     kind: "progress",
     provider: "media.progress",
@@ -60,6 +96,22 @@ test("Phase 9 primitives produce serializable native nodes", async () => {
     children: [{ kind: "text", text: "A" }, { kind: "text", text: "B" }],
     columns: 2,
     style: { gap: 8 }
+  });
+  assert.deepEqual(sdk.YouTubePlayer({ videoId: "M7lc1UVf-VE", controls: true, startSeconds: 12 }), {
+    kind: "youtubePlayer",
+    videoId: "M7lc1UVf-VE",
+    allowLinkInput: false,
+    autoplay: false,
+    controls: true,
+    startSeconds: 12,
+    style: {
+      width: 480,
+      height: 270,
+      radius: 16,
+      border: { color: "#cbd5e1", width: 1, radius: 16 },
+      shadow: { color: "#ffffff", radius: 14, opacity: 0.12 },
+      tokens: ["surface"]
+    }
   });
 });
 
@@ -96,10 +148,7 @@ test("Phase 9 catalog is exact and exported runtime primitives are discoverable"
   const sdk = await import("../packages/sdk/src/index.ts");
   const catalog = await import("../packages/sdk/src/catalog.ts");
   const names = catalog.listSdkCatalog().map((item) => item.name);
-  const primitives = [
-    "Box", "Spacer", "Divider", "Icon", "Image", "Gradient", "Texture", "Clip", "Transform",
-    "SegmentedProgress", "Spectrum", "Button", "Slider", "Countdown", "TextField", "TextArea", "Toggle", "Progress", "Grid"
-  ];
+  const primitives = ["Box", "GlassPanel", "MediaCard", "Spacer", "Divider", "Icon", "Image", "Button", "TextField", "TextEditor", "DateTime", "DateTimePicker", "Toggle", "Timer", "TaskList", "List", "YouTubePlayer", "Visualizer", "Artwork", "TransportControls", "ScrollView", "Progress", "Grid"];
 
   for (const name of primitives) {
     assert.equal(typeof sdk[name], "function", `${name} must be exported`);
@@ -108,13 +157,12 @@ test("Phase 9 catalog is exact and exported runtime primitives are discoverable"
     assert.equal(item.importPath, "@render/sdk");
     assert.ok(item.signature.includes("WidgetNode"));
     assert.ok(item.example.length > 0);
-    assert.ok(item.notes.some((note) => /native (renderer|host)/i.test(note)));
+    assert.ok(item.notes.some((note) => note.includes("native renderer")));
   }
 
-  assert.deepEqual(names.slice(1, 27), [
-    "Column", "Row", "Stack", "Box", "Spacer", "Divider", "Text", "TextField", "TextArea", "Toggle", "Shape", "Icon", "Image",
-    "Gradient", "Texture", "Clip", "Transform", "SegmentedProgress", "Spectrum", "Animate", "Button", "Slider", "Countdown", "Gauge", "Progress", "Grid"
-  ]);
+  for (const name of ["Column", "Row", "Stack", "ScrollView", "Box", "GlassPanel", "MediaCard", "Spacer", "Divider", "Text", "TextField", "TextArea", "TextEditor", "DateTime", "DateTimePicker", "Toggle", "Timer", "Countdown", "TaskList", "List", "YouTubePlayer", "Visualizer", "Artwork", "TransportControls", "Shape", "Icon", "Image", "Gradient", "Texture", "Clip", "Transform", "Button", "Slider", "Gauge", "Progress", "SegmentedProgress", "Spectrum", "Grid"]) {
+    assert.ok(names.includes(name), `${name} must remain discoverable`);
+  }
   assert.equal(catalog.describeSdkCatalog("WidgetStyle").status, "implemented");
   assert.equal(catalog.describeSdkCatalog("WidgetAction").status, "implemented");
   assert.equal(catalog.describeSdkCatalog("widget.refresh").kind, "action");

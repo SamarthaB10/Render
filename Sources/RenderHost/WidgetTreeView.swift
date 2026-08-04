@@ -8,6 +8,8 @@ struct WidgetTreeView: View {
     let workspace: String?
     let declaredAssets: Set<String>?
     let interactionCoordinator: WidgetInteractionCoordinator
+    let theme: RenderTheme
+    let usesThemeOverrides: Bool
     var onAction: ((WidgetAction) -> Void)?
     var onStateChange: ((String, WidgetJSONValue) -> Void)?
     @State private var animationStartDate: Date
@@ -31,6 +33,8 @@ struct WidgetTreeView: View {
         workspace: String? = nil,
         declaredAssets: Set<String>? = nil,
         interactionCoordinator: WidgetInteractionCoordinator = WidgetInteractionCoordinator(),
+        theme: RenderTheme = RenderTheme(name: "dark-glass"),
+        usesThemeOverrides: Bool = false,
         onAction: ((WidgetAction) -> Void)? = nil,
         onStateChange: ((String, WidgetJSONValue) -> Void)? = nil,
         parentAxis: WidgetParentAxis? = nil
@@ -40,6 +44,8 @@ struct WidgetTreeView: View {
         self.workspace = workspace
         self.declaredAssets = declaredAssets
         self.interactionCoordinator = interactionCoordinator
+        self.theme = theme
+        self.usesThemeOverrides = usesThemeOverrides
         self.onAction = onAction
         self.onStateChange = onStateChange
         self.parentAxis = parentAxis
@@ -258,6 +264,8 @@ struct WidgetTreeView: View {
             workspace: workspace,
             declaredAssets: declaredAssets,
             interactionCoordinator: interactionCoordinator,
+            theme: theme,
+            usesThemeOverrides: usesThemeOverrides,
             onAction: onAction,
             onStateChange: onStateChange,
             parentAxis: parentAxis
@@ -521,23 +529,23 @@ struct WidgetTreeView: View {
 
     private var foregroundColor: Color? {
         if let color = nativeColor(activeAppearance?.color) { return color }
-        if let color = nativeColor(tree.style?.color) { return color }
+        if !usesThemeOverrides, let color = nativeColor(tree.style?.color) { return color }
         for token in tree.style?.tokens ?? [] {
             switch token {
-            case .accent: return .accentColor
-            case .danger: return .red
-            case .success: return .green
-            case .textSecondary: return .secondary
-            case .textPrimary: return .primary
+            case .accent: return theme.accent
+            case .danger: return theme.danger
+            case .success: return theme.success
+            case .textSecondary: return theme.secondaryText
+            case .textPrimary: return theme.primaryText
             default: continue
             }
         }
-        return nil
+        return usesThemeOverrides ? theme.primaryText : nil
     }
 
     private var backgroundColor: Color? {
         if let color = nativeColor(activeAppearance?.backgroundColor) { return color }
-        if let color = nativeColor(tree.style?.backgroundColor) { return color }
+        if !usesThemeOverrides, let color = nativeColor(tree.style?.backgroundColor) { return color }
         for token in tree.style?.tokens ?? [] {
             if token == .surface { return Color.black.opacity(0.12) }
             if token == .surfaceElevated { return Color.black.opacity(0.2) }

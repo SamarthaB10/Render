@@ -23,6 +23,7 @@
     "maxCpuPercent": 200,
     "maxResidentMemoryKB": 131072,
     "supervisorStartupTimeoutMs": 5000,
-    "rationale": "The worker measured 41,760-70,384 KB resident memory across five one-second samples. Three native render runs reached supervisor readiness in 346-944ms, so the 131,072KB memory limit and 5,000ms startup deadline are above observed healthy behavior and intended to catch runaway or hung workers, not constrain a healthy widget."
+    "userVisibleRestartThreshold": 5,
+    "rationale": "The worker measured 41,760-70,384 KB resident memory across five one-second samples. Three native render runs reached supervisor readiness in 346-944ms, so the 131,072KB memory limit and 5,000ms startup deadline are above observed healthy behavior and intended to catch runaway or hung workers, not constrain a healthy widget. Five consecutive restart failures is the explicit crash-loop quarantine threshold."
   }
 }

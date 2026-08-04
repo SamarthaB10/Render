@@ -1,3 +1,4 @@
+import Combine
 import SwiftUI
 import RenderHostCore
 
@@ -6,6 +7,16 @@ struct WidgetSettingsOverlay: View {
     let workspace: String?
     let windowShape: WidgetWindowShape
     let surfaceSize: CGSize
+    let themeConfig: RuntimeManifest.Theme?
+    let theme: RenderTheme
+    let workerStatePath: String?
+    let adjustable: RuntimeManifest.Adjustable?
+    let defaultSize: RuntimeManifest.Size
+    let preferences: WidgetPreferences
+    let onPreferencesChange: (WidgetPreferences) -> Void
+    let onModeChange: (String) -> Void
+    let youtube: YouTubePlayerSettings?
+    @ObservedObject var interactionStore: WidgetInteractionStore
     let accountStatus: AccountStatus?
     let authorizationMessage: String?
     let onAuthorize: () -> Void
@@ -15,12 +26,27 @@ struct WidgetSettingsOverlay: View {
     @State private var isOpen = false
     @State private var showStopConfirmation = false
     @State private var showPermissionPrompt: Bool
+    @State private var widthText: String
+    @State private var heightText: String
+    @State private var youtubeLinkInputEnabled: Bool
+    @State private var youtubeLinkText: String
+    @State private var workerState: WorkerRuntimeState?
 
     init(
         widgetName: String,
         workspace: String?,
         windowShape: WidgetWindowShape = .rectangle,
         surfaceSize: CGSize = CGSize(width: 320, height: 180),
+        themeConfig: RuntimeManifest.Theme?,
+        theme: RenderTheme,
+        workerStatePath: String?,
+        adjustable: RuntimeManifest.Adjustable?,
+        defaultSize: RuntimeManifest.Size,
+        preferences: WidgetPreferences,
+        onPreferencesChange: @escaping (WidgetPreferences) -> Void,
+        onModeChange: @escaping (String) -> Void,
+        youtube: YouTubePlayerSettings?,
+        interactionStore: WidgetInteractionStore,
         accountStatus: AccountStatus?,
         authorizationMessage: String?,
         onAuthorize: @escaping () -> Void,
@@ -30,11 +56,29 @@ struct WidgetSettingsOverlay: View {
         self.workspace = workspace
         self.windowShape = windowShape
         self.surfaceSize = surfaceSize
+        self.themeConfig = themeConfig
+        self.theme = theme
+        self.workerStatePath = workerStatePath
+        self.adjustable = adjustable
+        self.defaultSize = defaultSize
+        self.preferences = preferences
+        self.onPreferencesChange = onPreferencesChange
+        self.onModeChange = onModeChange
+        self.youtube = youtube
+        self.interactionStore = interactionStore
         self.accountStatus = accountStatus
         self.authorizationMessage = authorizationMessage
         self.onAuthorize = onAuthorize
         self.onStop = onStop
         _showPermissionPrompt = State(initialValue: accountStatus?.state == .needsAuthorization)
+        _widthText = State(initialValue: preferences.width.map(Self.format) ?? Self.format(defaultSize.width))
+        _heightText = State(initialValue: preferences.height.map(Self.format) ?? Self.format(defaultSize.height))
+        _youtubeLinkInputEnabled = State(initialValue: youtube.map {
+            $0.allowLinkInput && interactionStore.youtubeLinkInputIsEnabled(path: $0.path, defaultValue: $0.initialVideoID == nil)
+        } ?? false)
+        _youtubeLinkText = State(initialValue: youtube.flatMap {
+            interactionStore.youtubeURL(path: $0.path, defaultValue: nil)
+        } ?? "")
     }
 
     var body: some View {
@@ -60,7 +104,17 @@ struct WidgetSettingsOverlay: View {
             .zIndex(3)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-        .animation(.easeOut(duration: 0.16), value: isOpen)
+        .onAppear { refreshWorkerState() }
+        .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { _ in
+            guard isOpen else { return }
+            refreshWorkerState()
+        }
+        .onChange(of: preferences.width) { width in
+            widthText = width.map(Self.format) ?? Self.format(defaultSize.width)
+        }
+        .onChange(of: preferences.height) { height in
+            heightText = height.map(Self.format) ?? Self.format(defaultSize.height)
+        }
         .alert("Stop this widget?", isPresented: $showStopConfirmation) {
             Button("Stop Widget", role: .destructive, action: onStop)
             Button("Cancel", role: .cancel) {}
@@ -79,9 +133,10 @@ struct WidgetSettingsOverlay: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .foregroundColor(.primary)
-        .background(.ultraThinMaterial, in: Circle())
-        .overlay(Circle().stroke(Color.white.opacity(0.24), lineWidth: 0.5))
+        .foregroundColor(theme.primaryText)
+        .background(theme.control, in: Circle())
+        .overlay(Circle().stroke(theme.border, lineWidth: 0.5))
+        .frame(width: 32, height: 32)
         .opacity(isHovered || isOpen ? 1 : 0)
         .accessibilityLabel("Widget settings")
         .accessibilityHint("Opens widget metadata, connection settings, and the stop control")
@@ -97,60 +152,96 @@ struct WidgetSettingsOverlay: View {
     }
 
     private var settingsPanel: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text("Widget settings")
-                    .font(.headline)
-                Spacer(minLength: 20)
-                Button("Close") { isOpen = false }
-                    .buttonStyle(.plain)
-                    .foregroundColor(.secondary)
-            }
+        ScrollView(.vertical) {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Text("Widget settings")
+                        .font(.headline)
+                    Spacer(minLength: 20)
+                    Button("Close") { isOpen = false }
+                        .buttonStyle(.plain)
+                        .foregroundColor(.secondary)
+                }
 
-            metadataRow("Name", widgetName)
-            metadataRow("Process", "\(ProcessInfo.processInfo.processIdentifier)")
-            metadataRow("Kill command", "kill \(ProcessInfo.processInfo.processIdentifier)")
-            if let workspace {
-                metadataRow("Workspace", URL(fileURLWithPath: workspace).lastPathComponent)
-            }
+                metadataRow("Name", widgetName)
+                metadataRow("Process", "\(ProcessInfo.processInfo.processIdentifier)")
+                metadataRow("Kill command", "kill \(ProcessInfo.processInfo.processIdentifier)")
+                metadataRow("Worker", workerState?.status ?? "unknown")
+                if let workspace {
+                    metadataRow("Workspace", URL(fileURLWithPath: workspace).lastPathComponent)
+                }
 
-            Divider().opacity(0.35)
-
-            if let accountStatus {
-                HStack(alignment: .top, spacing: 8) {
-                    Image(systemName: accountIcon(accountStatus.state))
-                        .foregroundColor(accountColor(accountStatus.state))
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("Spotify")
-                            .font(.subheadline.weight(.semibold))
-                        Text(accountStatus.displayName ?? accountStatus.message ?? accountStatus.state.rawValue)
-                            .font(.caption)
+                if workerState?.status == "quarantined" {
+                    VStack(alignment: .leading, spacing: 5) {
+                        Label("Worker paused after five restart failures", systemImage: "exclamationmark.triangle.fill")
+                            .font(.caption.weight(.semibold))
+                            .foregroundColor(.orange)
+                        Text("The last-known-good widget tree remains visible. Repair the widget, then run it again from its Render workspace.")
+                            .font(.caption2)
                             .foregroundColor(.secondary)
-                        if accountStatus.state != .connected {
-                            Button("Accept permissions") {
-                                onAuthorize()
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .controlSize(.small)
-                        }
-                        if let authorizationMessage {
-                            Text(authorizationMessage)
-                                .font(.caption2)
-                                .foregroundColor(.orange)
+                        if let diagnostic = workerState?.diagnostics?.last?.message {
+                            Text(diagnostic)
+                                .font(.caption2.monospaced())
+                                .foregroundColor(.secondary)
                         }
                     }
                 }
-            }
 
-            Button("Stop Widget", role: .destructive) {
-                showStopConfirmation = true
+                Divider().opacity(0.35)
+
+                if let accountStatus {
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: accountIcon(accountStatus.state))
+                            .foregroundColor(accountColor(accountStatus.state))
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(connectorName(accountStatus.connector))
+                                .font(.subheadline.weight(.semibold))
+                            Text(accountStatus.displayName ?? accountStatus.message ?? accountStatus.state.rawValue)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            if accountStatus.state != .connected {
+                                Button("Accept permissions") {
+                                    onAuthorize()
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .controlSize(.small)
+                            }
+                            if let authorizationMessage {
+                                Text(authorizationMessage)
+                                    .font(.caption2)
+                                    .foregroundColor(.orange)
+                            }
+                        }
+                    }
+                }
+
+                if let youtube, youtube.allowLinkInput {
+                    Divider().opacity(0.35)
+                    youtubeControls(for: youtube)
+                }
+
+                if let themeConfig, themeConfig.options.count > 1 {
+                    Divider().opacity(0.35)
+                    themeControls(themeConfig)
+                }
+
+                if adjustable?.enabled == true {
+                    Divider().opacity(0.35)
+                    adjustableControls
+                }
+
+                Button("Stop Widget", role: .destructive) {
+                    showStopConfirmation = true
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
             }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(14)
-        .frame(minWidth: 250, alignment: .leading)
-        .liquidGlassSurface()
+        .frame(width: 320, height: 420)
+        .foregroundColor(theme.primaryText)
+        .liquidGlassSurface(theme: theme)
     }
 
     private func permissionPrompt(for status: AccountStatus) -> some View {
@@ -159,10 +250,10 @@ struct WidgetSettingsOverlay: View {
                 Image(systemName: "person.crop.circle.badge.checkmark")
                     .font(.title3)
                     .foregroundColor(.green)
-                Text("Connect Spotify")
+                Text("Connect \(connectorName(status.connector))")
                     .font(.headline)
             }
-            Text("This widget needs permission to read your current playback and control your Spotify player. Render keeps the account tokens in the macOS Keychain.")
+            Text(permissionDescription(for: status.connector))
                 .font(.subheadline)
                 .foregroundColor(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -190,9 +281,53 @@ struct WidgetSettingsOverlay: View {
         }
         .padding(16)
         .frame(maxWidth: 340, alignment: .leading)
-        .liquidGlassSurface()
+        .foregroundColor(theme.primaryText)
+        .liquidGlassSurface(theme: theme)
         .padding(12)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+    }
+
+    private func youtubeControls(for youtube: YouTubePlayerSettings) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("YouTube")
+                .font(.subheadline.weight(.semibold))
+            Toggle("Edit video link", isOn: Binding(
+                get: { youtubeLinkInputEnabled },
+                set: { enabled in
+                    youtubeLinkInputEnabled = enabled
+                    interactionStore.saveYouTubeLinkInput(path: youtube.path, enabled: enabled)
+                }
+            ))
+            .toggleStyle(.switch)
+            .controlSize(.small)
+
+            if youtubeLinkInputEnabled {
+                TextField("https://youtube.com/watch?v=…", text: $youtubeLinkText)
+                    .textFieldStyle(.roundedBorder)
+                    .onSubmit { loadYouTubeLink(youtube) }
+                Button("Load video") {
+                    loadYouTubeLink(youtube)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+                .disabled(YouTubeLinkParser.extractVideoID(from: youtubeLinkText) == nil)
+            }
+        }
+    }
+
+    private func loadYouTubeLink(_ youtube: YouTubePlayerSettings) {
+        guard YouTubeLinkParser.extractVideoID(from: youtubeLinkText) != nil else { return }
+        interactionStore.saveYouTubeURL(path: youtube.path, value: youtubeLinkText)
+    }
+
+    private func refreshWorkerState() {
+        guard let workerStatePath,
+              let data = try? Data(contentsOf: URL(fileURLWithPath: workerStatePath))
+        else {
+            workerState = nil
+            return
+        }
+        workerState = try? JSONDecoder().decode(WorkerRuntimeState.self, from: data)
     }
 
     private func metadataRow(_ label: String, _ value: String) -> some View {
@@ -206,6 +341,125 @@ struct WidgetSettingsOverlay: View {
                 .lineLimit(1)
                 .truncationMode(.middle)
         }
+    }
+
+    private func connectorName(_ connector: String) -> String {
+        switch connector {
+        case "spotify": return "Spotify"
+        case "reminders": return "Reminders"
+        default: return connector.replacingOccurrences(of: ".", with: " ").capitalized
+        }
+    }
+
+    private func permissionDescription(for connector: String) -> String {
+        switch connector {
+        case "spotify":
+            return "This widget needs permission to read your current playback and control your Spotify player. Render keeps the account tokens in the macOS Keychain."
+        case "reminders":
+            return "This widget needs permission to read and update your macOS Reminders. Render keeps EventKit objects and reminder data in the native host."
+        default:
+            return "This widget needs permission to use the \(connectorName(connector)) connector."
+        }
+    }
+
+    private var adjustableControls: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            Text("Layout")
+                .font(.subheadline.weight(.semibold))
+
+            HStack(spacing: 8) {
+                TextField("Width", text: $widthText)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 74)
+                Text("×")
+                    .foregroundColor(.secondary)
+                TextField("Height", text: $heightText)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 74)
+                Button("Apply") { applySize() }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+            }
+
+            Toggle("Lock size and position", isOn: Binding(
+                get: { preferences.locked },
+                set: { locked in
+                    var next = preferences
+                    next.locked = locked
+                    onPreferencesChange(next)
+                }
+            ))
+
+            if let responsive = adjustable?.responsive, responsive.modes.count > 1 {
+                Picker("Mode", selection: Binding(
+                    get: { preferences.mode },
+                    set: onModeChange
+                )) {
+                    Text("Auto").tag("auto")
+                    ForEach(responsive.modes.keys.sorted(), id: \.self) { mode in
+                        Text(mode.capitalized).tag(mode)
+                    }
+                }
+                .pickerStyle(.menu)
+            }
+
+            Button("Reset size") {
+                var next = preferences
+                next.width = nil
+                next.height = nil
+                widthText = Self.format(defaultSize.width)
+                heightText = Self.format(defaultSize.height)
+                onPreferencesChange(next)
+            }
+            .buttonStyle(.plain)
+            .foregroundColor(.secondary)
+        }
+    }
+
+    private func themeControls(_ config: RuntimeManifest.Theme) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Theme")
+                .font(.subheadline.weight(.semibold))
+            Picker("Theme", selection: Binding(
+                get: {
+                    let selected = preferences.theme ?? config.defaultTheme
+                    return config.options.contains(selected) ? selected : config.defaultTheme
+                },
+                set: { value in
+                    var next = preferences
+                    next.theme = value
+                    onPreferencesChange(next)
+                }
+            )) {
+                ForEach(config.options, id: \.self) { option in
+                    Text(option.replacingOccurrences(of: "-", with: " ").capitalized).tag(option)
+                }
+            }
+            .pickerStyle(.menu)
+            .accessibilityLabel("Widget theme")
+        }
+    }
+
+    private func applySize() {
+        guard let width = Double(widthText), let height = Double(heightText) else { return }
+        var next = preferences
+        next.width = clamped(width, axis: .width)
+        next.height = clamped(height, axis: .height)
+        widthText = Self.format(next.width ?? width)
+        heightText = Self.format(next.height ?? height)
+        onPreferencesChange(next)
+    }
+
+    private enum Axis { case width, height }
+
+    private func clamped(_ value: Double, axis: Axis) -> Double {
+        let minimum = axis == .width ? adjustable?.minSize?.width : adjustable?.minSize?.height
+        let maximum = axis == .width ? adjustable?.maxSize?.width : adjustable?.maxSize?.height
+        return min(max(value, minimum ?? 1), maximum ?? value)
+    }
+
+    private static func format(_ value: Double) -> String {
+        String(Int(value.rounded()))
     }
 
     private func accountIcon(_ state: AccountState) -> String {
@@ -223,16 +477,22 @@ struct WidgetSettingsOverlay: View {
         case .denied, .unavailable: return .red
         }
     }
+
+    private struct WorkerRuntimeState: Decodable {
+        let status: String
+        let restartCount: Int?
+        let diagnostics: [WorkerDiagnostic]?
+    }
 }
 
 private extension View {
-    func liquidGlassSurface() -> some View {
-        background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+    func liquidGlassSurface(theme: RenderTheme) -> some View {
+        background(theme.panel.opacity(theme.name == .light ? 0.96 : 0.88), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .stroke(
                         LinearGradient(
-                            colors: [Color.white.opacity(0.38), Color.white.opacity(0.08)],
+                            colors: [theme.border, theme.border.opacity(0.25)],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         ),

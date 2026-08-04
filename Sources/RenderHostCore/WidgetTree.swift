@@ -1,10 +1,12 @@
 import Foundation
 
-public enum WidgetNodeKind: String, Codable, Sendable {
+public enum WidgetNodeKind: String, Codable, CaseIterable, Sendable {
     case column
     case row
     case stack
     case box
+    case glassPanel
+    case mediaCard
     case spacer
     case divider
     case text
@@ -26,6 +28,15 @@ public enum WidgetNodeKind: String, Codable, Sendable {
     case transform
     case segmentedProgress
     case spectrum
+    case timer
+    case taskList
+    case list
+    case visualizer
+    case youtubePlayer
+    case scrollView
+    case textEditor
+    case dateTime
+    case dateTimePicker
 }
 
 public struct WidgetGradientStop: Codable, Equatable, Sendable {
@@ -315,12 +326,37 @@ public enum WidgetFontWeight: String, Codable, Equatable, Sendable {
 public enum WidgetStyleToken: String, Codable, Equatable, Sendable {
     case surface
     case surfaceElevated = "surface.elevated"
+    case surfacePanel = "surface.panel"
+    case surfaceControl = "surface.control"
+    case surfaceStatus = "surface.status"
     case textPrimary = "text.primary"
     case textSecondary = "text.secondary"
+    case textTertiary = "text.tertiary"
+    case borderSubtle = "border.subtle"
     case accent
+    case accentMuted = "accent.muted"
     case danger
     case success
     case mono
+}
+
+public enum WidgetMaterial: String, Codable, Equatable, Sendable {
+    case solid
+    case thin
+    case thick
+}
+
+public enum WidgetSemanticRole: String, Codable, Equatable, Sendable {
+    case surface
+    case panel
+    case control
+    case status
+    case media
+}
+
+public enum WidgetDensity: String, Codable, Equatable, Sendable {
+    case compact
+    case comfortable
 }
 
 public struct WidgetFont: Codable, Equatable, Sendable {
@@ -473,6 +509,9 @@ public struct WidgetStyle: Codable, Equatable, Sendable {
     public let shadow: WidgetShadow?
     public let shadows: [WidgetShadow]?
     public let font: WidgetFont?
+    public let material: WidgetMaterial?
+    public let role: WidgetSemanticRole?
+    public let density: WidgetDensity?
     public let tokens: [WidgetStyleToken]?
     public let overflow: String?
     public let interaction: WidgetInteractionStyle?
@@ -493,6 +532,9 @@ public struct WidgetStyle: Codable, Equatable, Sendable {
         border: WidgetBorder? = nil,
         shadow: WidgetShadow? = nil,
         font: WidgetFont? = nil,
+        material: WidgetMaterial? = nil,
+        role: WidgetSemanticRole? = nil,
+        density: WidgetDensity? = nil,
         tokens: [WidgetStyleToken]? = nil,
         minWidth: WidgetLength? = nil, maxWidth: WidgetLength? = nil,
         minHeight: WidgetLength? = nil, maxHeight: WidgetLength? = nil,
@@ -519,6 +561,9 @@ public struct WidgetStyle: Codable, Equatable, Sendable {
         self.shadow = shadow
         self.shadows = shadows
         self.font = font
+        self.material = material
+        self.role = role
+        self.density = density
         self.tokens = tokens
         self.overflow = overflow
         self.interaction = interaction
@@ -539,6 +584,9 @@ public struct WidgetStyle: Codable, Equatable, Sendable {
         border: WidgetBorder? = nil,
         shadow: WidgetShadow? = nil,
         font: WidgetFont? = nil,
+        material: WidgetMaterial? = nil,
+        role: WidgetSemanticRole? = nil,
+        density: WidgetDensity? = nil,
         tokens: [WidgetStyleToken]? = nil,
         minWidth: WidgetLength? = nil, maxWidth: WidgetLength? = nil,
         minHeight: WidgetLength? = nil, maxHeight: WidgetLength? = nil,
@@ -565,6 +613,9 @@ public struct WidgetStyle: Codable, Equatable, Sendable {
         self.shadow = shadow
         self.shadows = shadows
         self.font = font
+        self.material = material
+        self.role = role
+        self.density = density
         self.tokens = tokens
         self.overflow = overflow
         self.interaction = interaction
@@ -696,6 +747,32 @@ public enum WidgetKey: Codable, Equatable, Sendable {
     }
 }
 
+public struct WidgetTaskItem: Codable, Equatable, Identifiable, Sendable {
+    public let id: String
+    public let text: String
+    public let completed: Bool
+
+    public init(id: String, text: String, completed: Bool = false) {
+        self.id = id
+        self.text = text
+        self.completed = completed
+    }
+}
+
+public struct WidgetListItem: Codable, Equatable, Identifiable, Sendable {
+    public let id: String
+    public let title: String
+    public let subtitle: String?
+    public let completed: Bool
+
+    public init(id: String, title: String, subtitle: String? = nil, completed: Bool = false) {
+        self.id = id
+        self.title = title
+        self.subtitle = subtitle
+        self.completed = completed
+    }
+}
+
 public struct WidgetTree: Codable, Equatable, Sendable {
     public let kind: WidgetNodeKind
     public let key: WidgetKey?
@@ -726,6 +803,19 @@ public struct WidgetTree: Codable, Equatable, Sendable {
     public let segments: Int?
     public let values: [Double]?
     public let state: WidgetStateReference?
+    public let durationSeconds: Int?
+    public let tasks: [WidgetTaskItem]?
+    public let items: [WidgetListItem]?
+    public let videoId: String?
+    public let allowLinkInput: Bool?
+    public let autoplay: Bool?
+    public let controls: Bool?
+    public let startSeconds: Double?
+    public let placeholder: String?
+    public let dateTime: String?
+    public let dateTimeMode: String?
+    public let visualizerMode: String?
+    public let visualizerTempo: Double?
 
     public init(
         kind: WidgetNodeKind,
@@ -756,7 +846,20 @@ public struct WidgetTree: Codable, Equatable, Sendable {
         tint: String? = nil,
         segments: Int? = nil,
         values: [Double]? = nil,
-        state: WidgetStateReference? = nil
+        state: WidgetStateReference? = nil,
+        durationSeconds: Int? = nil,
+        tasks: [WidgetTaskItem]? = nil,
+        items: [WidgetListItem]? = nil,
+        videoId: String? = nil,
+        allowLinkInput: Bool? = nil,
+        autoplay: Bool? = nil,
+        controls: Bool? = nil,
+        startSeconds: Double? = nil,
+        placeholder: String? = nil,
+        dateTime: String? = nil,
+        dateTimeMode: String? = nil,
+        visualizerMode: String? = nil,
+        visualizerTempo: Double? = nil
     ) {
         self.kind = kind
         self.key = key
@@ -787,12 +890,26 @@ public struct WidgetTree: Codable, Equatable, Sendable {
         self.segments = segments
         self.values = values
         self.state = state
+        self.durationSeconds = durationSeconds
+        self.tasks = tasks
+        self.items = items
+        self.videoId = videoId
+        self.allowLinkInput = allowLinkInput
+        self.autoplay = autoplay
+        self.controls = controls
+        self.startSeconds = startSeconds
+        self.placeholder = placeholder
+        self.dateTime = dateTime
+        self.dateTimeMode = dateTimeMode
+        self.visualizerMode = visualizerMode
+        self.visualizerTempo = visualizerTempo
     }
 
     private enum CodingKeys: String, CodingKey {
         case kind, key, children, text, provider, style, value, minimum, maximum, step, orientation, name, source, options, action, disabled, columns
         case stops, direction, textureSource, legacyGradientStops = "gradientStops", transform, animation
         case imageFit, imageRepeat, imagePosition, tint, segments, values, state
+        case durationSeconds, tasks, items, videoId, allowLinkInput, autoplay, controls, startSeconds, placeholder, dateTime, dateTimeMode, visualizerMode, visualizerTempo
     }
 
     public init(from decoder: Decoder) throws {
@@ -837,6 +954,19 @@ public struct WidgetTree: Codable, Equatable, Sendable {
         segments = try container.decodeIfPresent(Int.self, forKey: .segments)
         values = try container.decodeIfPresent([Double].self, forKey: .values)
         state = try container.decodeIfPresent(WidgetStateReference.self, forKey: .state)
+        durationSeconds = try container.decodeIfPresent(Int.self, forKey: .durationSeconds)
+        tasks = try container.decodeIfPresent([WidgetTaskItem].self, forKey: .tasks)
+        items = try container.decodeIfPresent([WidgetListItem].self, forKey: .items)
+        videoId = try container.decodeIfPresent(String.self, forKey: .videoId)
+        allowLinkInput = try container.decodeIfPresent(Bool.self, forKey: .allowLinkInput)
+        autoplay = try container.decodeIfPresent(Bool.self, forKey: .autoplay)
+        controls = try container.decodeIfPresent(Bool.self, forKey: .controls)
+        startSeconds = try container.decodeIfPresent(Double.self, forKey: .startSeconds)
+        placeholder = try container.decodeIfPresent(String.self, forKey: .placeholder)
+        dateTime = try container.decodeIfPresent(String.self, forKey: .dateTime)
+        dateTimeMode = try container.decodeIfPresent(String.self, forKey: .dateTimeMode)
+        visualizerMode = try container.decodeIfPresent(String.self, forKey: .visualizerMode)
+        visualizerTempo = try container.decodeIfPresent(Double.self, forKey: .visualizerTempo)
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -873,6 +1003,19 @@ public struct WidgetTree: Codable, Equatable, Sendable {
         try container.encodeIfPresent(segments, forKey: .segments)
         try container.encodeIfPresent(values, forKey: .values)
         try container.encodeIfPresent(state, forKey: .state)
+        try container.encodeIfPresent(durationSeconds, forKey: .durationSeconds)
+        try container.encodeIfPresent(tasks, forKey: .tasks)
+        try container.encodeIfPresent(items, forKey: .items)
+        try container.encodeIfPresent(videoId, forKey: .videoId)
+        try container.encodeIfPresent(allowLinkInput, forKey: .allowLinkInput)
+        try container.encodeIfPresent(autoplay, forKey: .autoplay)
+        try container.encodeIfPresent(controls, forKey: .controls)
+        try container.encodeIfPresent(startSeconds, forKey: .startSeconds)
+        try container.encodeIfPresent(placeholder, forKey: .placeholder)
+        try container.encodeIfPresent(dateTime, forKey: .dateTime)
+        try container.encodeIfPresent(dateTimeMode, forKey: .dateTimeMode)
+        try container.encodeIfPresent(visualizerMode, forKey: .visualizerMode)
+        try container.encodeIfPresent(visualizerTempo, forKey: .visualizerTempo)
     }
 
     public func validationIssues(path: String = "root") -> [WidgetTreeValidationIssue] {
@@ -892,7 +1035,7 @@ public struct WidgetTree: Codable, Equatable, Sendable {
 
     private func localValidationIssues(path: String) -> [WidgetTreeValidationIssue] {
         var issues: [WidgetTreeValidationIssue] = []
-        let isContainer = [.column, .row, .stack, .box, .grid, .button, .gradient, .clip, .transform].contains(kind)
+        let isContainer = [.column, .row, .stack, .box, .glassPanel, .mediaCard, .scrollView, .grid, .button, .gradient, .clip, .transform].contains(kind)
 
         if isContainer && text != nil {
             issues.append(.init(path: path, message: "container nodes cannot define text"))

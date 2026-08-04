@@ -1,0 +1,278 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://render.dev/contracts/render-widget-contract.v1.json",
+  "title": "Render Widget Contract",
+  "description": "The canonical, agent-readable contract for a Render desktop Widget. TypeScript, runtime validation, native decoding, and documentation are generated or verified from this file.",
+  "contractVersion": 1,
+  "type": "object",
+  "required": ["manifest", "tree"],
+  "properties": {
+    "manifest": { "$ref": "#/$defs/WidgetManifest" },
+    "tree": { "$ref": "#/$defs/WidgetNode" }
+  },
+  "additionalProperties": false,
+  "x-render": {
+    "nodeKinds": [
+      { "name": "column", "summary": "Vertical layout container", "container": true },
+      { "name": "row", "summary": "Horizontal layout container", "container": true },
+      { "name": "stack", "summary": "Layered layout container", "container": true },
+      { "name": "box", "summary": "General styled container", "container": true },
+      { "name": "glassPanel", "summary": "Theme-aware glass material panel", "container": true },
+      { "name": "mediaCard", "summary": "Theme-aware media surface", "container": true },
+      { "name": "scrollView", "summary": "Native scrollable content container", "container": true },
+      { "name": "spacer", "summary": "Fixed or flexible empty space", "container": false },
+      { "name": "divider", "summary": "Horizontal or vertical separator", "container": false },
+      { "name": "text", "summary": "Rendered text or provider value", "container": false },
+      { "name": "textField", "summary": "Editable single-line text control", "container": false },
+      { "name": "textArea", "summary": "Editable multi-line text control with Widget state binding", "container": false },
+      { "name": "textEditor", "summary": "Editable multi-line text control", "container": false },
+      { "name": "dateTime", "summary": "Formatted date or time value", "container": false },
+      { "name": "dateTimePicker", "summary": "Native date and time picker", "container": false },
+      { "name": "toggle", "summary": "Boolean control", "container": false },
+      { "name": "timer", "summary": "Persistent countdown timer", "container": false },
+      { "name": "taskList", "summary": "Editable persistent task list", "container": false },
+      { "name": "shape", "summary": "Native geometric shape", "container": false },
+      { "name": "icon", "summary": "Native symbol icon", "container": false },
+      { "name": "image", "summary": "Asset, URL, or provider-backed image", "container": false },
+      { "name": "button", "summary": "Native action control", "container": false },
+      { "name": "slider", "summary": "Persistent bounded numeric control", "container": false },
+      { "name": "countdown", "summary": "User-adjustable persistent countdown", "container": false },
+      { "name": "gauge", "summary": "Bounded value gauge", "container": false },
+      { "name": "progress", "summary": "Bounded progress indicator", "container": false },
+      { "name": "segmentedProgress", "summary": "Discrete segmented progress indicator", "container": false },
+      { "name": "spectrum", "summary": "Finite numeric spectrum visualization", "container": false },
+      { "name": "grid", "summary": "Column-based layout container", "container": true },
+      { "name": "gradient", "summary": "Native gradient container", "container": true },
+      { "name": "texture", "summary": "Built-in or asset texture surface", "container": false },
+      { "name": "clip", "summary": "Native clipping container", "container": true },
+      { "name": "transform", "summary": "Native transformed container", "container": true },
+      { "name": "list", "summary": "Static or provider-backed list", "container": false },
+      { "name": "visualizer", "summary": "Provider-backed visualizer surface", "container": false },
+      { "name": "youtubePlayer", "summary": "Native YouTube playback surface", "container": false }
+    ],
+    "capabilities": ["network", "filesystem.read", "filesystem.write"],
+    "anchorCorners": ["top-left", "top-right", "bottom-left", "bottom-right"],
+    "themes": ["dark-glass", "light", "monochrome", "retro"],
+    "providers": [
+      { "name": "system.cpu", "summary": "Current CPU utilization" },
+      { "name": "system.memory", "summary": "Current memory utilization" },
+      { "name": "system.time", "summary": "Current local time" },
+      { "name": "spotify.account", "summary": "Spotify account availability", "connector": "spotify" },
+      { "name": "spotify.track.title", "summary": "Current Spotify track title", "connector": "spotify" },
+      { "name": "spotify.track.artist", "summary": "Current Spotify track artist", "connector": "spotify" },
+      { "name": "spotify.playback.isPlaying", "summary": "Spotify playback state", "connector": "spotify" },
+      { "name": "spotify.playback.progress", "summary": "Spotify playback progress", "connector": "spotify" },
+      { "name": "spotify.playback.volume", "summary": "Spotify playback volume", "connector": "spotify" },
+      { "name": "reminders.account", "summary": "macOS Reminders account availability", "connector": "reminders" },
+      { "name": "reminders.items", "summary": "macOS Reminders items", "connector": "reminders" },
+      { "name": "reminders.incompleteCount", "summary": "Incomplete Reminders count", "connector": "reminders" },
+      { "name": "reminders.next.title", "summary": "Next incomplete Reminder title", "connector": "reminders" },
+      { "name": "reminders.next.dueDate", "summary": "Next incomplete Reminder due date", "connector": "reminders" }
+    ],
+    "actions": [
+      { "name": "widget.refresh", "kind": "invoke", "summary": "Request a Widget refresh" },
+      { "name": "widget.reload", "kind": "invoke", "summary": "Request a Widget reload" },
+      { "name": "spotify.play", "kind": "invoke", "summary": "Start Spotify playback", "connector": "spotify" },
+      { "name": "spotify.pause", "kind": "invoke", "summary": "Pause Spotify playback", "connector": "spotify" },
+      { "name": "spotify.next", "kind": "invoke", "summary": "Skip to the next Spotify track", "connector": "spotify" },
+      { "name": "spotify.previous", "kind": "invoke", "summary": "Return to the previous Spotify track", "connector": "spotify" },
+      { "name": "spotify.set-volume", "kind": "set", "summary": "Set Spotify volume from 0 to 100", "connector": "spotify" },
+      { "name": "reminders.create", "kind": "invoke", "summary": "Create a macOS Reminder", "connector": "reminders" },
+      { "name": "reminders.update", "kind": "invoke", "summary": "Update a macOS Reminder", "connector": "reminders" },
+      { "name": "reminders.complete", "kind": "invoke", "summary": "Complete or reopen a macOS Reminder", "connector": "reminders" },
+      { "name": "reminders.delete", "kind": "invoke", "summary": "Delete a macOS Reminder", "connector": "reminders" }
+    ],
+    "connectors": ["spotify", "reminders"],
+    "connectorScopes": {
+      "spotify": ["user-read-private", "user-read-playback-state", "user-read-currently-playing", "user-modify-playback-state"],
+      "reminders": ["reminders.read", "reminders.write"]
+    }
+  },
+  "$defs": {
+    "WidgetLength": {
+      "description": "A positive point value or a layout keyword.",
+      "oneOf": [{ "type": "number", "exclusiveMinimum": 0 }, { "enum": ["fill", "fit"] }]
+    },
+    "WidgetSpacing": {
+      "oneOf": [
+        { "type": "number", "minimum": 0 },
+        {
+          "type": "object",
+          "properties": {
+            "top": { "type": "number", "minimum": 0 },
+            "right": { "type": "number", "minimum": 0 },
+            "bottom": { "type": "number", "minimum": 0 },
+            "left": { "type": "number", "minimum": 0 }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "WidgetStyle": {
+      "type": "object",
+      "properties": {
+        "width": { "$ref": "#/$defs/WidgetLength" },
+        "height": { "$ref": "#/$defs/WidgetLength" },
+        "color": { "type": "string" },
+        "backgroundColor": { "type": "string" },
+        "opacity": { "type": "number", "minimum": 0, "maximum": 1 },
+        "padding": { "$ref": "#/$defs/WidgetSpacing" },
+        "margin": { "$ref": "#/$defs/WidgetSpacing" },
+        "gap": { "type": "number", "minimum": 0 },
+        "alignItems": { "enum": ["leading", "center", "trailing", "top", "bottom", "fill", "space-between"] },
+        "justifyContent": { "enum": ["leading", "center", "trailing", "top", "bottom", "fill", "space-between"] },
+        "radius": { "type": "number", "minimum": 0 },
+        "border": {
+          "type": "object",
+          "properties": {
+            "color": { "type": "string" },
+            "width": { "type": "number", "minimum": 0 },
+            "radius": { "type": "number", "minimum": 0 }
+          },
+          "additionalProperties": false
+        },
+        "shadow": {
+          "type": "object",
+          "properties": {
+            "color": { "type": "string" },
+            "radius": { "type": "number" },
+            "x": { "type": "number" },
+            "y": { "type": "number" },
+            "opacity": { "type": "number", "minimum": 0, "maximum": 1 }
+          },
+          "additionalProperties": false
+        },
+        "font": {
+          "type": "object",
+          "properties": {
+            "family": { "type": "string" },
+            "size": { "type": "number", "exclusiveMinimum": 0 },
+            "weight": { "enum": ["regular", "medium", "semibold", "bold"] },
+            "monospace": { "type": "boolean" }
+          },
+          "additionalProperties": false
+        },
+        "material": { "enum": ["solid", "thin", "thick"] },
+        "role": { "enum": ["surface", "panel", "control", "status", "media"] },
+        "density": { "enum": ["compact", "comfortable"] },
+        "tokens": {
+          "type": "array",
+          "items": { "enum": ["surface", "surface.elevated", "surface.panel", "surface.control", "surface.status", "text.primary", "text.secondary", "text.tertiary", "border.subtle", "accent", "accent.muted", "danger", "success", "mono"] }
+        }
+      },
+      "additionalProperties": false
+    },
+    "ImageSource": {
+      "oneOf": [
+        { "type": "object", "required": ["kind", "name"], "properties": { "kind": { "const": "asset" }, "name": { "type": "string", "minLength": 1 } }, "additionalProperties": false },
+        { "type": "object", "required": ["kind", "url"], "properties": { "kind": { "const": "url" }, "url": { "type": "string", "minLength": 1 } }, "additionalProperties": false },
+        { "type": "object", "required": ["kind", "name"], "properties": { "kind": { "const": "provider" }, "name": { "type": "string", "minLength": 1 } }, "additionalProperties": false }
+      ]
+    },
+    "WidgetAction": {
+      "oneOf": [
+        { "type": "object", "required": ["type", "name"], "properties": { "type": { "const": "invoke" }, "name": { "type": "string", "enum": ["widget.refresh", "widget.reload", "spotify.play", "spotify.pause", "spotify.next", "spotify.previous", "reminders.create", "reminders.update", "reminders.complete", "reminders.delete"] }, "payload": {} }, "additionalProperties": false },
+        { "type": "object", "required": ["type", "name", "value"], "properties": { "type": { "const": "set" }, "name": { "const": "spotify.set-volume" }, "value": { "type": "integer", "minimum": 0, "maximum": 100 } }, "additionalProperties": false }
+      ]
+    },
+    "WidgetTaskItem": {
+      "type": "object",
+      "required": ["id", "text"],
+      "properties": { "id": { "type": "string", "minLength": 1 }, "text": { "type": "string", "minLength": 1 }, "completed": { "type": "boolean" } },
+      "additionalProperties": false
+    },
+    "WidgetListItem": {
+      "type": "object",
+      "required": ["id", "title"],
+      "properties": { "id": { "type": "string", "minLength": 1 }, "title": { "type": "string", "minLength": 1 }, "subtitle": { "type": "string" }, "completed": { "type": "boolean" } },
+      "additionalProperties": false
+    },
+    "WidgetNode": {
+      "type": "object",
+      "required": ["kind"],
+      "properties": {
+        "kind": { "enum": ["column", "row", "stack", "box", "glassPanel", "mediaCard", "scrollView", "spacer", "divider", "text", "textField", "textArea", "textEditor", "dateTime", "dateTimePicker", "toggle", "timer", "taskList", "shape", "icon", "image", "button", "slider", "countdown", "gauge", "progress", "segmentedProgress", "spectrum", "grid", "gradient", "texture", "clip", "transform", "list", "visualizer", "youtubePlayer"] },
+        "key": { "oneOf": [{ "type": "string" }, { "type": "integer" }] },
+        "children": { "type": "array", "items": { "$ref": "#/$defs/WidgetNode" } },
+        "text": { "type": "string" },
+        "provider": { "type": "string", "enum": ["system.cpu", "system.memory", "system.time", "spotify.account", "spotify.track.title", "spotify.track.artist", "spotify.playback.isPlaying", "spotify.playback.progress", "spotify.playback.volume", "reminders.account", "reminders.items", "reminders.incompleteCount", "reminders.next.title", "reminders.next.dueDate"] },
+        "style": { "$ref": "#/$defs/WidgetStyle" },
+        "value": { "type": "number" },
+        "maximum": { "type": "number", "exclusiveMinimum": 0 },
+        "orientation": { "enum": ["horizontal", "vertical"] },
+        "name": { "type": "string", "minLength": 1 },
+        "source": { "$ref": "#/$defs/ImageSource" },
+        "action": { "$ref": "#/$defs/WidgetAction" },
+        "columns": { "type": "integer", "minimum": 1 },
+        "durationSeconds": { "type": "integer", "exclusiveMinimum": 0 },
+        "tasks": { "type": "array", "items": { "$ref": "#/$defs/WidgetTaskItem" } },
+        "items": { "type": "array", "items": { "$ref": "#/$defs/WidgetListItem" } },
+        "videoId": { "type": "string", "pattern": "^[A-Za-z0-9_-]{11}$" },
+        "allowLinkInput": { "type": "boolean" },
+        "autoplay": { "type": "boolean" },
+        "controls": { "type": "boolean" },
+        "startSeconds": { "type": "number", "minimum": 0 },
+        "placeholder": { "type": "string" },
+        "dateTime": { "type": "string", "format": "date-time" },
+        "dateTimeMode": { "enum": ["date", "time", "dateTime"] },
+        "visualizerMode": { "enum": ["bars", "waveform", "rings"] },
+        "visualizerTempo": { "type": "number", "exclusiveMinimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "WidgetSize": {
+      "type": "object",
+      "required": ["width", "height"],
+      "properties": { "width": { "type": "number", "exclusiveMinimum": 0 }, "height": { "type": "number", "exclusiveMinimum": 0 } },
+      "additionalProperties": false
+    },
+    "WidgetManifest": {
+      "type": "object",
+      "required": ["schemaVersion", "name", "sdkVersion", "size", "anchor", "capabilities", "subscribe"],
+      "properties": {
+        "schemaVersion": { "const": 1 },
+        "name": { "type": "string", "minLength": 1 },
+        "sdkVersion": { "type": "string", "minLength": 1 },
+        "size": { "$ref": "#/$defs/WidgetSize" },
+        "anchor": {
+          "type": "object",
+          "required": ["corner", "offset"],
+          "properties": {
+            "corner": { "enum": ["top-left", "top-right", "bottom-left", "bottom-right"] },
+            "offset": {
+              "type": "object",
+              "required": ["x", "y"],
+              "properties": { "x": { "type": "number" }, "y": { "type": "number" } },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "adjustable": {
+          "type": "object",
+          "required": ["enabled"],
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "minSize": { "$ref": "#/$defs/WidgetSize" },
+            "maxSize": { "$ref": "#/$defs/WidgetSize" },
+            "responsive": {
+              "type": "object",
+              "required": ["modes", "default"],
+              "properties": {
+                "modes": { "type": "object", "additionalProperties": { "type": "object", "required": ["minWidth", "minHeight"], "properties": { "minWidth": { "type": "number", "minimum": 0 }, "minHeight": { "type": "number", "minimum": 0 } }, "additionalProperties": false } },
+                "default": { "type": "string", "minLength": 1 }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "capabilities": { "type": "array", "items": { "enum": ["network", "filesystem.read", "filesystem.write"] } },
+        "subscribe": { "type": "array", "items": { "type": "string" } },
+        "accounts": { "type": "array", "items": { "type": "object", "required": ["connector", "scopes"], "properties": { "connector": { "type": "string", "enum": ["spotify", "reminders"] }, "scopes": { "type": "array", "items": { "type": "string", "minLength": 1 } } }, "additionalProperties": false } },
+        "theme": { "type": "object", "required": ["default"], "properties": { "default": { "enum": ["dark-glass", "light", "monochrome", "retro"] }, "options": { "type": "array", "items": { "enum": ["dark-glass", "light", "monochrome", "retro"] } } }, "additionalProperties": false }
+      },
+      "additionalProperties": false
+    }
+  }
+}

@@ -38,9 +38,13 @@ The first proof is:
 - Codex or another coding agent is the primary interface.
 - The user does not need to operate a separate builder UI.
 - Generated code runs automatically after the agent updates the workspace.
-- The first prototype supports one active widget.
+- The first prototype retains its original one-widget workspace-scoped path;
+  the completed F1 fleet lifecycle now supports explicit multi-workspace
+  run/status/logs/stop/relaunch orchestration under a detached supervisor.
 - Remixing updates that widget in place rather than creating a second widget.
 - The user can drag the generated first-prototype widget, and its screen placement persists.
+- A widget may declare host-owned adjustable sizing. Native resize handles, lock state, responsive mode selection, and size preferences persist separately from widget source.
+- Stateful surfaces use host-owned SDK primitives. `Timer` persists countdown state and provides start/pause/reset controls; `TaskList` persists editable task rows and provides completion, add, remove, and direct text editing.
 - The widget is a true desktop-layer surface, not a browser or ordinary floating app window.
 
 ### First prototype scope
@@ -234,6 +238,7 @@ The exact public API is finalized by the SDK implementation, but these rules are
 - `sdkVersion` is locked and checked for compatibility.
 - `name` is human-facing identity.
 - `size` is required.
+- `adjustable` is optional. When enabled, it may declare `minSize`, `maxSize`, and named responsive modes with a default mode.
 - `anchor` defaults to the top-left of the primary display.
 - The runtime, not the agent, generates the stable `widgetId`.
 - Capabilities are explicit and fine-grained, such as `network`, `filesystem.read`, and `filesystem.write`.
@@ -254,6 +259,14 @@ The first native renderer implements:
 - `Text`
 - `Shape`
 - `Gauge`
+- Host-owned adjustable sizing and responsive render context (`WidgetAdjustable`, `WidgetRenderContext`).
+- Host-owned stateful controls (`Timer`, `TaskList`, `WidgetTaskItem`) with persisted runtime interaction state.
+- Productivity foundation slice: native `ScrollView`, persistent multiline `TextEditor`, and stable keyed interaction state for future editable primitives.
+- Stateful editing deepening: `Timer` duration entry and persistence plus `TaskList` reorder and clear-completed operations are host-owned and survive relaunches.
+- Date/time slice: `DateTime` renders localized ISO values, while keyed `DateTimePicker` controls persist user-selected date, time, or combined date-time values.
+- Reminders connector slice: the manifest can declare `reminders.read` and `reminders.write`; the host owns EventKit permission, exposes redacted account state plus incomplete-count/next-reminder providers, and accepts explicit create/update/complete/delete actions. EventKit objects and opaque reminder identifiers never cross into widget source or worker messages.
+- Generic collection slice: `List` renders static `WidgetListItem` rows or structured provider rows such as `reminders.items`; row identity and display fields stay serializable, while dynamic per-row actions and virtualization remain later contracts.
+- YouTube playback slice: `YouTubePlayer` accepts a validated video ID, requires the manifest `network` capability, and renders the official player inside a host-owned WebKit surface. With `allowLinkInput`, users can toggle a persisted native input and paste a supported YouTube link; arbitrary HTML, iframe markup, and source URLs do not cross the SDK seam.
 
 This is the first slice of a larger Render SDK. Agents compose from the SDK; they do not invent ad-hoc primitives or bypass the native renderer.
 
@@ -301,7 +314,13 @@ The first CLI uses explicit workspace-scoped subcommands:
 | `render run --watch` | Keep the CLI attached and hot-reload successful source changes. |
 | `render status` | Report widget, host, snapshot, provider, permission, and failure state. |
 | `render move` | Update logical anchor and offset without using raw screen coordinates. |
+| `render resize` | Persist a bounded widget size and relaunch the active widget. |
+| `render mode` | Select `auto` or one of the widget's declared responsive modes. |
+| `render reset-size` | Clear the local size override and return to manifest defaults. |
 | `render rollback` | Select and relaunch a known-good snapshot. |
+| `render fleet run/status/stop` | Run, inspect, reconcile, or stop multiple isolated widget workspaces with repeated `--workspace` flags. |
+| `render fleet logs` | Read the host log stream for one or more widget workspaces. |
+| `render fleet relaunch` | Restore all registered widget workspaces through the detached fleet supervisor. |
 | `render sdk list` | List primitives, providers, styles, actions, and capabilities. |
 | `render sdk describe <name>` | Show the exact current SDK contract for one catalog item. |
 
@@ -451,7 +470,10 @@ The CLI lifecycle is covered by the deterministic end-to-end fixture in
 - [x] Add measured worker resource tripwires and actionable diagnostics.
 - [x] Test worker crash, restart, backoff, and last-known-good recovery.
 
-Phase 8 is implemented on the current branch. The native host remains a single supervisor process for the first prototype, while the widget execution boundary is now disposable and ready to expand to one worker per widget when multiple active widgets are introduced.
+Phase 8 is implemented on the current branch. The original native host remains
+one supervisor per workspace, while completed F1 adds a fleet supervisor over
+multiple isolated hosts and their disposable workers. Each workspace keeps its
+own process record, worker state, log stream, snapshots, and recovery path.
 
 ### Phase 9 - Native JSX and SDK surface contract
 
@@ -493,7 +515,7 @@ The SDK will grow through these cataloged families, in dependency order:
   audio visualizations where a host provider exists.
 - **Controls and actions:** `Button`, `Toggle`, `Slider`, `TextField`,
   `Checkbox`, `Picker`, menus, focus state, and typed declarative actions.
-- **Collections and data:** keyed `List`, virtualized collections, key-value
+- **Collections and data:** structured `List`, virtualized collections, key-value
   rows, loading states, empty states, and unavailable states.
 - **Providers and integrations:** host-owned system, time, media, weather,
   account, and other providers with explicit availability, capability, and
@@ -518,6 +540,8 @@ to native interaction:
 - Define the JSX runtime (`jsx`, `jsxs`, and `Fragment`) and typed style props
   without exposing CSS or arbitrary style strings.
 - Add `Box`, `Spacer`, and `Divider` for composable layout.
+- Add the host-owned adjustable sizing contract with native resize handles,
+  persistent local preferences, lock state, and responsive render context.
 - Add `Icon`, `Image`, `Button`, and `Progress` with native rendering,
   accessibility labels where applicable, and serializable state/action output.
 - Define typed actions, provider values, loading/unavailable states, and the

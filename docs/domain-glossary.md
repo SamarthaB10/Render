@@ -71,3 +71,39 @@ Anything that touches the user's machine beyond the Standard surface. Capabiliti
 3. Running commands or reading arbitrary files - dangerous.
 
 The dangerous rungs exist but require loud, explicit, per-Widget consent. Render deliberately rejects the incumbent posture where skins can simply do anything.
+
+## Canonical Widget contract
+
+The versioned, self-describing JSON Schema that defines the agent-visible
+Widget surface. It describes the Widget manifest and retained tree plus the
+supported primitives, styles, providers, actions, capabilities, connectors,
+and compatibility rules. SDK, runtime, native, and agent documentation
+artifacts are generated or verified from this contract; they are not separate
+sources of truth.
+
+## Widget lifecycle state
+
+The policy state of an installed Widget: `stopped`, `candidate`, `starting`,
+`running`, `recovering`, or `quarantined`. Lifecycle state governs promotion,
+rollback, restart, and recovery while the older `status` field remains for
+compatibility.
+
+## Lifecycle receipt
+
+A durable JSONL evidence record for a lifecycle transition. It identifies the
+Widget, request, prior and next state, reason, active and last-known-good
+versions, process identity, and diagnostics.
+
+## Widget host session
+
+The native host's per-Widget deep module. It owns the loaded manifest and
+tree, provider and action wiring, preferences, placement, worker, and
+shutdown. The AppKit delegate is an entrypoint and view composer, not a second
+owner of those policies.
+
+## Provider and connector registry
+
+The host-owned lookup seam generated from the canonical Widget contract. It
+maps provider and action names to their connector and connector IDs to typed
+native adapters. Spotify and Reminders are current adapters; a new
+integration extends the registry and contract together.

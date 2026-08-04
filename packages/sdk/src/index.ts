@@ -23,7 +23,32 @@ export type WidgetNodeKind =
   | "clip"
   | "transform"
   | "segmentedProgress"
-  | "spectrum";
+  | "spectrum"
+  | "timer"
+  | "taskList"
+  | "list"
+  | "glassPanel"
+  | "mediaCard"
+  | "visualizer"
+  | "youtubePlayer"
+  | "scrollView"
+  | "textEditor"
+  | "dateTime"
+  | "dateTimePicker";
+
+export {
+  RENDER_WIDGET_CONTRACT_VERSION,
+  WIDGET_ACTION_NAMES,
+  WIDGET_ANCHOR_CORNERS,
+  WIDGET_CAPABILITIES,
+  WIDGET_CONNECTOR_NAMES,
+  WIDGET_CONNECTOR_SCOPES,
+  WIDGET_ACTION_CONNECTORS,
+  WIDGET_NODE_KINDS,
+  WIDGET_PROVIDER_CONNECTORS,
+  WIDGET_PROVIDER_NAMES,
+  WIDGET_THEME_NAMES
+} from "./widget-contract.generated.ts";
 
 export { describeSdkCatalog, listSdkCatalog, SDK_PACKAGE, SDK_VERSION } from "./catalog.ts";
 export type { SdkCatalogItem, SdkCatalogKind } from "./catalog.ts";
@@ -50,17 +75,54 @@ export type WidgetAlignment =
   | "fill"
   | "space-between";
 export type WidgetFontWeight = "regular" | "medium" | "semibold" | "bold";
+export type WidgetThemeName = "dark-glass" | "light" | "monochrome" | "retro";
+export type WidgetDensity = "compact" | "comfortable";
+export type WidgetMaterial = "solid" | "thin" | "thick";
+export type WidgetSemanticRole = "surface" | "panel" | "control" | "status" | "media";
 export type WidgetStyleToken =
   | "surface"
   | "surface.elevated"
+  | "surface.panel"
+  | "surface.control"
+  | "surface.status"
   | "text.primary"
   | "text.secondary"
+  | "text.tertiary"
+  | "border.subtle"
   | "accent"
+  | "accent.muted"
   | "danger"
   | "success"
   | "mono";
 
 export type WidgetCapability = "network" | "filesystem.read" | "filesystem.write";
+export interface WidgetSize {
+  width: number;
+  height: number;
+}
+
+export interface WidgetResponsiveMode {
+  minWidth: number;
+  minHeight: number;
+}
+
+export interface WidgetResponsive {
+  modes: Record<string, WidgetResponsiveMode>;
+  default: string;
+}
+
+export interface WidgetAdjustable {
+  enabled: boolean;
+  minSize?: WidgetSize;
+  maxSize?: WidgetSize;
+  responsive?: WidgetResponsive;
+}
+
+export interface WidgetRenderContext {
+  mode: string;
+  size?: WidgetSize;
+}
+
 export type ProviderState = "loading" | "available" | "unavailable";
 export type WidgetAccountState =
   | "connected"
@@ -181,6 +243,9 @@ export interface WidgetStyle {
   font?: WidgetFont;
   overflow?: "visible" | "hidden" | "clip";
   interaction?: WidgetInteractionStyle;
+  material?: WidgetMaterial;
+  role?: WidgetSemanticRole;
+  density?: WidgetDensity;
   tokens?: WidgetStyleToken[];
 }
 
@@ -212,7 +277,33 @@ export type WidgetActionName =
   | "spotify.pause"
   | "spotify.next"
   | "spotify.previous"
-  | "spotify.set-volume";
+  | "spotify.set-volume"
+  | "reminders.create"
+  | "reminders.update"
+  | "reminders.complete"
+  | "reminders.delete";
+
+export interface ReminderCreateActionPayload {
+  title: string;
+  listName?: string;
+  dueDate?: string;
+}
+
+export interface ReminderUpdateActionPayload {
+  id: string;
+  title?: string;
+  dueDate?: string | null;
+  completed?: boolean;
+}
+
+export interface ReminderCompleteActionPayload {
+  id: string;
+  completed?: boolean;
+}
+
+export interface ReminderDeleteActionPayload {
+  id: string;
+}
 export type WidgetAction =
   | { type: "invoke"; name: WidgetActionName; payload?: WidgetJsonValue }
   | { type: "set"; name: WidgetActionName; value: WidgetJsonValue };
@@ -286,14 +377,51 @@ export interface WidgetNode {
   disabled?: boolean;
   columns?: number;
   state?: WidgetStateReference;
+  durationSeconds?: number;
+  tasks?: WidgetTaskItem[];
+  items?: WidgetListItem[];
+  videoId?: string;
+  allowLinkInput?: boolean;
+  autoplay?: boolean;
+  controls?: boolean;
+  startSeconds?: number;
+  placeholder?: string;
+  dateTime?: string;
+  dateTimeMode?: WidgetDateTimeMode;
+  visualizerMode?: WidgetVisualizerMode;
+  visualizerTempo?: number;
 }
 
 export type WidgetChild = WidgetNode | string | number | null | boolean | undefined;
 export type WidgetChildren = WidgetChild | WidgetChild[];
 
 export interface WidgetComponentProps {
+  key?: string | number;
   children?: WidgetChildren;
   style?: WidgetStyle;
+}
+
+export interface GlassPanelProps extends ContainerProps {}
+
+export interface MediaCardProps extends ContainerProps {}
+
+export type WidgetVisualizerMode = "bars" | "waveform" | "rings";
+
+export interface VisualizerProps extends WidgetComponentProps {
+  provider?: ProviderBinding;
+  mode?: WidgetVisualizerMode;
+  tempo?: number;
+}
+
+export interface ArtworkProps extends WidgetComponentProps {
+  source: string | ImageSource;
+}
+
+export interface TransportControlsProps extends WidgetComponentProps {
+  previousAction?: WidgetAction;
+  playAction?: WidgetAction;
+  pauseAction?: WidgetAction;
+  nextAction?: WidgetAction;
 }
 
 export interface ContainerProps extends WidgetComponentProps {}
@@ -312,9 +440,61 @@ export interface TextAreaProps extends WidgetComponentProps {
   disabled?: boolean;
 }
 
+export interface TextEditorProps extends WidgetComponentProps {
+  text?: string;
+  placeholder?: string;
+}
+
+export interface ScrollViewProps extends ContainerProps {}
+
+export type WidgetDateTimeMode = "date" | "time" | "dateTime";
+
+export interface DateTimeProps extends WidgetComponentProps {
+  value: string;
+  mode?: WidgetDateTimeMode;
+}
+
+export interface DateTimePickerProps extends WidgetComponentProps {
+  value?: string;
+  mode?: WidgetDateTimeMode;
+}
+
 export interface ToggleProps extends WidgetComponentProps {
   checked?: boolean | WidgetStateBinding<boolean>;
   disabled?: boolean;
+}
+
+export interface TimerProps extends WidgetComponentProps {
+  durationSeconds: number;
+}
+
+export interface WidgetTaskItem {
+  id: string;
+  text: string;
+  completed?: boolean;
+}
+
+export interface WidgetListItem {
+  id: string;
+  title: string;
+  subtitle?: string;
+  completed?: boolean;
+}
+
+export interface TaskListProps extends WidgetComponentProps {
+  items: WidgetTaskItem[];
+}
+
+export interface ListProps extends WidgetComponentProps {
+  items: WidgetListItem[] | ProviderBinding;
+}
+
+export interface YouTubePlayerProps extends WidgetComponentProps {
+  videoId?: string;
+  allowLinkInput?: boolean;
+  autoplay?: boolean;
+  controls?: boolean;
+  startSeconds?: number;
 }
 
 export interface ShapeProps extends WidgetComponentProps {}
@@ -410,7 +590,7 @@ export interface WidgetManifest {
   schemaVersion: 1;
   name: string;
   sdkVersion: string;
-  size: { width: number; height: number };
+  size: WidgetSize;
   resizable?: boolean;
   windowShape?: "rectangle" | "circle";
   anchor: {
@@ -421,7 +601,14 @@ export interface WidgetManifest {
   subscribe: string[];
   assets?: string[];
   fonts?: WidgetFontAsset[];
+  adjustable?: WidgetAdjustable;
   accounts?: WidgetAccountRequirement[];
+  theme?: WidgetThemeConfig;
+}
+
+export interface WidgetThemeConfig {
+  default: WidgetThemeName;
+  options?: WidgetThemeName[];
 }
 
 export interface WidgetFontAsset {
@@ -431,7 +618,7 @@ export interface WidgetFontAsset {
 
 export interface WidgetDefinition {
   manifest: WidgetManifest;
-  render: () => WidgetNode;
+  render: (context?: WidgetRenderContext) => WidgetNode;
 }
 
 export interface ProviderBinding {
@@ -456,7 +643,7 @@ export interface TimerBinding {
   intervalMs: number;
 }
 
-export function widget(manifest: WidgetManifest, render: () => WidgetNode): WidgetDefinition {
+export function widget(manifest: WidgetManifest, render: (context?: WidgetRenderContext) => WidgetNode): WidgetDefinition {
   return { manifest, render };
 }
 
@@ -478,6 +665,12 @@ export function Stack(input: WidgetNode[] | ContainerProps, style?: WidgetStyle)
   return containerNode("stack", input, style);
 }
 
+export function ScrollView(children: WidgetNode[], style?: WidgetStyle): WidgetNode;
+export function ScrollView(props: ScrollViewProps): WidgetNode;
+export function ScrollView(input: WidgetNode[] | ScrollViewProps, style?: WidgetStyle): WidgetNode {
+  return containerNode("scrollView", input, style);
+}
+
 export function Box(children: WidgetChildren, style?: WidgetStyle): WidgetNode;
 export function Box(props: ContainerProps): WidgetNode;
 export function Box(input: WidgetChildren | ContainerProps, style?: WidgetStyle): WidgetNode {
@@ -485,6 +678,38 @@ export function Box(input: WidgetChildren | ContainerProps, style?: WidgetStyle)
     return nodeWithOptionalStyle({ kind: "box", children: childrenFrom(input.children) }, input.style);
   }
   return nodeWithOptionalStyle({ kind: "box", children: childrenFrom(input as WidgetChildren) }, style);
+}
+
+export function GlassPanel(children: WidgetChildren, style?: WidgetStyle): WidgetNode;
+export function GlassPanel(props: GlassPanelProps): WidgetNode;
+export function GlassPanel(input: WidgetChildren | GlassPanelProps, style?: WidgetStyle): WidgetNode {
+  if (isProps(input)) {
+    return nodeWithOptionalStyle(
+      { kind: "glassPanel", children: childrenFrom(input.children) },
+      patternStyle({ radius: 18, material: "thin", role: "panel", tokens: ["surface.panel", "border.subtle"] }, input.style),
+      input.key
+    );
+  }
+  return nodeWithOptionalStyle(
+    { kind: "glassPanel", children: childrenFrom(input as WidgetChildren) },
+    patternStyle({ radius: 18, material: "thin", role: "panel", tokens: ["surface.panel", "border.subtle"] }, style)
+  );
+}
+
+export function MediaCard(children: WidgetChildren, style?: WidgetStyle): WidgetNode;
+export function MediaCard(props: MediaCardProps): WidgetNode;
+export function MediaCard(input: WidgetChildren | MediaCardProps, style?: WidgetStyle): WidgetNode {
+  if (isProps(input)) {
+    return nodeWithOptionalStyle(
+      { kind: "mediaCard", children: childrenFrom(input.children) },
+      patternStyle({ radius: 16, material: "thin", role: "surface" }, input.style),
+      input.key
+    );
+  }
+  return nodeWithOptionalStyle(
+    { kind: "mediaCard", children: childrenFrom(input as WidgetChildren) },
+    patternStyle({ radius: 16, material: "thin", role: "surface" }, style)
+  );
 }
 
 export function Spacer(style?: WidgetStyle): WidgetNode;
@@ -577,6 +802,48 @@ export function TextArea(input: string | WidgetStateBinding<string> | TextAreaPr
   return nodeWithOptionalStyle({ kind: "textArea", text: input as string }, style);
 }
 
+export function TextEditor(text?: string, style?: WidgetStyle): WidgetNode;
+export function TextEditor(props: TextEditorProps): WidgetNode;
+export function TextEditor(input: string | TextEditorProps = "", style?: WidgetStyle): WidgetNode {
+  if (isProps(input)) {
+    const props = input as TextEditorProps;
+    return nodeWithOptionalStyle({
+      kind: "textEditor",
+      text: String(props.text ?? firstChild(props.children) ?? ""),
+      placeholder: props.placeholder
+    }, props.style, props.key);
+  }
+  return nodeWithOptionalStyle({ kind: "textEditor", text: input as string }, style);
+}
+
+export function DateTime(value: string, style?: WidgetStyle): WidgetNode;
+export function DateTime(props: DateTimeProps): WidgetNode;
+export function DateTime(input: string | DateTimeProps, style?: WidgetStyle): WidgetNode {
+  if (isProps(input)) {
+    const props = input as DateTimeProps;
+    return nodeWithOptionalStyle({
+      kind: "dateTime",
+      dateTime: props.value,
+      dateTimeMode: props.mode ?? "dateTime"
+    }, props.style, props.key);
+  }
+  return nodeWithOptionalStyle({ kind: "dateTime", dateTime: input as string, dateTimeMode: "dateTime" }, style);
+}
+
+export function DateTimePicker(value?: string, style?: WidgetStyle): WidgetNode;
+export function DateTimePicker(props: DateTimePickerProps): WidgetNode;
+export function DateTimePicker(input: string | DateTimePickerProps = "", style?: WidgetStyle): WidgetNode {
+  if (isProps(input)) {
+    const props = input as DateTimePickerProps;
+    return nodeWithOptionalStyle({
+      kind: "dateTimePicker",
+      ...(props.value === undefined ? {} : { dateTime: props.value }),
+      dateTimeMode: props.mode ?? "dateTime"
+    }, props.style, props.key);
+  }
+  return nodeWithOptionalStyle({ kind: "dateTimePicker", dateTime: typeof input === "string" && input.length > 0 ? input : undefined, dateTimeMode: "dateTime" }, style);
+}
+
 export function Toggle(checked: boolean | WidgetStateBinding<boolean>, style?: WidgetStyle): WidgetNode;
 export function Toggle(props: ToggleProps): WidgetNode;
 export function Toggle(input: boolean | WidgetStateBinding<boolean> | ToggleProps, style?: WidgetStyle): WidgetNode {
@@ -600,6 +867,124 @@ export function Toggle(input: boolean | WidgetStateBinding<boolean> | ToggleProp
     }, props.style);
   }
   return nodeWithOptionalStyle({ kind: "toggle", value: input ? 1 : 0 }, style);
+}
+
+export function Timer(durationSeconds: number, style?: WidgetStyle): WidgetNode;
+export function Timer(props: TimerProps): WidgetNode;
+export function Timer(input: number | TimerProps, style?: WidgetStyle): WidgetNode {
+  if (isProps(input)) {
+    const props = input as TimerProps;
+    return nodeWithOptionalStyle({ kind: "timer", durationSeconds: props.durationSeconds }, props.style, props.key);
+  }
+  return nodeWithOptionalStyle({ kind: "timer", durationSeconds: input as number }, style);
+}
+
+export function TaskList(items: WidgetTaskItem[], style?: WidgetStyle): WidgetNode;
+export function TaskList(props: TaskListProps): WidgetNode;
+export function TaskList(input: WidgetTaskItem[] | TaskListProps, style?: WidgetStyle): WidgetNode {
+  if (isProps(input)) {
+    const props = input as TaskListProps;
+    return nodeWithOptionalStyle({ kind: "taskList", tasks: props.items.map(normalizeTask) }, props.style, props.key);
+  }
+  return nodeWithOptionalStyle({ kind: "taskList", tasks: (input as WidgetTaskItem[]).map(normalizeTask) }, style);
+}
+
+export function List(items: WidgetListItem[] | ProviderBinding, style?: WidgetStyle): WidgetNode;
+export function List(props: ListProps): WidgetNode;
+export function List(input: WidgetListItem[] | ProviderBinding | ListProps, style?: WidgetStyle): WidgetNode {
+  if (isProviderBinding(input)) {
+    return nodeWithOptionalStyle({ kind: "list", provider: input.name }, style);
+  }
+  if (isProps(input)) {
+    const props = input as ListProps;
+    const items = props.items;
+    return nodeWithOptionalStyle(
+      isProviderBinding(items) ? { kind: "list", provider: items.name } : { kind: "list", items: items.map(normalizeListItem) },
+      props.style,
+      props.key
+    );
+  }
+  return nodeWithOptionalStyle({ kind: "list", items: (input as WidgetListItem[]).map(normalizeListItem) }, style);
+}
+
+export function YouTubePlayer(videoId: string, style?: WidgetStyle): WidgetNode;
+export function YouTubePlayer(props: YouTubePlayerProps): WidgetNode;
+export function YouTubePlayer(input: string | YouTubePlayerProps, style?: WidgetStyle): WidgetNode {
+  if (isProps(input)) {
+    const props = input as YouTubePlayerProps;
+    return nodeWithOptionalStyle({
+      kind: "youtubePlayer",
+      ...(props.videoId === undefined ? {} : { videoId: props.videoId }),
+      allowLinkInput: props.allowLinkInput === true,
+      autoplay: props.autoplay === true,
+      controls: props.controls !== false,
+      ...(props.startSeconds === undefined ? {} : { startSeconds: props.startSeconds })
+    }, youtubePlayerStyle(props.style), props.key);
+  }
+  return nodeWithOptionalStyle({ kind: "youtubePlayer", videoId: input as string, allowLinkInput: false, autoplay: false, controls: true }, youtubePlayerStyle(style));
+}
+
+export function Visualizer(props?: VisualizerProps): WidgetNode {
+  const input = props ?? {};
+  return nodeWithOptionalStyle({
+    kind: "visualizer",
+    ...(input.provider === undefined ? {} : { provider: input.provider.name }),
+    visualizerMode: input.mode ?? "bars",
+    ...(input.tempo === undefined ? {} : { visualizerTempo: input.tempo })
+  }, input.style, input.key);
+}
+
+export function Artwork(source: string | ImageSource, style?: WidgetStyle): WidgetNode;
+export function Artwork(props: ArtworkProps): WidgetNode;
+export function Artwork(input: string | ImageSource | ArtworkProps, style?: WidgetStyle): WidgetNode {
+  if (isProps(input) && "source" in input) {
+    const props = input as ArtworkProps;
+    return Image({
+      source: props.source,
+      style: patternStyle({ width: 64, height: 64, radius: 12, role: "media" }, props.style),
+      key: props.key
+    });
+  }
+  return Image({
+    source: input as string | ImageSource,
+    style: patternStyle({ width: 64, height: 64, radius: 12, role: "media" }, style)
+  });
+}
+
+export function TransportControls(props: TransportControlsProps = {}): WidgetNode {
+  return Row({
+    key: props.key,
+    style: patternStyle({ gap: 8, role: "control", density: "compact" }, props.style),
+    children: [
+      Button({ label: Icon("backward.fill"), action: props.previousAction, style: { role: "control" } }),
+      Button({ label: Icon("play.fill"), action: props.playAction, style: { role: "control" } }),
+      Button({ label: Icon("pause.fill"), action: props.pauseAction, style: { role: "control" } }),
+      Button({ label: Icon("forward.fill"), action: props.nextAction, style: { role: "control" } })
+    ]
+  });
+}
+
+function youtubePlayerStyle(style?: WidgetStyle): WidgetStyle {
+  const radius = typeof style?.radius === "number" ? style.radius : 16;
+  return {
+    width: 480,
+    height: 270,
+    radius,
+    ...style,
+    border: {
+      color: "#cbd5e1",
+      width: 1,
+      radius,
+      ...style?.border
+    },
+    shadow: {
+      color: "#ffffff",
+      radius: 14,
+      opacity: 0.12,
+      ...style?.shadow
+    },
+    tokens: style?.tokens ?? ["surface"]
+  };
 }
 
 export function Shape(style?: WidgetStyle): WidgetNode;
@@ -797,9 +1182,9 @@ export function useTimer(intervalMs: number): TimerBinding {
   return { kind: "timer", intervalMs };
 }
 
-function containerNode(kind: "column" | "row" | "stack", input: WidgetNode[] | ContainerProps, style?: WidgetStyle): WidgetNode {
+function containerNode(kind: "column" | "row" | "stack" | "scrollView", input: WidgetNode[] | ContainerProps, style?: WidgetStyle): WidgetNode {
   if (isProps(input)) {
-    return nodeWithOptionalStyle({ kind, children: childrenFrom(input.children) }, input.style);
+    return nodeWithOptionalStyle({ kind, children: childrenFrom(input.children) }, input.style, input.key);
   }
   return nodeWithOptionalStyle({ kind, children: input as WidgetNode[] }, style);
 }
@@ -955,6 +1340,19 @@ function isObject(value: unknown): value is Record<string, any> {
   return typeof value === "object" && value !== null;
 }
 
-function nodeWithOptionalStyle(node: WidgetNode, style?: WidgetStyle): WidgetNode {
-  return style === undefined ? node : { ...node, style };
+function nodeWithOptionalStyle(node: WidgetNode, style?: WidgetStyle, key?: string | number): WidgetNode {
+  const styled = style === undefined ? node : { ...node, style };
+  return key === undefined ? styled : { ...styled, key };
+}
+
+function patternStyle(defaults: WidgetStyle, override?: WidgetStyle): WidgetStyle {
+  return { ...defaults, ...override };
+}
+
+function normalizeTask(task: WidgetTaskItem): WidgetTaskItem {
+  return { id: task.id, text: task.text, completed: task.completed === true };
+}
+
+function normalizeListItem(item: WidgetListItem): WidgetListItem {
+  return { id: item.id, title: item.title, subtitle: item.subtitle, completed: item.completed === true };
 }

@@ -17,12 +17,15 @@ final class WorkerSession {
     private var restartWorkItem: DispatchWorkItem?
     private var shuttingDown = false
     private var restartCount = 0
+    private var restartPolicy = RestartPolicy()
     private var resourceTimer: DispatchSourceTimer?
     private var currentStatus = "starting"
     private var currentDiagnostics: [WorkerDiagnostic]?
     private var previousCPUTime: UInt64?
     private var previousSampleTime: UInt64?
     private var lastResourceSample: [String: Any]?
+    private var renderMode: String
+    private var renderSize: WorkerRenderSize?
 
     // Receipt: perf/receipts/phase8-worker.json
     private let maxCPUPercent = 200.0
@@ -37,7 +40,9 @@ final class WorkerSession {
         sourcePath: String? = nil,
         statePath: String? = nil,
         treePath: String? = nil,
-        widgetStatePath: String? = nil
+        widgetStatePath: String? = nil,
+        mode: String = "auto",
+        size: WorkerRenderSize? = nil
     ) {
         self.workspace = workspace
         self.sourcePath = sourcePath ?? URL(fileURLWithPath: workspace).appendingPathComponent("widget.tsx").path
@@ -47,6 +52,8 @@ final class WorkerSession {
         self.widgetStateURL = widgetStatePath.map(URL.init(fileURLWithPath:))
         self.runtimeTreeURL = treePath.map(URL.init(fileURLWithPath:))
             ?? URL(fileURLWithPath: workspace).appendingPathComponent(".render/runtime/tree.json")
+        self.renderMode = mode
+        self.renderSize = size
     }
 
     func start() throws -> WidgetTree {
@@ -90,6 +97,21 @@ final class WorkerSession {
         )])
     }
 
+    func render(mode: String, size: WorkerRenderSize? = nil, completion: @escaping (Result<WidgetTree, Error>) -> Void) {
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self else { return }
+            do {
+                self.renderMode = mode
+                self.renderSize = size
+                let tree = try self.renderCurrentTree()
+                self.writeTree(tree)
+                DispatchQueue.main.async { completion(.success(tree)) }
+            } catch {
+                DispatchQueue.main.async { completion(.failure(error)) }
+            }
+        }
+    }
+
     private func launchAndRender() throws -> WidgetTree {
         let process = Process()
         let inputPipe = Pipe()
@@ -128,12 +150,18 @@ final class WorkerSession {
         guard ready.kind == .ready else {
             throw WorkerSessionError.protocolViolation(ready.validationIssues())
         }
+        return try renderCurrentTree()
+    }
+
+    private func renderCurrentTree() throws -> WidgetTree {
         try send(WorkerMessage(
             kind: .render,
             messageID: UUID().uuidString,
             workspace: workspace,
             sourcePath: sourcePath,
-            state: widgetStateURL.map { loadWidgetState(from: $0) }
+            state: widgetStateURL.map { loadWidgetState(from: $0) },
+            mode: renderMode,
+            size: renderSize
         ))
 
         let rendered = try readMessage()
@@ -182,16 +210,22 @@ final class WorkerSession {
         return try decoder.decode(WorkerMessage.self, from: data)
     }
 
-    private func workerTerminated(status: Int32) {
+    private func workerTerminated(status: Int32, additionalDiagnostics: [WorkerDiagnostic] = []) {
         guard !shuttingDown else { return }
         restartCount += 1
-        let diagnostics = (currentDiagnostics ?? []) + [WorkerDiagnostic(
+        let diagnostics = (currentDiagnostics ?? []) + additionalDiagnostics + [WorkerDiagnostic(
             code: "worker-exited",
             path: "worker",
             message: "worker exited with status \(status); retaining the last-known-good tree"
         )]
-        writeState(status: "restarting", diagnostics: diagnostics)
-        onFailure?(diagnostics)
+        let decision = restartPolicy.recordFailure()
+        let userVisibleDiagnostics = self.userVisibleDiagnostics(for: decision, diagnostics: diagnostics)
+        if case .userVisibleFailure = decision {
+            writeState(status: "quarantined", diagnostics: userVisibleDiagnostics)
+            if let userVisibleDiagnostics { onFailure?(userVisibleDiagnostics) }
+            return
+        }
+        writeState(status: "restarting", diagnostics: nil)
 
         let delay = min(pow(2.0, Double(max(0, restartCount - 1)) - 2.0), 4.0)
         let work = DispatchWorkItem { [weak self] in
@@ -199,22 +233,30 @@ final class WorkerSession {
             do {
                 let tree = try self.launchAndRender()
                 self.restartCount = 0
+                self.restartPolicy.recordSuccess()
                 self.writeTree(tree)
                 self.writeState(status: "ready", diagnostics: nil)
                 self.onTree?(tree)
             } catch {
-                let diagnostics = [WorkerDiagnostic(
+                let failure = WorkerDiagnostic(
                     code: "worker-restart-failed",
                     path: "worker",
                     message: error.localizedDescription
-                )]
-                self.writeState(status: "restarting", diagnostics: diagnostics)
-                self.onFailure?(diagnostics)
-                self.workerTerminated(status: 1)
+                )
+                self.workerTerminated(status: 1, additionalDiagnostics: [failure])
             }
         }
         restartWorkItem = work
         DispatchQueue.global().asyncAfter(deadline: .now() + delay, execute: work)
+    }
+
+    private func userVisibleDiagnostics(for decision: RestartDecision, diagnostics: [WorkerDiagnostic]) -> [WorkerDiagnostic]? {
+        guard case .userVisibleFailure(let count) = decision else { return nil }
+        return diagnostics + [WorkerDiagnostic(
+            code: "worker-restart-threshold",
+            path: "worker.restartCount",
+            message: "worker has failed \(count) consecutive restarts; the widget remains on its last-known-good tree and needs repair"
+        )]
     }
 
     private func writeState(status: String, diagnostics: [WorkerDiagnostic]?) {

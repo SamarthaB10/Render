@@ -35,6 +35,39 @@ final class DesktopWindowPolicyTests: XCTestCase {
         XCTAssertEqual(decoded, policy)
     }
 
+    func testAdjustableFrameOriginStaysInsideVisibleDisplayAfterResize() {
+        let visibleFrame = CGRect(x: 0, y: 0, width: 1440, height: 900)
+        let widgetSize = CGSize(width: 360, height: 520)
+
+        XCTAssertEqual(
+            WidgetFrameGeometry.clampedOrigin(
+                origin: CGPoint(x: 200, y: 500),
+                size: widgetSize,
+                visibleFrame: visibleFrame
+            ),
+            CGPoint(x: 200, y: 380)
+        )
+    }
+
+    func testWidgetContentScaleFitsBothDimensionsWithoutClipping() {
+        XCTAssertEqual(
+            WidgetFrameGeometry.fitScale(
+                designedSize: CGSize(width: 240, height: 110),
+                availableSize: CGSize(width: 300, height: 290)
+            ),
+            1.25,
+            accuracy: 0.001
+        )
+        XCTAssertEqual(
+            WidgetFrameGeometry.fitScale(
+                designedSize: CGSize(width: 240, height: 110),
+                availableSize: CGSize(width: 100, height: 80)
+            ),
+            100.0 / 240.0,
+            accuracy: 0.001
+        )
+    }
+
     func testInvalidTreeReportsActionablePaths() {
         let tree = WidgetTree(
             kind: .column,
@@ -132,8 +165,64 @@ final class DesktopWindowPolicyTests: XCTestCase {
         XCTAssertEqual(tree.text, "CPU")
     }
 
+    func testInteractiveTimerAndTaskListNodesDecodeAndValidate() throws {
+        let data = Data(#"""
+        {
+          "kind": "column",
+          "children": [
+            { "kind": "timer", "durationSeconds": 1500 },
+            { "kind": "taskList", "tasks": [{ "id": "read", "text": "Read chapter 3", "completed": false }] },
+            { "kind": "scrollView", "children": [{ "kind": "textEditor", "key": "notes", "text": "", "placeholder": "Write a note…" }] },
+            { "kind": "dateTime", "dateTime": "2026-08-03T14:30:00Z", "dateTimeMode": "date" },
+            { "kind": "dateTimePicker", "key": "deadline", "dateTimeMode": "dateTime" }
+          ]
+        }
+        """#.utf8)
+
+        let tree = try JSONDecoder().decode(WidgetTree.self, from: data)
+
+        XCTAssertEqual(tree.children[0].durationSeconds, 1500)
+        XCTAssertEqual(tree.children[1].tasks?.first?.id, "read")
+        XCTAssertEqual(tree.children[2].kind, .scrollView)
+        XCTAssertEqual(tree.children[2].children.first?.key, .string("notes"))
+        XCTAssertEqual(tree.children[2].children.first?.placeholder, "Write a note…")
+        XCTAssertEqual(tree.children[3].kind, .dateTime)
+        XCTAssertEqual(tree.children[4].kind, .dateTimePicker)
+        XCTAssertEqual(tree.children[4].key, .string("deadline"))
+        XCTAssertTrue(tree.validationIssues().isEmpty)
+    }
+
+    func testYouTubePlayerSupportsPersistedLinkInputConfiguration() throws {
+        let data = Data(#"""
+        {
+          "kind": "youtubePlayer",
+          "allowLinkInput": true,
+          "autoplay": false,
+          "controls": true,
+          "startSeconds": 12
+        }
+        """#.utf8)
+
+        let tree = try JSONDecoder().decode(WidgetTree.self, from: data)
+
+        XCTAssertEqual(tree.kind, .youtubePlayer)
+        XCTAssertTrue(tree.allowLinkInput == true)
+        XCTAssertEqual(tree.startSeconds, 12)
+        XCTAssertTrue(tree.validationIssues().isEmpty)
+    }
+
+    func testYouTubePlayerRejectsInvalidVideoIDWithoutLinkInput() throws {
+        let tree = WidgetTree(kind: .youtubePlayer, videoId: "not-a-video-id")
+
+        XCTAssertEqual(
+            tree.validationIssues(),
+            [.init(path: "root.videoId", message: "YouTubePlayer requires an 11-character YouTube video ID")]
+        )
+    }
+
     func testPhaseNineTreeDecodesStylesActionsAndKeyTypes() throws {
         let data = Data(#"""
+        {
           "kind": "button",
           "key": 7,
           "children": [{ "kind": "icon", "name": "play.fill" }],
@@ -157,8 +246,8 @@ final class DesktopWindowPolicyTests: XCTestCase {
     func testPhaseNineValidationUsesActionablePaths() {
         let tree = WidgetTree(
             kind: .button,
-            action: .invoke(name: "", payload: nil),
-            children: [WidgetTree(kind: .icon)]
+            children: [WidgetTree(kind: .icon)],
+            action: .invoke(name: "", payload: nil)
         )
 
         XCTAssertEqual(

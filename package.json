@@ -9,7 +9,10 @@
     "generate:icons": "node scripts/generate-lucide-catalog.mjs",
     "test": "node --test",
     "typecheck": "tsc packages/sdk/src/index.ts packages/sdk/src/jsx-runtime.ts test/sdk-style-types.ts --noEmit --module esnext --target es2020 --skipLibCheck --moduleResolution bundler --allowImportingTsExtensions --pretty false",
-    "measure:performance": "node scripts/measure-performance.mjs"
+    "contract:generate": "node scripts/generate-widget-contract.mjs",
+    "contract:check": "node scripts/generate-widget-contract.mjs --check",
+    "measure:performance": "node scripts/measure-performance.mjs",
+    "package:host": "node scripts/package-render-host.mjs"
   },
   "devDependencies": {
     "lucide-static": "1.26.0",

@@ -1,6 +1,11 @@
 import { validateAccountRequirements } from "./integrations.mjs";
 import path from "node:path";
 import { existsSync, realpathSync, statSync } from "node:fs";
+import {
+  WIDGET_ANCHOR_CORNERS,
+  WIDGET_CAPABILITIES,
+  WIDGET_THEME_NAMES
+} from "../packages/sdk/src/widget-contract.generated.ts";
 
 const ROOT_FIELDS = new Set([
   "schemaVersion",
@@ -10,14 +15,17 @@ const ROOT_FIELDS = new Set([
   "resizable",
   "windowShape",
   "anchor",
+  "adjustable",
   "capabilities",
   "subscribe",
   "accounts",
   "assets",
-  "fonts"
+  "fonts",
+  "theme"
 ]);
-const CAPABILITIES = new Set(["network", "filesystem.read", "filesystem.write"]);
-const CORNERS = new Set(["top-left", "top-right", "bottom-left", "bottom-right"]);
+const CAPABILITIES = new Set(WIDGET_CAPABILITIES);
+const CORNERS = new Set(WIDGET_ANCHOR_CORNERS);
+const THEMES = new Set(WIDGET_THEME_NAMES);
 
 export function extractManifest(source) {
   return readManifest(source).manifest;
@@ -81,6 +89,10 @@ export function validateManifest(manifest, options = {}) {
       requireFiniteNumber(manifest.anchor.offset, "x", "anchor.offset.x", issues);
       requireFiniteNumber(manifest.anchor.offset, "y", "anchor.offset.y", issues);
     }
+  }
+
+  if (manifest.adjustable !== undefined) {
+    validateAdjustable(manifest.adjustable, issues);
   }
 
   if (!Array.isArray(manifest.capabilities)) {
@@ -175,6 +187,10 @@ export function validateManifest(manifest, options = {}) {
     issues.push(...validateAccountRequirements(manifest.accounts));
   }
 
+  if (manifest.theme !== undefined) {
+    validateTheme(manifest.theme, issues);
+  }
+
   for (const field of Object.keys(manifest)) {
     if (!ROOT_FIELDS.has(field)) {
       issues.push({ path: field, message: "unknown manifest field" });
@@ -254,4 +270,87 @@ function isRecord(value) {
 function isInside(candidate, root) {
   const rootPath = root.endsWith(path.sep) ? root : `${root}${path.sep}`;
   return candidate === root || candidate.startsWith(rootPath);
+}
+
+function validateAdjustable(adjustable, issues) {
+  if (!isRecord(adjustable)) {
+    issues.push({ path: "adjustable", message: "must be an object" });
+    return;
+  }
+  if (adjustable.enabled !== undefined && typeof adjustable.enabled !== "boolean") {
+    issues.push({ path: "adjustable.enabled", message: "must be a boolean" });
+  }
+  const minSize = adjustable.minSize;
+  const maxSize = adjustable.maxSize;
+  if (minSize !== undefined) validateSizeObject(minSize, "adjustable.minSize", issues);
+  if (maxSize !== undefined) validateSizeObject(maxSize, "adjustable.maxSize", issues);
+  if (isRecord(minSize) && isRecord(maxSize)) {
+    if (maxSize.width < minSize.width) issues.push({ path: "adjustable.maxSize.width", message: "must be at least adjustable.minSize.width" });
+    if (maxSize.height < minSize.height) issues.push({ path: "adjustable.maxSize.height", message: "must be at least adjustable.minSize.height" });
+  }
+
+  if (adjustable.responsive !== undefined) {
+    const responsive = adjustable.responsive;
+    if (!isRecord(responsive)) {
+      issues.push({ path: "adjustable.responsive", message: "must be an object" });
+      return;
+    }
+    if (!isRecord(responsive.modes) || Object.keys(responsive.modes).length === 0) {
+      issues.push({ path: "adjustable.responsive.modes", message: "must be a non-empty object" });
+    } else {
+      for (const [mode, bounds] of Object.entries(responsive.modes)) {
+        validateModeBounds(bounds, `adjustable.responsive.modes.${mode}`, issues);
+      }
+      if (typeof responsive.default !== "string" || !(responsive.default in responsive.modes)) {
+        issues.push({ path: "adjustable.responsive.default", message: "must name one of the declared responsive modes" });
+      }
+    }
+  }
+}
+
+function validateSizeObject(value, path, issues) {
+  if (!isRecord(value)) {
+    issues.push({ path, message: "must be an object" });
+    return;
+  }
+  requirePositiveNumber(value, "width", `${path}.width`, issues);
+  requirePositiveNumber(value, "height", `${path}.height`, issues);
+}
+
+function validateModeBounds(value, path, issues) {
+  if (!isRecord(value)) {
+    issues.push({ path, message: "must be an object" });
+    return;
+  }
+  requirePositiveNumber(value, "minWidth", `${path}.minWidth`, issues);
+  requirePositiveNumber(value, "minHeight", `${path}.minHeight`, issues);
+}
+
+function validateTheme(theme, issues) {
+  if (!isRecord(theme)) {
+    issues.push({ path: "theme", message: "must be an object" });
+    return;
+  }
+  if (!THEMES.has(theme.default)) {
+    issues.push({ path: "theme.default", message: "must be a supported Render theme" });
+  }
+  if (theme.options !== undefined) {
+    if (!Array.isArray(theme.options)) {
+      issues.push({ path: "theme.options", message: "must be an array of supported Render themes" });
+    } else {
+      theme.options.forEach((option, index) => {
+        if (!THEMES.has(option)) {
+          issues.push({ path: `theme.options[${index}]`, message: "must be a supported Render theme" });
+        }
+      });
+      if (typeof theme.default === "string" && !theme.options.includes(theme.default)) {
+        issues.push({ path: "theme.default", message: "must be included in theme.options" });
+      }
+    }
+  }
+  for (const field of Object.keys(theme)) {
+    if (!["default", "options"].includes(field)) {
+      issues.push({ path: `theme.${field}`, message: "unknown theme field" });
+    }
+  }
 }

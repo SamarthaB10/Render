@@ -1,12 +1,11 @@
-const SPOTIFY_SCOPES = new Set([
-  "user-read-private",
-  "user-read-playback-state",
-  "user-read-currently-playing",
-  "user-modify-playback-state"
-]);
+import { WIDGET_CONNECTOR_SCOPES } from "../packages/sdk/src/widget-contract.generated.ts";
+
+const SPOTIFY_SCOPES = new Set(WIDGET_CONNECTOR_SCOPES.spotify);
+const REMINDERS_SCOPES = new Set(WIDGET_CONNECTOR_SCOPES.reminders);
 
 export const CONNECTOR_SCOPES = Object.freeze({
-  spotify: SPOTIFY_SCOPES
+  spotify: SPOTIFY_SCOPES,
+  reminders: REMINDERS_SCOPES
 });
 
 export const SUPPORTED_CONNECTORS = new Set(Object.keys(CONNECTOR_SCOPES));

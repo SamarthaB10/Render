@@ -27,7 +27,8 @@ export const CANONICAL_WIDGET_SOURCE = [
   '  "size": { "width": 320, "height": 180 },',
   '  "anchor": { "corner": "top-left", "offset": { "x": 24, "y": 24 } },',
   '  "capabilities": [],',
-  '  "subscribe": ["system.cpu", "system.memory"]',
+  '  "subscribe": ["system.cpu", "system.memory"],',
+  '  "theme": { "default": "dark-glass", "options": ["dark-glass", "light", "monochrome", "retro"] }',
   "}, () => Column([",
   '  Text("CPU"),',
   '  Gauge(useProvider("system.cpu"), 100),',
@@ -43,7 +44,7 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     kind: "function",
     summary: "Defines a serializable widget manifest and render function",
     importPath: SDK_PACKAGE,
-    signature: "widget(manifest: WidgetManifest, render: () => WidgetNode): WidgetDefinition",
+    signature: "widget(manifest: WidgetManifest, render: (context?: WidgetRenderContext) => WidgetNode): WidgetDefinition",
     inputs: ["manifest", "render"],
     example: "export default widget(manifest, () => Column([Text(\"Hello\")]));",
     notes: ["The manifest must be a JSON-compatible object with quoted keys and values."]
@@ -79,6 +80,17 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     status: "implemented"
   },
   {
+    name: "ScrollView",
+    kind: "primitive",
+    summary: "Native vertically scrollable content container",
+    importPath: SDK_PACKAGE,
+    signature: "ScrollView(children: WidgetNode[], style?: WidgetStyle): WidgetNode",
+    inputs: ["children", "style"],
+    example: "ScrollView([Text(\"Long notes\")], { height: 320 })",
+    status: "implemented",
+    notes: ["The native renderer owns scrolling and keeps overflowing content inside the widget frame."]
+  },
+  {
     name: "Box",
     kind: "primitive",
     summary: "General native container for grouping and styling children",
@@ -88,6 +100,28 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     example: 'Box([Text("Now playing")], { padding: 12, radius: 8 })',
     status: "implemented",
     notes: ["The native renderer supports box layout and constrained style fields."]
+  },
+  {
+    name: "GlassPanel",
+    kind: "primitive",
+    summary: "Native material panel with the Render surface hierarchy and theme-aware borders",
+    importPath: SDK_PACKAGE,
+    signature: "GlassPanel(children: WidgetChildren, style?: WidgetStyle): WidgetNode",
+    inputs: ["children", "style"],
+    example: 'GlassPanel([Text("Now playing")])',
+    status: "implemented",
+    notes: ["The native renderer resolves material, semantic role, radius, and border tokens through the active Render theme."]
+  },
+  {
+    name: "MediaCard",
+    kind: "primitive",
+    summary: "Native media surface with compact theme-aware hierarchy",
+    importPath: SDK_PACKAGE,
+    signature: "MediaCard(children: WidgetChildren, style?: WidgetStyle): WidgetNode",
+    inputs: ["children", "style"],
+    example: 'MediaCard([Artwork({ kind: "asset", name: "album-art" }), Text("Track")])',
+    status: "implemented",
+    notes: ["MediaCard is a composable container; use Artwork and TransportControls inside it for a complete native media surface.", "The native renderer applies the media surface hierarchy and clips the child content to the declared curve."]
   },
   {
     name: "Spacer",
@@ -154,6 +188,39 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     ]
   },
   {
+    name: "TextEditor",
+    kind: "primitive",
+    summary: "Native persistent multiline text editor",
+    importPath: SDK_PACKAGE,
+    signature: "TextEditor(text?: string, style?: WidgetStyle): WidgetNode",
+    inputs: ["text", "style"],
+    example: 'TextEditor({ key: "notes", text: "", placeholder: "Write a note…" })',
+    status: "implemented",
+    notes: ["The native renderer persists editor content by stable key or node path; widget source supplies the default text."]
+  },
+  {
+    name: "DateTime",
+    kind: "primitive",
+    summary: "Native localized date or time display",
+    importPath: SDK_PACKAGE,
+    signature: "DateTime(value: string, style?: WidgetStyle): WidgetNode",
+    inputs: ["value", "style"],
+    example: 'DateTime({ value: "2026-08-03T14:30:00Z", mode: "dateTime" })',
+    status: "implemented",
+    notes: ["The native renderer parses an ISO date-time value and formats it using the local macOS locale."]
+  },
+  {
+    name: "DateTimePicker",
+    kind: "primitive",
+    summary: "Native editable and persisted date/time picker",
+    importPath: SDK_PACKAGE,
+    signature: "DateTimePicker(props?: DateTimePickerProps): WidgetNode",
+    inputs: ["value", "mode", "style"],
+    example: 'DateTimePicker({ key: "deadline", mode: "dateTime" })',
+    status: "implemented",
+    notes: ["The native renderer owns date/time selection and persists the selected value by stable key or node path."]
+  },
+  {
     name: "Toggle",
     kind: "primitive",
     summary: "Native interactive checkbox control",
@@ -167,6 +234,83 @@ const SDK_CATALOG: SdkCatalogItem[] = [
       "Pass useWidgetState(key, initial) to persist the checked value in the widget workspace across relaunches.",
       "The host owns persistence and restores the last saved value before rendering."
     ]
+  },
+  {
+    name: "Timer",
+    kind: "primitive",
+    summary: "Host-owned countdown timer with start, pause, reset, and persisted state",
+    importPath: SDK_PACKAGE,
+    signature: "Timer(durationSeconds: number, style?: WidgetStyle): WidgetNode",
+    inputs: ["durationSeconds", "style"],
+    example: "Timer(1500, { color: \"#ffffff\" })",
+    status: "implemented",
+    notes: ["The native renderer owns timer controls, duration editing, wall-clock recovery, and persistence. Users can enter minutes or MM:SS directly in the widget."]
+  },
+  {
+    name: "TaskList",
+    kind: "primitive",
+    summary: "Host-owned editable task list with completion, editing, adding, and persistence",
+    importPath: SDK_PACKAGE,
+    signature: "TaskList(items: WidgetTaskItem[], style?: WidgetStyle): WidgetNode",
+    inputs: ["items", "style"],
+    example: 'TaskList([{ id: "read", text: "Read chapter 3" }])',
+    status: "implemented",
+    notes: ["The native renderer owns task editing, completion, adding, removal, reordering, clear-completed, and persistence."]
+  },
+  {
+    name: "List",
+    kind: "primitive",
+    summary: "Native read-only list of static rows or structured provider rows",
+    importPath: SDK_PACKAGE,
+    signature: "List(items: WidgetListItem[] | ProviderBinding, style?: WidgetStyle): WidgetNode",
+    inputs: ["items", "style"],
+    example: 'List(useProvider("reminders.items"), { gap: 8 })',
+    status: "implemented",
+    notes: ["The native renderer owns row layout and structured provider decoding.", "Provider rows must be structured objects with id, title, optional subtitle, and optional completed fields.", "This slice renders rows natively; dynamic per-row actions are a later action-binding contract."]
+  },
+  {
+    name: "YouTubePlayer",
+    kind: "primitive",
+    summary: "Native embedded YouTube player with user-controlled playback",
+    importPath: SDK_PACKAGE,
+    signature: "YouTubePlayer(videoId: string, style?: WidgetStyle): WidgetNode",
+    inputs: ["videoId", "allowLinkInput", "autoplay", "controls", "startSeconds", "style"],
+    example: 'YouTubePlayer({ videoId: "M7lc1UVf-VE", allowLinkInput: true, controls: true })',
+    status: "implemented",
+    notes: ["The native renderer owns the isolated WKWebView and official YouTube embed surface.", "The manifest must declare the network capability; source defaults use 11-character YouTube video IDs only.", "The SDK supplies a 480x270 neutral glass surface with a 16-point radius, clipped content, border, and shadow when style fields are omitted; explicit style fields override these defaults.", "Set allowLinkInput to true to expose a native persisted link editor in the widget's hover settings panel for pasted youtube.com or youtu.be links.", "Autoplay is opt-in and may still be restricted by macOS or YouTube playback policy."]
+  },
+  {
+    name: "Visualizer",
+    kind: "primitive",
+    summary: "Native animated visualizer that reacts to an optional provider without fabricating audio data",
+    importPath: SDK_PACKAGE,
+    signature: 'Visualizer(props?: { provider?: ProviderBinding; mode?: "bars" | "waveform" | "rings"; tempo?: number; style?: WidgetStyle }): WidgetNode',
+    inputs: ["provider", "mode", "tempo", "style"],
+    example: 'Visualizer({ provider: useProvider("spotify.playback.isPlaying"), mode: "bars" })',
+    status: "implemented",
+    notes: ["The native renderer uses a host animation clock and displays an explicit unavailable state when its provider is unavailable.", "Tempo controls visual response rate; it does not claim to change third-party playback speed."]
+  },
+  {
+    name: "Artwork",
+    kind: "primitive",
+    summary: "Theme-aware artwork composition with a bounded media surface",
+    importPath: SDK_PACKAGE,
+    signature: "Artwork(source: string | ImageSource, style?: WidgetStyle): WidgetNode",
+    inputs: ["source", "style"],
+    example: 'Artwork({ kind: "asset", name: "album-art" })',
+    status: "implemented",
+    notes: ["Artwork composes the native Image primitive with a media role and intentional radius; explicit style fields override the defaults.", "The native renderer resolves the artwork surface and clips it to the declared curve."]
+  },
+  {
+    name: "TransportControls",
+    kind: "primitive",
+    summary: "Composable native previous, play, pause, and next control row",
+    importPath: SDK_PACKAGE,
+    signature: "TransportControls(props: TransportControlsProps): WidgetNode",
+    inputs: ["previousAction", "playAction", "pauseAction", "nextAction", "style"],
+    example: 'TransportControls({ playAction: { type: "invoke", name: "spotify.play" } })',
+    status: "implemented",
+    notes: ["Controls remain explicit serialized actions and inherit the active Render theme.", "The native renderer supplies the accessible control row and dispatches actions through the host boundary.", "Supply only the operations supported by the provider; unavailable controls remain visibly disabled."]
   },
   {
     name: "Shape",
@@ -481,12 +625,74 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     notes: ["Values must be integers from 0 through 100.", "Requires the Spotify account scope user-modify-playback-state."]
   },
   {
+    name: "reminders.create",
+    kind: "action",
+    summary: "Create a macOS Reminder through the host-owned Reminders connector",
+    importPath: SDK_PACKAGE,
+    signature: 'WidgetActionName = "reminders.create"',
+    example: 'Button("Add", { type: "invoke", name: "reminders.create", payload: { title: "Review notes" } })',
+    status: "implemented",
+    notes: ["Requires a reminders account with the reminders.write scope.", "The host owns EventKit permission and never exposes the event store to widget code."]
+  },
+  {
+    name: "reminders.update",
+    kind: "action",
+    summary: "Edit a macOS Reminder title, due date, or completion state",
+    importPath: SDK_PACKAGE,
+    signature: 'WidgetActionName = "reminders.update"',
+    example: 'Button("Rename", { type: "invoke", name: "reminders.update", payload: { id: reminderId, title: "Updated" } })',
+    status: "implemented",
+    notes: ["The payload requires a reminder id and accepts title, dueDate, or completed fields."]
+  },
+  {
+    name: "reminders.complete",
+    kind: "action",
+    summary: "Complete or reopen a macOS Reminder",
+    importPath: SDK_PACKAGE,
+    signature: 'WidgetActionName = "reminders.complete"',
+    example: 'Button("Done", { type: "invoke", name: "reminders.complete", payload: { id: reminderId, completed: true } })',
+    status: "implemented",
+    notes: ["The completed field defaults to true when omitted."]
+  },
+  {
+    name: "reminders.delete",
+    kind: "action",
+    summary: "Delete a macOS Reminder through an explicit host operation",
+    importPath: SDK_PACKAGE,
+    signature: 'WidgetActionName = "reminders.delete"',
+    example: 'Button("Delete", { type: "invoke", name: "reminders.delete", payload: { id: reminderId } })',
+    status: "implemented",
+    notes: ["Requires a reminders account with the reminders.write scope."]
+  },
+  {
+    name: "WidgetBorder",
+    kind: "type",
+    summary: "Native border stroke configuration for a widget surface",
+    importPath: SDK_PACKAGE,
+    signature: "interface WidgetBorder { color?: string; width?: number; radius?: number }",
+    fields: ["color", "width", "radius"],
+    example: 'const border: WidgetBorder = { color: "#22d3ee", width: 1, radius: 18 }',
+    status: "implemented",
+    notes: ["radius controls the stroke corner independently; set WidgetStyle.radius as well when the child content must be clipped to the same curve."]
+  },
+  {
+    name: "WidgetShadow",
+    kind: "type",
+    summary: "Serializable outset, inset, or text shadow",
+    importPath: SDK_PACKAGE,
+    signature: 'interface WidgetShadow { color?: string; radius?: number; x?: number; y?: number; opacity?: number; kind?: "outset" | "inset" | "text" }',
+    fields: ["color", "radius", "x", "y", "opacity", "kind"],
+    example: 'const shadow: WidgetShadow = { kind: "text", color: "#000000", radius: 2, y: 1 }',
+    status: "implemented",
+    notes: ["Shadow is rendered by the native host outside the rounded surface and is not clipped by WidgetStyle.radius."]
+  },
+  {
     name: "WidgetStyle",
     kind: "style",
     summary: "Serializable native layout, typography, color, surface, and overflow styling",
     importPath: SDK_PACKAGE,
-    signature: "interface WidgetStyle { width?: WidgetLength; height?: WidgetLength; minWidth?: WidgetLength; maxWidth?: WidgetLength; minHeight?: WidgetLength; maxHeight?: WidgetLength; aspectRatio?: number; padding?: WidgetSpacing; margin?: WidgetSpacing; gap?: number; alignItems?: WidgetAlignment; justifyContent?: WidgetAlignment; alignSelf?: WidgetAlignment; flexGrow?: number; flexShrink?: number; flexBasis?: WidgetLength; flexWrap?: 'nowrap' | 'wrap'; radius?: number | WidgetCornerRadii; shadow?: WidgetShadow; shadows?: WidgetShadow[]; font?: WidgetFont; overflow?: 'visible' | 'hidden' | 'clip'; interaction?: WidgetInteractionStyle; ... }",
-    fields: ["width", "height", "minWidth", "maxWidth", "minHeight", "maxHeight", "aspectRatio", "color", "backgroundColor", "opacity", "padding", "margin", "gap", "alignItems", "justifyContent", "alignSelf", "flexGrow", "flexShrink", "flexBasis", "flexWrap", "radius", "border", "shadow", "shadows", "font", "overflow", "interaction", "tokens"],
+    signature: "interface WidgetStyle { width?: WidgetLength; height?: WidgetLength; minWidth?: WidgetLength; maxWidth?: WidgetLength; minHeight?: WidgetLength; maxHeight?: WidgetLength; aspectRatio?: number; padding?: WidgetSpacing; margin?: WidgetSpacing; gap?: number; alignItems?: WidgetAlignment; justifyContent?: WidgetAlignment; alignSelf?: WidgetAlignment; flexGrow?: number; flexShrink?: number; flexBasis?: WidgetLength; flexWrap?: 'nowrap' | 'wrap'; radius?: number | WidgetCornerRadii; shadow?: WidgetShadow; shadows?: WidgetShadow[]; font?: WidgetFont; overflow?: 'visible' | 'hidden' | 'clip'; interaction?: WidgetInteractionStyle; material?: WidgetMaterial; role?: WidgetSemanticRole; density?: WidgetDensity; tokens?: WidgetStyleToken[] }",
+    fields: ["width", "height", "minWidth", "maxWidth", "minHeight", "maxHeight", "aspectRatio", "color", "backgroundColor", "opacity", "padding", "margin", "gap", "alignItems", "justifyContent", "alignSelf", "flexGrow", "flexShrink", "flexBasis", "flexWrap", "radius", "border", "shadow", "shadows", "font", "overflow", "interaction", "material", "role", "density", "tokens"],
     example: 'Text("CPU", { width: { unit: "percent", value: 50 }, padding: { horizontal: 12, vertical: 8 }, font: { size: 14, weight: "semibold", tabularNumbers: true } })',
     status: "implemented",
     notes: [
@@ -530,17 +736,6 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     notes: ["A numeric WidgetStyle radius remains the compatible uniform shorthand."]
   },
   {
-    name: "WidgetShadow",
-    kind: "type",
-    summary: "Serializable outset, inset, or text shadow",
-    importPath: SDK_PACKAGE,
-    signature: 'interface WidgetShadow { color?: string; radius?: number; x?: number; y?: number; opacity?: number; kind?: "outset" | "inset" | "text" }',
-    fields: ["color", "radius", "x", "y", "opacity", "kind"],
-    example: 'const shadow: WidgetShadow = { kind: "text", color: "#000000", radius: 2, y: 1 }',
-    status: "implemented",
-    notes: ["WidgetStyle shadow remains the compatible single-shadow field; shadows preserves ordered multiple shadows."]
-  },
-  {
     name: "WidgetFont",
     kind: "type",
     summary: "Native font, line layout, numeral, and truncation styling",
@@ -563,6 +758,31 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     notes: ["The native renderer resolves appearance states without a Widget JavaScript round trip.", "Interactive state is inherited by descendant Text and Icon nodes so a pressed button can restyle its content."]
   },
   {
+    name: "WidgetThemeConfig",
+    kind: "type",
+    summary: "Declared default and user-selectable Render theme variants",
+    importPath: SDK_PACKAGE,
+    signature: 'interface WidgetThemeConfig { default: "dark-glass" | "light" | "monochrome" | "retro"; options?: WidgetThemeName[] }',
+    fields: ["default", "options"],
+    example: 'theme: { default: "dark-glass", options: ["dark-glass", "light", "monochrome"] }',
+    status: "implemented",
+    notes: [
+      "The host persists a user-selected theme locally; source declares the available variants and default only.",
+      "A selected runtime theme applies its palette, typography, geometry, borders, surfaces, and texture across the Widget; semantic SDK tokens continue resolving through that theme.",
+      "Retro means Vaporwave/Outrun: purple void and surfaces, chrome text, hot magenta and electric cyan accents, monospace terminal typography, angular geometry, colored glow, and subtle CRT scanlines."
+    ]
+  },
+  {
+    name: "WidgetThemeName",
+    kind: "type",
+    summary: "Supported Render semantic theme names",
+    importPath: SDK_PACKAGE,
+    signature: 'type WidgetThemeName = "dark-glass" | "light" | "monochrome" | "retro"',
+    fields: ["dark-glass", "light", "monochrome", "retro"],
+    example: 'const theme: WidgetThemeName = "dark-glass"',
+    status: "implemented"
+  },
+  {
     name: "WidgetAction",
     kind: "type",
     summary: "Serializable explicit operation attached to an interactive primitive",
@@ -578,11 +798,53 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     kind: "type",
     summary: "Supported host action names for the active SDK version",
     importPath: SDK_PACKAGE,
-    signature: 'type WidgetActionName = "widget.refresh" | "widget.reload" | "spotify.play" | "spotify.pause" | "spotify.next" | "spotify.previous" | "spotify.set-volume"',
-    fields: ["widget.refresh", "widget.reload", "spotify.play", "spotify.pause", "spotify.next", "spotify.previous", "spotify.set-volume"],
+    signature: 'type WidgetActionName = "widget.refresh" | "widget.reload" | "spotify.play" | "spotify.pause" | "spotify.next" | "spotify.previous" | "spotify.set-volume" | "reminders.create" | "reminders.update" | "reminders.complete" | "reminders.delete"',
+    fields: ["widget.refresh", "widget.reload", "spotify.play", "spotify.pause", "spotify.next", "spotify.previous", "spotify.set-volume", "reminders.create", "reminders.update", "reminders.complete", "reminders.delete"],
     example: 'const action: WidgetActionName = "widget.refresh"',
     status: "implemented",
-    notes: ["Spotify action names are contract-only until the host connector and permission UI are implemented.", "Actions are descriptors and never executable callbacks."]
+    notes: ["Actions are descriptors and never executable callbacks.", "Connector actions require the matching manifest account requirement and host permission."]
+  },
+  {
+    name: "ReminderCreateActionPayload",
+    kind: "type",
+    summary: "Typed payload for creating a macOS Reminder",
+    importPath: SDK_PACKAGE,
+    signature: "interface ReminderCreateActionPayload { title: string; listName?: string; dueDate?: string }",
+    fields: ["title: string", "listName?: string", "dueDate?: string"],
+    example: 'const payload: ReminderCreateActionPayload = { title: "Review notes" }',
+    status: "implemented",
+    notes: ["dueDate is an ISO date-time string when supplied."]
+  },
+  {
+    name: "ReminderUpdateActionPayload",
+    kind: "type",
+    summary: "Typed payload for editing a macOS Reminder",
+    importPath: SDK_PACKAGE,
+    signature: "interface ReminderUpdateActionPayload { id: string; title?: string; dueDate?: string | null; completed?: boolean }",
+    fields: ["id: string", "title?: string", "dueDate?: string | null", "completed?: boolean"],
+    example: 'const payload: ReminderUpdateActionPayload = { id: reminderId, completed: true }',
+    status: "implemented"
+  },
+  {
+    name: "ReminderCompleteActionPayload",
+    kind: "type",
+    summary: "Typed payload for completing or reopening a macOS Reminder",
+    importPath: SDK_PACKAGE,
+    signature: "interface ReminderCompleteActionPayload { id: string; completed?: boolean }",
+    fields: ["id: string", "completed?: boolean"],
+    example: 'const payload: ReminderCompleteActionPayload = { id: reminderId }',
+    status: "implemented",
+    notes: ["completed defaults to true in the native host."]
+  },
+  {
+    name: "ReminderDeleteActionPayload",
+    kind: "type",
+    summary: "Typed payload for deleting a macOS Reminder",
+    importPath: SDK_PACKAGE,
+    signature: "interface ReminderDeleteActionPayload { id: string }",
+    fields: ["id: string"],
+    example: 'const payload: ReminderDeleteActionPayload = { id: reminderId }',
+    status: "implemented"
   },
   {
     name: "ImageSource",
@@ -657,7 +919,7 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     importPath: SDK_PACKAGE,
     signature: "interface WidgetNode { kind: WidgetNodeKind; children?: WidgetNode[]; style?: WidgetStyle; ... }",
     fields: [
-      'kind: "column" | "row" | "stack" | "box" | "spacer" | "divider" | "text" | "textField" | "textArea" | "toggle" | "shape" | "icon" | "image" | "button" | "slider" | "countdown" | "gauge" | "progress" | "grid" | "gradient" | "texture" | "clip" | "transform" | "segmentedProgress" | "spectrum"',
+      'kind: "column" | "row" | "stack" | "box" | "glassPanel" | "mediaCard" | "scrollView" | "spacer" | "divider" | "text" | "textField" | "textArea" | "textEditor" | "dateTime" | "dateTimePicker" | "toggle" | "timer" | "countdown" | "taskList" | "list" | "visualizer" | "youtubePlayer" | "shape" | "icon" | "image" | "button" | "slider" | "gauge" | "progress" | "segmentedProgress" | "spectrum" | "grid" | "gradient" | "texture" | "clip" | "transform"',
       "children?: WidgetNode[]",
       "text?: string",
       "provider?: string",
@@ -678,7 +940,20 @@ const SDK_CATALOG: SdkCatalogItem[] = [
       "action?: WidgetAction",
       "disabled?: boolean",
       "columns?: number",
-      "state?: WidgetStateReference"
+      "state?: WidgetStateReference",
+      "durationSeconds?: number",
+      "tasks?: WidgetTaskItem[]",
+      "items?: WidgetListItem[]",
+      "videoId?: string",
+      "allowLinkInput?: boolean",
+      "autoplay?: boolean",
+      "controls?: boolean",
+      "startSeconds?: number",
+      "placeholder?: string",
+      "dateTime?: string",
+      'dateTimeMode?: "date" | "time" | "dateTime"',
+      'visualizerMode?: "bars" | "waveform" | "rings"',
+      "visualizerTempo?: number"
     ],
     example: 'Column([Text("CPU")])',
     status: "implemented",
@@ -689,7 +964,7 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     kind: "type",
     summary: "Allowed discriminators for declarative widget nodes",
     importPath: SDK_PACKAGE,
-    signature: 'type WidgetNodeKind = "column" | "row" | "stack" | "box" | "spacer" | "divider" | "text" | "textField" | "textArea" | "toggle" | "shape" | "icon" | "image" | "button" | "slider" | "countdown" | "gauge" | "progress" | "grid" | "gradient" | "texture" | "clip" | "transform" | "segmentedProgress" | "spectrum"',
+    signature: 'type WidgetNodeKind = "column" | "row" | "stack" | "box" | "glassPanel" | "mediaCard" | "scrollView" | "spacer" | "divider" | "text" | "textField" | "textArea" | "textEditor" | "dateTime" | "dateTimePicker" | "toggle" | "timer" | "countdown" | "taskList" | "list" | "visualizer" | "youtubePlayer" | "shape" | "icon" | "image" | "button" | "slider" | "gauge" | "progress" | "segmentedProgress" | "spectrum" | "grid" | "gradient" | "texture" | "clip" | "transform"',
     example: 'const kind: WidgetNodeKind = "box"',
     status: "implemented"
   },
@@ -707,14 +982,110 @@ const SDK_CATALOG: SdkCatalogItem[] = [
       "resizable?: boolean",
       'windowShape?: "rectangle" | "circle"',
       'anchor: { corner: "top-left" | "top-right" | "bottom-left" | "bottom-right"; offset: { x: number; y: number } }',
+      "adjustable?: WidgetAdjustable",
       'capabilities: Array<"network" | "filesystem.read" | "filesystem.write">',
       "subscribe: string[]",
       "assets?: string[]",
       "fonts?: Array<{ asset: string; family?: string }>",
-      "accounts?: WidgetAccountRequirement[]"
+      "accounts?: WidgetAccountRequirement[]",
+      "theme?: WidgetThemeConfig"
     ],
     example: 'widget({ "schemaVersion": 1, "name": "Example", "sdkVersion": "0.1.0", "size": { "width": 320, "height": 180 }, "anchor": { "corner": "top-left", "offset": { "x": 24, "y": 24 } }, "capabilities": [], "subscribe": [], "accounts": [] }, render)',
     notes: ["Keep manifest keys quoted so render check can provide source-oriented diagnostics."]
+  },
+  {
+    name: "WidgetSize",
+    kind: "type",
+    summary: "Width and height in native points",
+    importPath: SDK_PACKAGE,
+    signature: "interface WidgetSize { width: number; height: number }",
+    fields: ["width", "height"],
+    example: "const size: WidgetSize = { width: 280, height: 300 }",
+    status: "implemented"
+  },
+  {
+    name: "WidgetResponsiveMode",
+    kind: "type",
+    summary: "Minimum dimensions for one responsive widget mode",
+    importPath: SDK_PACKAGE,
+    signature: "interface WidgetResponsiveMode { minWidth: number; minHeight: number }",
+    fields: ["minWidth", "minHeight"],
+    example: "const compact: WidgetResponsiveMode = { minWidth: 180, minHeight: 180 }",
+    status: "implemented"
+  },
+  {
+    name: "WidgetResponsive",
+    kind: "type",
+    summary: "Declared responsive modes and default mode",
+    importPath: SDK_PACKAGE,
+    signature: "interface WidgetResponsive { modes: Record<string, WidgetResponsiveMode>; default: string }",
+    fields: ["modes", "default"],
+    example: 'const responsive: WidgetResponsive = { modes: { compact: { minWidth: 180, minHeight: 180 } }, default: "compact" }',
+    status: "implemented"
+  },
+  {
+    name: "WidgetAdjustable",
+    kind: "type",
+    summary: "Widget-level live resizing and responsive layout contract",
+    importPath: SDK_PACKAGE,
+    signature: "interface WidgetAdjustable { enabled: boolean; minSize?: WidgetSize; maxSize?: WidgetSize; responsive?: WidgetResponsive }",
+    fields: ["enabled", "minSize", "maxSize", "responsive"],
+    example: 'const adjustable: WidgetAdjustable = { enabled: true, minSize: { width: 180, height: 180 } }',
+    status: "implemented",
+    notes: ["The native host owns resize handles, persistence, lock state, and Settings controls."]
+  },
+  {
+    name: "WidgetRenderContext",
+    kind: "type",
+    summary: "Host-provided responsive mode and current size during rendering",
+    importPath: SDK_PACKAGE,
+    signature: "interface WidgetRenderContext { mode: string; size?: WidgetSize }",
+    fields: ["mode", "size"],
+    example: 'const render = ({ mode }: WidgetRenderContext) => mode === "compact" ? compactLayout() : regularLayout()',
+    status: "implemented"
+  },
+  {
+    name: "WidgetTaskItem",
+    kind: "type",
+    summary: "Portable default task row consumed by the host-owned task list",
+    importPath: SDK_PACKAGE,
+    signature: "interface WidgetTaskItem { id: string; text: string; completed?: boolean }",
+    fields: ["id", "text", "completed"],
+    example: 'const task: WidgetTaskItem = { id: "read", text: "Read chapter 3" }',
+    status: "implemented",
+    notes: ["TaskList owns editing, completion, adding, and persistence; widget source supplies defaults."]
+  },
+  {
+    name: "WidgetListItem",
+    kind: "type",
+    summary: "Portable row shape for the generic native List primitive",
+    importPath: SDK_PACKAGE,
+    signature: "interface WidgetListItem { id: string; title: string; subtitle?: string; completed?: boolean }",
+    fields: ["id", "title", "subtitle", "completed"],
+    example: 'const row: WidgetListItem = { id: "read", title: "Read chapter 3", subtitle: "Today" }',
+    status: "implemented",
+    notes: ["The same shape is used by structured provider values such as reminders.items."]
+  },
+  {
+    name: "YouTubePlayerProps",
+    kind: "type",
+    summary: "Configuration for the native YouTubePlayer primitive",
+    importPath: SDK_PACKAGE,
+    signature: "interface YouTubePlayerProps { videoId?: string; allowLinkInput?: boolean; autoplay?: boolean; controls?: boolean; startSeconds?: number; style?: WidgetStyle }",
+    fields: ["videoId", "allowLinkInput", "autoplay", "controls", "startSeconds", "style"],
+    example: 'const player: YouTubePlayerProps = { videoId: "M7lc1UVf-VE", allowLinkInput: true, controls: true }',
+    status: "implemented",
+    notes: ["Use an 11-character YouTube video ID as the source default, or set allowLinkInput to let the user paste a youtube.com or youtu.be link. Arbitrary URLs and HTML snippets are rejected.", "The native host owns link editing, media sizing, rounded clipping, glass material, border, and shadow behavior."]
+  },
+  {
+    name: "WidgetDateTimeMode",
+    kind: "type",
+    summary: "Display components supported by date/time primitives",
+    importPath: SDK_PACKAGE,
+    signature: 'type WidgetDateTimeMode = "date" | "time" | "dateTime"',
+    fields: ["date", "time", "dateTime"],
+    example: 'const mode: WidgetDateTimeMode = "dateTime"',
+    status: "implemented"
   },
   {
     name: "WidgetAccountRequirement",
@@ -772,12 +1143,23 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     notes: ["Render owns OAuth, secure credential storage, refresh, and API calls.", "Raw tokens never enter widget.tsx, the worker, the declarative tree, or logs.", "Playback controls require Spotify Premium according to the provider API; unavailable states are explicit."]
   },
   {
+    name: "reminders",
+    kind: "connector",
+    summary: "Trusted macOS EventKit connector for reading and editing Reminders",
+    importPath: SDK_PACKAGE,
+    signature: 'accounts: [{ connector: "reminders", scopes: ["reminders.read", "reminders.write"] }]',
+    inputs: ["reminders.read", "reminders.write"],
+    example: '"accounts": [{ "connector": "reminders", "scopes": ["reminders.read", "reminders.write"] }]',
+    status: "implemented",
+    notes: ["Render requests native macOS Reminders permission only when the widget declares and uses this connector.", "The connector keeps EventKit objects and identifiers in the host; widgets receive redacted provider values and pass opaque ids back in explicit actions."]
+  },
+  {
     name: "WidgetDefinition",
     kind: "type",
     summary: "Serializable widget manifest and render function pair",
     importPath: SDK_PACKAGE,
-    signature: "interface WidgetDefinition { manifest: WidgetManifest; render: () => WidgetNode }",
-    fields: ["manifest: WidgetManifest", "render: () => WidgetNode"],
+    signature: "interface WidgetDefinition { manifest: WidgetManifest; render: (context?: WidgetRenderContext) => WidgetNode }",
+    fields: ["manifest: WidgetManifest", "render: (context?: WidgetRenderContext) => WidgetNode"],
     example: 'const definition: WidgetDefinition = widget(manifest, render)'
   },
   {
@@ -948,6 +1330,61 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     example: 'Progress(useProvider("spotify.playback.volume"), 100)',
     status: "implemented",
     notes: ['Declare "spotify.playback.volume" in the widget manifest subscribe array.', "The value is between 0 and 100 when the provider returns it."]
+  },
+  {
+    name: "reminders.account",
+    kind: "provider",
+    summary: "Redacted macOS Reminders permission state",
+    importPath: SDK_PACKAGE,
+    value: "string | loading | unavailable",
+    signature: 'useProvider("reminders.account"): ProviderBinding',
+    example: 'Text(useProvider("reminders.account"))',
+    status: "implemented",
+    notes: ['Declare "reminders.account" in the widget manifest subscribe array.', "The value never contains reminder data or EventKit objects."]
+  },
+  {
+    name: "reminders.items",
+    kind: "provider",
+    summary: "Structured macOS Reminders rows for the generic List primitive",
+    importPath: SDK_PACKAGE,
+    value: "Array<{ id: string; title: string; subtitle?: string; completed: boolean }> | loading | unavailable",
+    signature: 'useProvider("reminders.items"): ProviderBinding',
+    example: 'List(useProvider("reminders.items"))',
+    status: "implemented",
+    notes: ['Declare "reminders.items" in the widget manifest subscribe array.', "The provider never exposes EventKit objects; rows contain opaque IDs and display fields.", "Use reminders.read; dynamic row actions are not part of this slice yet."]
+  },
+  {
+    name: "reminders.incompleteCount",
+    kind: "provider",
+    summary: "Count of incomplete macOS Reminders visible to the host",
+    importPath: SDK_PACKAGE,
+    value: "number | loading | unavailable",
+    signature: 'useProvider("reminders.incompleteCount"): ProviderBinding',
+    example: 'Text(useProvider("reminders.incompleteCount"))',
+    status: "implemented",
+    notes: ['Declare "reminders.incompleteCount" in the widget manifest subscribe array.', "The count is explicit unavailable when macOS permission is denied."]
+  },
+  {
+    name: "reminders.next.title",
+    kind: "provider",
+    summary: "Title of the first incomplete macOS Reminder sorted by due date",
+    importPath: SDK_PACKAGE,
+    value: "string | loading | unavailable",
+    signature: 'useProvider("reminders.next.title"): ProviderBinding',
+    example: 'Text(useProvider("reminders.next.title"))',
+    status: "implemented",
+    notes: ['Declare "reminders.next.title" in the widget manifest subscribe array.', "The provider is unavailable when there is no incomplete reminder, rather than inventing a placeholder item."]
+  },
+  {
+    name: "reminders.next.dueDate",
+    kind: "provider",
+    summary: "ISO due date for the first incomplete macOS Reminder when one exists",
+    importPath: SDK_PACKAGE,
+    value: "string | loading | unavailable",
+    signature: 'useProvider("reminders.next.dueDate"): ProviderBinding',
+    example: 'Text(useProvider("reminders.next.dueDate"))',
+    status: "implemented",
+    notes: ['Declare "reminders.next.dueDate" in the widget manifest subscribe array.', "Reminders without a due date report an explicit unavailable value."]
   },
   {
     name: "network",

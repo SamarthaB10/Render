@@ -9,17 +9,24 @@ enum WidgetWindowShape: String, Codable {
 final class DesktopWidgetPanel: NSPanel {
     let windowShape: WidgetWindowShape
     let supportsResizing: Bool
+    private let defaultContentSize: NSSize
+    private let manifestResizable: Bool
 
     init(
         contentRect: NSRect,
         policy: DesktopWindowPolicy,
         resizable: Bool = true,
-        windowShape: WidgetWindowShape = .rectangle
+        windowShape: WidgetWindowShape = .rectangle,
+        adjustable: RuntimeManifest.Adjustable? = nil,
+        preferences: WidgetPreferences = .defaults
     ) {
         self.windowShape = windowShape
-        self.supportsResizing = resizable
+        self.manifestResizable = resizable
+        self.defaultContentSize = contentRect.size
+        let isAdjustable = adjustable?.enabled ?? resizable
+        self.supportsResizing = isAdjustable
         var styleMask: NSWindow.StyleMask = [.borderless, .nonactivatingPanel]
-        if resizable && windowShape == .rectangle {
+        if isAdjustable && windowShape == .rectangle {
             styleMask.insert(.resizable)
         }
         let initialRect: NSRect
@@ -45,6 +52,7 @@ final class DesktopWidgetPanel: NSPanel {
         level = NSWindow.Level(rawValue: DesktopWindowLevel.interactive)
         collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary]
         isReleasedWhenClosed = false
+        apply(preferences: preferences, adjustable: adjustable)
     }
 
     override var canBecomeKey: Bool { true }
@@ -58,6 +66,32 @@ final class DesktopWidgetPanel: NSPanel {
         setContentSize(NSSize(width: side, height: side))
     }
 
+    func apply(preferences: WidgetPreferences, adjustable: RuntimeManifest.Adjustable?) {
+        if let minSize = adjustable?.minSize {
+            self.minSize = NSSize(width: minSize.width, height: minSize.height)
+        }
+        if let maxSize = adjustable?.maxSize {
+            self.maxSize = NSSize(width: maxSize.width, height: maxSize.height)
+        }
+        isMovable = !preferences.locked
+        isMovableByWindowBackground = !preferences.locked
+        if preferences.locked {
+            styleMask.remove(.resizable)
+        } else if adjustable?.enabled ?? manifestResizable {
+            styleMask.insert(.resizable)
+        }
+        let width = preferences.width ?? defaultContentSize.width
+        let height = preferences.height ?? defaultContentSize.height
+        setContentSize(NSSize(width: width, height: height))
+        normalizeWindowShape()
+    }
+
+    func move(to candidateOrigin: NSPoint) {
+        let targetScreen = screen(containing: candidateOrigin) ?? NSScreen.main ?? NSScreen.screens.first
+        guard let targetScreen else { return }
+        setFrameOrigin(clampedOrigin(candidateOrigin, to: targetScreen.visibleFrame))
+    }
+
     func resizeFrame(
         _ candidate: NSRect,
         preservingRightEdge: Bool = false,
@@ -67,11 +101,13 @@ final class DesktopWidgetPanel: NSPanel {
         let candidateMaxX = candidate.maxX
         let candidateMaxY = candidate.maxY
         if windowShape == .circle {
-            let side = max(max(candidate.width, candidate.height), 1)
+            let minimumSide = max(minSize.width, minSize.height)
+            let maximumSide = min(maxSize.width, maxSize.height)
+            let side = min(max(max(next.width, next.height), minimumSide), maximumSide)
             next.size = NSSize(width: side, height: side)
         } else {
-            next.size.width = max(next.width, 1)
-            next.size.height = max(next.height, 1)
+            next.size.width = min(max(next.width, minSize.width), maxSize.width)
+            next.size.height = min(max(next.height, minSize.height), maxSize.height)
         }
         if preservingRightEdge {
             next.origin.x = candidateMaxX - next.width
@@ -85,10 +121,11 @@ final class DesktopWidgetPanel: NSPanel {
         setFrame(next, display: true)
     }
 
-    func move(to candidateOrigin: NSPoint) {
-        let targetScreen = screen(containing: candidateOrigin) ?? NSScreen.main ?? NSScreen.screens.first
-        guard let targetScreen else { return }
-        setFrameOrigin(clampedOrigin(candidateOrigin, to: targetScreen.visibleFrame))
+    func clampToVisibleDisplay() {
+        guard let screen = screen(for: frame) else { return }
+        let origin = clampedOrigin(frame.origin, to: screen.visibleFrame, size: frame.size)
+        guard origin != frame.origin else { return }
+        setFrameOrigin(origin)
     }
 
     func placeOnPrimaryDisplay(
@@ -166,9 +203,6 @@ final class DesktopWidgetPanel: NSPanel {
 
     private func clampedOrigin(_ origin: NSPoint, to visibleFrame: NSRect, size: NSSize? = nil) -> NSPoint {
         let size = size ?? frame.size
-        return NSPoint(
-            x: min(max(origin.x, visibleFrame.minX), max(visibleFrame.minX, visibleFrame.maxX - size.width)),
-            y: min(max(origin.y, visibleFrame.minY), max(visibleFrame.minY, visibleFrame.maxY - size.height))
-        )
+        return WidgetFrameGeometry.clampedOrigin(origin: origin, size: size, visibleFrame: visibleFrame)
     }
 }
