@@ -12,6 +12,7 @@ export type WidgetNodeKind =
   | "icon"
   | "image"
   | "button"
+  | "slider"
   | "gauge"
   | "progress"
   | "grid"
@@ -27,9 +28,16 @@ export type { SdkCatalogItem, SdkCatalogKind } from "./catalog.ts";
 export { RENDER_WORKER_PROTOCOL_VERSION } from "./worker-protocol.ts";
 export type { WorkerDiagnostic, WorkerMessage, WorkerMessageKind } from "./worker-protocol.ts";
 export { Fragment, jsx, jsxs } from "./jsx-runtime.ts";
+export { SDK_ICON_NAMES, canonicalIconName } from "./icon-catalog.ts";
+export type { SdkIconName } from "./icon-catalog.ts";
 export type { WidgetComponent, WidgetElementType } from "./jsx-runtime.ts";
 
-export type WidgetLength = number | "fill" | "fit";
+export interface WidgetRelativeLength {
+  unit: "percent" | "fraction";
+  value: number;
+}
+
+export type WidgetLength = number | "fill" | "fit" | "auto" | WidgetRelativeLength;
 export type WidgetSpacing = number | WidgetInsets;
 export type WidgetAlignment =
   | "leading"
@@ -78,17 +86,35 @@ export interface ProviderValue {
 }
 
 export interface WidgetInsets {
+  horizontal?: number;
+  vertical?: number;
   top?: number;
   right?: number;
   bottom?: number;
   left?: number;
 }
 
+export interface WidgetCornerRadii {
+  topLeft?: number;
+  topRight?: number;
+  bottomRight?: number;
+  bottomLeft?: number;
+}
+
+export type WidgetTextAlignment = "leading" | "center" | "trailing" | "justified";
+export type WidgetTextTruncation = "head" | "middle" | "tail" | "clip";
+
 export interface WidgetFont {
   family?: string;
   size?: number;
   weight?: WidgetFontWeight;
   monospace?: boolean;
+  leading?: number;
+  tracking?: number;
+  alignment?: WidgetTextAlignment;
+  lineLimit?: number;
+  tabularNumbers?: boolean;
+  truncation?: WidgetTextTruncation;
 }
 
 export interface WidgetBorder {
@@ -103,11 +129,36 @@ export interface WidgetShadow {
   x?: number;
   y?: number;
   opacity?: number;
+  kind?: "outset" | "inset" | "text";
+}
+
+export type WidgetCursor = "default" | "pointer" | "text" | "crosshair" | "move" | "not-allowed";
+
+export interface WidgetInteractionAppearance {
+  color?: string;
+  backgroundColor?: string;
+  opacity?: number;
+  borderColor?: string;
+  shadow?: WidgetShadow;
+  scale?: number;
+}
+
+export interface WidgetInteractionStyle {
+  cursor?: WidgetCursor;
+  hover?: WidgetInteractionAppearance;
+  pressed?: WidgetInteractionAppearance;
+  focus?: WidgetInteractionAppearance;
+  disabled?: WidgetInteractionAppearance;
 }
 
 export interface WidgetStyle {
   width?: WidgetLength;
   height?: WidgetLength;
+  minWidth?: WidgetLength;
+  maxWidth?: WidgetLength;
+  minHeight?: WidgetLength;
+  maxHeight?: WidgetLength;
+  aspectRatio?: number;
   color?: string;
   backgroundColor?: string;
   opacity?: number;
@@ -116,10 +167,18 @@ export interface WidgetStyle {
   gap?: number;
   alignItems?: WidgetAlignment;
   justifyContent?: WidgetAlignment;
-  radius?: number;
+  alignSelf?: WidgetAlignment;
+  flexGrow?: number;
+  flexShrink?: number;
+  flexBasis?: WidgetLength;
+  flexWrap?: "nowrap" | "wrap";
+  radius?: number | WidgetCornerRadii;
   border?: WidgetBorder;
   shadow?: WidgetShadow;
+  shadows?: WidgetShadow[];
   font?: WidgetFont;
+  overflow?: "visible" | "hidden" | "clip";
+  interaction?: WidgetInteractionStyle;
   tokens?: WidgetStyleToken[];
 }
 
@@ -209,7 +268,9 @@ export interface WidgetNode {
   provider?: string;
   style?: WidgetStyle;
   value?: number;
+  minimum?: number;
   maximum?: number;
+  step?: number;
   orientation?: "horizontal" | "vertical";
   name?: string;
   source?: ImageSource | WidgetTextureSource;
@@ -220,6 +281,7 @@ export interface WidgetNode {
   values?: number[];
   animation?: WidgetAnimation;
   action?: WidgetAction;
+  disabled?: boolean;
   columns?: number;
   state?: WidgetStateReference;
 }
@@ -240,10 +302,12 @@ export interface TextProps extends WidgetComponentProps {
 
 export interface TextFieldProps extends WidgetComponentProps {
   text?: string | WidgetStateBinding<string>;
+  disabled?: boolean;
 }
 
 export interface ToggleProps extends WidgetComponentProps {
   checked?: boolean | WidgetStateBinding<boolean>;
+  disabled?: boolean;
 }
 
 export interface ShapeProps extends WidgetComponentProps {}
@@ -277,6 +341,15 @@ export interface ImageProps extends WidgetComponentProps {
 export interface ButtonProps extends WidgetComponentProps {
   label?: string | WidgetNode;
   action?: WidgetAction;
+  disabled?: boolean;
+}
+
+export interface SliderProps extends WidgetComponentProps {
+  value: number | WidgetStateBinding<number>;
+  minimum?: number;
+  maximum?: number;
+  step?: number;
+  disabled?: boolean;
 }
 
 export interface ProgressProps extends WidgetComponentProps {
@@ -332,7 +405,13 @@ export interface WidgetManifest {
   capabilities: WidgetCapability[];
   subscribe: string[];
   assets?: string[];
+  fonts?: WidgetFontAsset[];
   accounts?: WidgetAccountRequirement[];
+}
+
+export interface WidgetFontAsset {
+  asset: string;
+  family?: string;
 }
 
 export interface WidgetDefinition {
@@ -442,9 +521,18 @@ export function TextField(input: string | WidgetStateBinding<string> | TextField
   if (isProps(input)) {
     const props = input as TextFieldProps;
     if (isStateBinding(props.text)) {
-      return nodeWithOptionalStyle({ kind: "textField", text: "", state: stateReference(props.text) }, props.style);
+      return nodeWithOptionalStyle({
+        kind: "textField",
+        text: "",
+        state: stateReference(props.text),
+        ...(props.disabled === undefined ? {} : { disabled: props.disabled })
+      }, props.style);
     }
-    return nodeWithOptionalStyle({ kind: "textField", text: String(props.text ?? firstChild(props.children) ?? "") }, props.style);
+    return nodeWithOptionalStyle({
+      kind: "textField",
+      text: String(props.text ?? firstChild(props.children) ?? ""),
+      ...(props.disabled === undefined ? {} : { disabled: props.disabled })
+    }, props.style);
   }
   return nodeWithOptionalStyle({ kind: "textField", text: input as string }, style);
 }
@@ -458,9 +546,18 @@ export function Toggle(input: boolean | WidgetStateBinding<boolean> | ToggleProp
   if (isProps(input)) {
     const props = input as ToggleProps;
     if (isStateBinding(props.checked)) {
-      return nodeWithOptionalStyle({ kind: "toggle", value: 0, state: stateReference(props.checked) }, props.style);
+      return nodeWithOptionalStyle({
+        kind: "toggle",
+        value: 0,
+        state: stateReference(props.checked),
+        ...(props.disabled === undefined ? {} : { disabled: props.disabled })
+      }, props.style);
     }
-    return nodeWithOptionalStyle({ kind: "toggle", value: props.checked === true ? 1 : 0 }, props.style);
+    return nodeWithOptionalStyle({
+      kind: "toggle",
+      value: props.checked === true ? 1 : 0,
+      ...(props.disabled === undefined ? {} : { disabled: props.disabled })
+    }, props.style);
   }
   return nodeWithOptionalStyle({ kind: "toggle", value: input ? 1 : 0 }, style);
 }
@@ -511,10 +608,21 @@ export function Button(input: string | WidgetNode | ButtonProps, action?: Widget
     return nodeWithOptionalStyle({
       kind: "button",
       children: childrenFrom(label as WidgetChildren),
-      action: props.action
+      action: props.action,
+      ...(props.disabled === undefined ? {} : { disabled: props.disabled })
     }, props.style);
   }
   return nodeWithOptionalStyle({ kind: "button", children: childrenFrom(input as string), action }, style);
+}
+
+export function Slider(value: number | WidgetStateBinding<number>, maximum?: number, style?: WidgetStyle): WidgetNode;
+export function Slider(props: SliderProps): WidgetNode;
+export function Slider(input: number | WidgetStateBinding<number> | SliderProps, maximum = 100, style?: WidgetStyle): WidgetNode {
+  if (isProps(input) && "value" in input) {
+    const props = input as SliderProps;
+    return sliderNode(props.value, props.minimum ?? 0, props.maximum ?? 100, props.step, props.disabled, props.style);
+  }
+  return sliderNode(input as number | WidgetStateBinding<number>, 0, maximum, undefined, undefined, style);
 }
 
 export function Gauge(value: number | ProviderBinding | WidgetStateBinding<number>, maximum: number, style?: WidgetStyle): WidgetNode;
@@ -645,6 +753,35 @@ function valueNode(kind: "gauge" | "progress", value: number | ProviderBinding |
     : isStateBinding(value)
       ? { kind, value: 0, maximum, state: stateReference(value) }
       : { kind, provider: value.name, maximum };
+  return nodeWithOptionalStyle(node, style);
+}
+
+function sliderNode(
+  value: number | WidgetStateBinding<number>,
+  minimum: number,
+  maximum: number,
+  step: number | undefined,
+  disabled: boolean | undefined,
+  style: WidgetStyle | undefined
+): WidgetNode {
+  const node: WidgetNode = isStateBinding(value)
+    ? {
+        kind: "slider",
+        value: value.initial,
+        minimum,
+        maximum,
+        ...(step === undefined ? {} : { step }),
+        ...(disabled === undefined ? {} : { disabled }),
+        state: stateReference(value)
+      }
+    : {
+        kind: "slider",
+        value,
+        minimum,
+        maximum,
+        ...(step === undefined ? {} : { step }),
+        ...(disabled === undefined ? {} : { disabled })
+      };
   return nodeWithOptionalStyle(node, style);
 }
 

@@ -41,7 +41,7 @@ final class DesktopWidgetPanel: NSPanel {
         hasShadow = false
         ignoresMouseEvents = policy.ignoresMouseEvents
         isMovable = true
-        isMovableByWindowBackground = true
+        isMovableByWindowBackground = false
         level = NSWindow.Level(rawValue: DesktopWindowLevel.interactive)
         collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary]
         isReleasedWhenClosed = false

@@ -35,20 +35,23 @@ Each described item includes its exact `importPath`, TypeScript `signature`, can
 
 If the request needs something missing—such as a provider, action, or connector whose catalog status is `planned` or `contract-only`—report the exact catalog item and status, explain what host contract is absent, and stop that part of the widget. Do not substitute fake data, a browser fallback, a private native API, or an invented Render API. If the supported design needs network, filesystem, app, account, or other machine access, declare the narrowest capability and ask the user for permission before proceeding.
 
-For the Phase 9 surface, the roadmap families are layout, typography/content, visuals, controls/actions, collections/data, and providers/integrations. The shipped first slice is `Box`, `Spacer`, `Divider`, `Icon`, `Image`, `Button`, `TextField`, `Toggle`, `Progress`, `Grid`, `Gradient`, `Texture`, `Clip`, `Transform`, `SegmentedProgress`, `Spectrum`, `Animate`, typed actions/provider states, persistent `useWidgetState`, and the JSX runtime. `TextField` and `Toggle` can write host-owned state when passed a state binding; add/remove collection controls and arbitrary state mutation actions are not yet part of the contract. Treat any item as unavailable until `render sdk list --json` and `render sdk describe ... --json` expose its exact contract and support status.
+For the Phase 9 surface, the roadmap families are layout, typography/content, visuals, controls/actions, collections/data, and providers/integrations. The shipped first slice is `Box`, `Spacer`, `Divider`, `Icon`, `Image`, `Button`, `TextField`, `Toggle`, `Slider`, `Progress`, `Grid`, `Gradient`, `Texture`, `Clip`, `Transform`, `SegmentedProgress`, `Spectrum`, `Animate`, typed actions/provider states, persistent `useWidgetState`, and the JSX runtime. `TextField`, `Toggle`, and `Slider` can write host-owned state when passed a state binding; add/remove collection controls and arbitrary state mutation actions are not yet part of the contract. Treat any item as unavailable until `render sdk list --json` and `render sdk describe ... --json` expose its exact contract and support status.
 
 ### Visual widgets
 
-The visual-shell fixture is a native visual reference, not a Spotify player. Agents may use these implemented visual APIs, but must not substitute CSS, webviews, custom SVG, icon fonts, remote artwork, or fake provider data:
+The visual-shell fixture is a native visual reference, not a Spotify player. Agents may use these implemented visual APIs, but must not substitute CSS, webviews, inline SVG execution, private icon fonts, remote artwork, or fake provider data:
 
 - `Box` + `Gradient` + `Texture({ kind: "builtin", name: "grain" | "grid" })` for a colored native shell.
 - `Image({ kind: "asset", name: "..." })` for a static bundled artwork reference. Spotify artwork retrieval remains a separate provider contract.
 - Declare real workspace files in the manifest `assets` list; built-in grain/grid textures do not need an asset file.
-- `Icon("<cataloged-lucide-or-feather-name>")` for host-resolved icons. Keep the required Lucide/Feather attribution and license notice with redistributed fixtures.
+- Declare each local `.ttf` or `.otf` in both `assets` and `fonts` (for example, `"fonts": [{ "asset": "Display.ttf", "family": "Display" }]`). The native host registers declared fonts before constructing the Widget tree; use the font's declared family in the existing font style.
+- `Icon("<lucide-name>")` for the complete SDK-owned catalog pinned by `lucide-static@1.26.0`; inspect `SDK_ICON_NAMES` or `render sdk describe Icon --json` instead of guessing. Geometry stays identical across macOS releases and unknown host symbols fail `render check`.
+- For custom icon geometry, keep a non-executable SVG under `assets/`, declare it in `manifest.assets`, and render it through `Image({ kind: "asset", name: "custom.svg" }, { tint: "#ffffff" })`. Inline SVG path parsing is not part of the Widget interface.
 - `SegmentedProgress` for bounded discrete progress and `Spectrum` for a finite array of numeric bars.
 - `Animate` for a serializable property transition with explicit duration, easing, and repeat policy; no callbacks or timers.
+- Use `WidgetStyle.interaction` for native cursor, hover, pressed, focus, and disabled appearances. Keep the state declarative; do not emulate controls with timers or hidden actions.
 
-Use [`examples/visual-shell/widget.tsx`](../../examples/visual-shell/widget.tsx) as the reference composition and [`examples/visual-shell/NOTICE.md`](../../examples/visual-shell/NOTICE.md) as the licensing reminder. Verify the exact signatures with `render sdk describe <name> --json`.
+Use [`examples/visual-shell/widget.tsx`](../../examples/visual-shell/widget.tsx) as the basic reference composition and [`examples/weaver-parity/widget.tsx`](../../examples/weaver-parity/widget.tsx) as the richer native UI reference. Preserve the licensing notices in each fixture. Verify the exact signatures with `render sdk describe <name> --json`.
 
 ### Persistent widget-owned state
 
@@ -67,7 +70,7 @@ Column([
 ]);
 ```
 
-The native host restores saved values before rendering and persists edits from bound `TextField` and `Toggle` controls. State is scoped to the widget workspace, accepts only JSON-safe scalar values, and does not require a filesystem capability. If a saved value no longer matches its binding, the host uses the declared initial value so a stale preference cannot prevent relaunch. Use distinct keys for independent values; arbitrary state writes and collection mutation are not yet exposed.
+The native host restores saved values before rendering and persists edits from bound `TextField`, `Toggle`, and `Slider` controls. State is scoped to the widget workspace, accepts only JSON-safe scalar values, and does not require a filesystem capability. If a saved value no longer matches its binding, the host uses the declared initial value so a stale preference cannot prevent relaunch. Use distinct keys for independent values; arbitrary state writes and collection mutation are not yet exposed.
 
 ### 2. Create or identify an isolated workspace
 

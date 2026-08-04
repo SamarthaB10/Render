@@ -14,14 +14,20 @@ private enum WidgetResizeEdge: Equatable {
 final class ResizableWidgetContentView: NSView {
     private weak var panel: DesktopWidgetPanel?
     private let hostedView: NSView
+    private let interactionCoordinator: WidgetInteractionCoordinator
     private let edgeInset: CGFloat = 18
     private var startFrame: NSRect?
     private var startMouseLocation: NSPoint?
     private var activeEdge: WidgetResizeEdge?
 
-    init(hostedView: NSView, panel: DesktopWidgetPanel) {
+    init(
+        hostedView: NSView,
+        panel: DesktopWidgetPanel,
+        interactionCoordinator: WidgetInteractionCoordinator
+    ) {
         self.hostedView = hostedView
         self.panel = panel
+        self.interactionCoordinator = interactionCoordinator
         super.init(frame: .zero)
         wantsLayer = true
         addSubview(hostedView)
@@ -43,7 +49,8 @@ final class ResizableWidgetContentView: NSView {
 
     override func hitTest(_ point: NSPoint) -> NSView? {
         guard containsSurface(point) else { return nil }
-        if let edge = edge(at: point), panel?.supportsResizing == true {
+        if !interactionCoordinator.isPointerOverControl,
+           let edge = edge(at: point), panel?.supportsResizing == true {
             _ = edge
             return self
         }

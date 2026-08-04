@@ -280,7 +280,7 @@ The catalog currently exposes these implemented families:
 - Controls and progress: `Button`, `Gauge`, `Progress`, `SegmentedProgress`, and `Spectrum`.
 - Motion: host-owned declarative `Animate` for bounded opacity, transform, and offset changes.
 - Data and lifecycle: `useProvider`, `useWidgetState`, typed provider states, `widget.refresh`, `widget.reload`, and the worker protocol types.
-- Styles: typed color, sizing, spacing, alignment, radius, border, shadow, font, opacity, and semantic tokens.
+- Styles: typed point/fill/fit/percent/fraction sizing, constraints, spacing, flex descriptors, per-corner radius, ordered shadows, typography, overflow, native interaction states, opacity, and semantic tokens.
 
 The catalog also marks contract-only and planned items. Current limitations are deliberate:
 
@@ -322,7 +322,7 @@ The implemented visual slice is deliberately small and native:
 - `Box` remains the colored shell; `Gradient` supplies a serializable linear gradient and `Texture({ kind: "builtin", name: "grain" | "grid" })` supplies a built-in, host-rendered texture. These are not CSS, image URLs, or web backgrounds.
 - `Image({ kind: "asset", name: "album-art-placeholder.svg" })` is a static bundled asset reference. It is a visual placeholder only; Spotify artwork retrieval and media-specific artwork providers are not part of this fixture.
 - Workspace-backed image files are listed in the manifest's optional `assets` field and are resolved inside the workspace asset directory; built-in grain/grid textures require no file.
-- `Icon("play")`, `Icon("pause")`, and similar names use host-resolved Lucide/Feather-style names for the supported visual subset. Widgets do not bundle icon font files or SVG markup.
+- `Icon("play")`, `Icon("pause")`, and the other names in `SDK_ICON_NAMES` use Render's complete catalog pinned to `lucide-static@1.26.0`; unknown host symbol names fail validation. For custom geometry, declare a local SVG asset and render it through `Image(..., { tint })` rather than embedding executable SVG markup.
 - `SegmentedProgress` renders a bounded progress value as discrete segments, while `Spectrum` accepts a finite array of numeric values for a compact visualizer.
 - `Animate` accepts a serializable property, range, duration, easing, and repeat policy. The host owns the clock; it does not accept callbacks, timers, CSS keyframes, or arbitrary JavaScript.
 

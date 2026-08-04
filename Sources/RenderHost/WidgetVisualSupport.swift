@@ -221,6 +221,51 @@ struct WidgetSegmentedProgress: View {
     }
 }
 
+struct WidgetLinearProgress: View {
+    let value: Double
+    let maximum: Double
+    let color: Color
+
+    var body: some View {
+        GeometryReader { proxy in
+            let progress = min(max(value / maximum, 0), 1)
+            ZStack(alignment: .leading) {
+                Capsule().fill(Color.white.opacity(0.14))
+                Capsule()
+                    .fill(color)
+                    .frame(width: proxy.size.width * CGFloat(progress))
+            }
+        }
+        .frame(minHeight: 6, idealHeight: 8, maxHeight: 12)
+        .accessibilityLabel("Progress")
+        .accessibilityValue("\(Int(value.rounded())) of \(Int(maximum.rounded()))")
+    }
+}
+
+struct WidgetRingGauge: View {
+    let value: Double
+    let maximum: Double
+    let color: Color
+
+    var body: some View {
+        let progress = min(max(value / maximum, 0), 1)
+        ZStack {
+            Circle().stroke(Color.white.opacity(0.14), lineWidth: 6)
+            Circle()
+                .trim(from: 0, to: progress)
+                .stroke(color, style: StrokeStyle(lineWidth: 6, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+            Text("\(Int((progress * 100).rounded()))%")
+                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                .monospacedDigit()
+        }
+        .aspectRatio(1, contentMode: .fit)
+        .frame(minWidth: 36, minHeight: 36)
+        .accessibilityLabel("Gauge")
+        .accessibilityValue("\(Int(value.rounded())) of \(Int(maximum.rounded()))")
+    }
+}
+
 struct WidgetRepeatedImage: View {
     let image: NSImage
     let repeatMode: WidgetImageRepeat

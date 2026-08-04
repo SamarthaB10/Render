@@ -13,6 +13,7 @@ private final class RenderHostDelegate: NSObject, NSApplicationDelegate {
         let policy = DesktopWindowPolicy()
         let workspace = workspaceArgument()
         let manifest = loadManifest(workspace: workspace)
+        WidgetFontRegistrar.register(manifest.fonts, workspace: workspace, declaredAssets: Set(manifest.assets ?? []))
         let spotify = SpotifyConnector()
         let providers = ProviderStore(
             subscriptions: Set(manifest.subscribe),
@@ -25,6 +26,7 @@ private final class RenderHostDelegate: NSObject, NSApplicationDelegate {
             spotify: spotify,
             hasSpotifyAccount: manifest.accounts.contains(where: { $0.connector == SpotifyConnector.connectorID })
         )
+        let interactionCoordinator = WidgetInteractionCoordinator()
         let contentModel = WidgetContentModel(tree: loadTree(workspace: workspace))
         let stateController = workspace.map(WidgetStateController.init)
         self.stateController = stateController
@@ -49,6 +51,7 @@ private final class RenderHostDelegate: NSObject, NSApplicationDelegate {
                     designSize: CGSize(width: manifest.size.width, height: manifest.size.height),
                     windowShape: manifest.windowShape,
                     declaredAssets: manifest.assets.map(Set.init),
+                    interactionCoordinator: interactionCoordinator,
                     onAction: actionDispatcher.dispatch,
                     onStateChange: { [weak stateController] key, value in
                         stateController?.set(key, value: value)
@@ -75,15 +78,23 @@ private final class RenderHostDelegate: NSObject, NSApplicationDelegate {
                 )
             )
         )
+        hostedView.focusRingType = .none
         hostedView.onDrag = { [weak panel] origin in
             panel?.move(to: origin)
+        }
+        hostedView.shouldForwardMouseEvents = { [weak interactionCoordinator] in
+            interactionCoordinator?.isPointerOverControl == true
         }
         hostedView.onDragEnded = { [weak self, weak panel] in
             guard let self, let panel else { return }
             self.savePlacement(workspace: workspace, origin: panel.frame.origin, panel: panel)
         }
         if manifest.resizable || manifest.windowShape == .circle {
-            panel.contentView = ResizableWidgetContentView(hostedView: hostedView, panel: panel)
+            panel.contentView = ResizableWidgetContentView(
+                hostedView: hostedView,
+                panel: panel,
+                interactionCoordinator: interactionCoordinator
+            )
         } else {
             panel.contentView = hostedView
         }
@@ -264,6 +275,7 @@ private struct WidgetTreeContainer: View {
     let designSize: CGSize
     let windowShape: WidgetWindowShape
     let declaredAssets: Set<String>?
+    let interactionCoordinator: WidgetInteractionCoordinator
     let onAction: (WidgetAction) -> Void
     let onStateChange: (String, WidgetJSONValue) -> Void
     let onAuthorize: () -> Void
@@ -284,6 +296,7 @@ private struct WidgetTreeContainer: View {
                     providers: providers,
                     workspace: workspace,
                     declaredAssets: declaredAssets,
+                    interactionCoordinator: interactionCoordinator,
                     onAction: onAction,
                     onStateChange: onStateChange
                 )
@@ -321,10 +334,11 @@ private struct RuntimeManifest: Decodable {
     let subscribe: [String]
     let accounts: [WidgetAccountRequirement]
     let assets: [String]?
+    let fonts: [WidgetFontDeclaration]
     let resizable: Bool
     let windowShape: WidgetWindowShape
 
-    init(name: String, size: Size, anchor: Anchor, capabilities: [String], subscribe: [String], accounts: [WidgetAccountRequirement], assets: [String]? = nil, resizable: Bool = true, windowShape: WidgetWindowShape = .rectangle) {
+    init(name: String, size: Size, anchor: Anchor, capabilities: [String], subscribe: [String], accounts: [WidgetAccountRequirement], assets: [String]? = nil, fonts: [WidgetFontDeclaration] = [], resizable: Bool = true, windowShape: WidgetWindowShape = .rectangle) {
         self.name = name
         self.size = size
         self.anchor = anchor
@@ -332,6 +346,7 @@ private struct RuntimeManifest: Decodable {
         self.subscribe = subscribe
         self.accounts = accounts
         self.assets = assets
+        self.fonts = fonts
         self.resizable = resizable
         self.windowShape = windowShape
     }
@@ -345,6 +360,7 @@ private struct RuntimeManifest: Decodable {
         subscribe = try container.decode([String].self, forKey: .subscribe)
         accounts = try container.decodeIfPresent([WidgetAccountRequirement].self, forKey: .accounts) ?? []
         assets = try container.decodeIfPresent([String].self, forKey: .assets)
+        fonts = try container.decodeIfPresent([WidgetFontDeclaration].self, forKey: .fonts) ?? []
         resizable = try container.decodeIfPresent(Bool.self, forKey: .resizable) ?? true
         windowShape = try container.decodeIfPresent(WidgetWindowShape.self, forKey: .windowShape) ?? .rectangle
     }
@@ -357,6 +373,7 @@ private struct RuntimeManifest: Decodable {
         case subscribe
         case accounts
         case assets
+        case fonts
         case resizable
         case windowShape
     }

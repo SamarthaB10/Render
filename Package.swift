@@ -15,8 +15,8 @@ let package = Package(
         .executableTarget(
             name: "RenderHost",
             dependencies: ["RenderHostCore"],
-            resources: [.copy("LUCIDE-LICENSE.txt")]
+            resources: [.copy("LUCIDE-LICENSE.txt"), .copy("LucideResources")]
         ),
-        .testTarget(name: "RenderHostCoreTests", dependencies: ["RenderHostCore"])
+        .testTarget(name: "RenderHostCoreTests", dependencies: ["RenderHostCore", "RenderHost"])
     ]
 )

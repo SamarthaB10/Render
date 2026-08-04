@@ -67,6 +67,7 @@ test("SDK catalog exposes canonical primitives, providers, styles, and capabilit
     "Spectrum",
     "Animate",
     "Button",
+    "Slider",
     "Gauge",
     "Progress",
     "Grid",
@@ -84,6 +85,12 @@ test("SDK catalog exposes canonical primitives, providers, styles, and capabilit
     "spotify.previous",
     "spotify.set-volume",
     "WidgetStyle",
+    "WidgetLength",
+    "WidgetSpacing",
+    "WidgetCornerRadii",
+    "WidgetShadow",
+    "WidgetFont",
+    "WidgetInteractionStyle",
     "WidgetAction",
     "WidgetActionName",
     "ImageSource",
@@ -123,8 +130,10 @@ test("SDK catalog exposes canonical primitives, providers, styles, and capabilit
   ]);
   assert.equal(catalog.describeSdkCatalog("Text").kind, "primitive");
   assert.deepEqual(catalog.describeSdkCatalog("WidgetStyle").fields, [
-    "width", "height", "color", "backgroundColor", "opacity", "padding", "margin", "gap",
-    "alignItems", "justifyContent", "radius", "border", "shadow", "font", "tokens"
+    "width", "height", "minWidth", "maxWidth", "minHeight", "maxHeight", "aspectRatio",
+    "color", "backgroundColor", "opacity", "padding", "margin", "gap",
+    "alignItems", "justifyContent", "alignSelf", "flexGrow", "flexShrink", "flexBasis", "flexWrap",
+    "radius", "border", "shadow", "shadows", "font", "overflow", "interaction", "tokens"
   ]);
 });
 
@@ -148,6 +157,7 @@ test("SDK catalog gives agents exact contracts and canonical examples", async ()
     'capabilities: Array<"network" | "filesystem.read" | "filesystem.write">',
     "subscribe: string[]",
     "assets?: string[]",
+    "fonts?: Array<{ asset: string; family?: string }>",
     "accounts?: WidgetAccountRequirement[]"
   ]);
   assert.match(catalog.CANONICAL_WIDGET_SOURCE, /from "@render\/sdk"/);
@@ -180,7 +190,7 @@ test("CLI exposes SDK catalog list and describe operations", () => {
 
   assert.equal(listed.ok, true);
   assert.equal(listed.operation, "sdk.list");
-  assert.equal(listed.items.length, 74);
+  assert.equal(listed.items.length, 81);
   assert.equal(listed.sdkVersion, "0.1.0");
   assert.deepEqual(described.item, {
     name: "system.cpu",

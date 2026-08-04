@@ -165,13 +165,13 @@ const SDK_CATALOG: SdkCatalogItem[] = [
   {
     name: "Icon",
     kind: "primitive",
-    summary: "Native symbol or cataloged icon glyph",
+    summary: "Deterministic SDK-owned icon geometry",
     importPath: SDK_PACKAGE,
     signature: "Icon(name: string, style?: WidgetStyle): WidgetNode",
     inputs: ["name", "style"],
     example: 'Icon("play.fill", { color: "#ffffff" })',
     status: "implemented",
-    notes: ["Icon names are host-resolved; arbitrary image or browser glyphs are not part of the contract.", "The native renderer resolves SF Symbols and shows an explicit unavailable state when a symbol is missing."]
+    notes: ["The native renderer uses the complete catalog pinned by lucide-static@1.26.0; inspect SDK_ICON_NAMES for exact names.", "Legacy SF Symbol spellings play.fill, pause.fill, backward.end.fill, and forward.end.fill lower to stable SDK glyphs; unknown names fail render check.", "For custom geometry, declare a local SVG in manifest.assets and render it with Image({ kind: \"asset\", name: \"custom.svg\" }, { tint: \"#ffffff\" })."]
   },
   {
     name: "Image",
@@ -273,6 +273,17 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     notes: ["Actions are descriptors, never executable callbacks, so the tree remains serializable and permission-auditable.", "The native renderer dispatches buttons only through the host action boundary; unsupported operations are denied and logged."]
   },
   {
+    name: "Slider",
+    kind: "primitive",
+    summary: "Native ranged value control backed by optional persistent Widget state",
+    importPath: SDK_PACKAGE,
+    signature: "Slider(value: number | WidgetStateBinding<number>, maximum?: number, style?: WidgetStyle): WidgetNode",
+    inputs: ["value", "minimum", "maximum", "step", "disabled", "style"],
+    example: 'Slider({ value: useWidgetState("volume", 38), minimum: 0, maximum: 100, step: 1 })',
+    status: "implemented",
+    notes: ["The native renderer updates WidgetStateBinding values through the host-owned persistence boundary.", "Range and step failures identify the exact authored field during render check."]
+  },
+  {
     name: "Gauge",
     kind: "primitive",
     summary: "Progress gauge with a maximum",
@@ -326,7 +337,7 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     status: "implemented",
     notes: [
       "State is scoped to the installed widget workspace and survives relaunches; initial values are strings, numbers, or booleans.",
-      "Use the binding with Text, TextField, Toggle, Gauge, Progress, or SegmentedProgress; the host owns persistence and widget source never writes files."
+      "Use the binding with Text, TextField, Toggle, Slider, Gauge, Progress, or SegmentedProgress; the host owns persistence and widget source never writes files."
     ]
   },
   {
@@ -445,17 +456,84 @@ const SDK_CATALOG: SdkCatalogItem[] = [
   {
     name: "WidgetStyle",
     kind: "style",
-    summary: "Constrained native layout, typography, color, and surface styling",
+    summary: "Serializable native layout, typography, color, surface, and overflow styling",
     importPath: SDK_PACKAGE,
-    signature: "interface WidgetStyle { width?: WidgetLength; height?: WidgetLength; color?: string; backgroundColor?: string; opacity?: number; padding?: WidgetSpacing; margin?: WidgetSpacing; gap?: number; alignItems?: WidgetAlignment; justifyContent?: WidgetAlignment; radius?: number; border?: WidgetBorder; shadow?: WidgetShadow; font?: WidgetFont; tokens?: WidgetStyleToken[] }",
-    fields: ["width", "height", "color", "backgroundColor", "opacity", "padding", "margin", "gap", "alignItems", "justifyContent", "radius", "border", "shadow", "font", "tokens"],
-    example: 'Text("CPU", { color: "#1565c0", font: { size: 14, weight: "semibold" } })',
+    signature: "interface WidgetStyle { width?: WidgetLength; height?: WidgetLength; minWidth?: WidgetLength; maxWidth?: WidgetLength; minHeight?: WidgetLength; maxHeight?: WidgetLength; aspectRatio?: number; padding?: WidgetSpacing; margin?: WidgetSpacing; gap?: number; alignItems?: WidgetAlignment; justifyContent?: WidgetAlignment; alignSelf?: WidgetAlignment; flexGrow?: number; flexShrink?: number; flexBasis?: WidgetLength; flexWrap?: 'nowrap' | 'wrap'; radius?: number | WidgetCornerRadii; shadow?: WidgetShadow; shadows?: WidgetShadow[]; font?: WidgetFont; overflow?: 'visible' | 'hidden' | 'clip'; interaction?: WidgetInteractionStyle; ... }",
+    fields: ["width", "height", "minWidth", "maxWidth", "minHeight", "maxHeight", "aspectRatio", "color", "backgroundColor", "opacity", "padding", "margin", "gap", "alignItems", "justifyContent", "alignSelf", "flexGrow", "flexShrink", "flexBasis", "flexWrap", "radius", "border", "shadow", "shadows", "font", "overflow", "interaction", "tokens"],
+    example: 'Text("CPU", { width: { unit: "percent", value: 50 }, padding: { horizontal: 12, vertical: 8 }, font: { size: 14, weight: "semibold", tabularNumbers: true } })',
     status: "implemented",
     notes: [
       "Values are serializable native style fields, not arbitrary CSS declarations.",
-      "Width, height, and font sizes must be positive; spacing, opacity, radii, and border widths are non-negative when provided.",
-      "The native host applies layout, color, typography, surface, border, shadow, opacity, and token fields."
+      "Legacy numeric, fill, and fit lengths remain supported; auto and tagged percent or fraction lengths add explicit flexible sizing.",
+      "Top, right, bottom, and left spacing override the corresponding horizontal or vertical shorthand when both are provided.",
+      "The native host must lower every accepted field or report it as unavailable; validation never silently converts unsupported values."
     ]
+  },
+  {
+    name: "WidgetLength",
+    kind: "type",
+    summary: "Absolute, intrinsic, automatic, percentage, or fractional native length",
+    importPath: SDK_PACKAGE,
+    signature: 'type WidgetLength = number | "fill" | "fit" | "auto" | { unit: "percent" | "fraction"; value: number }',
+    fields: ["number", "fill", "fit", "auto", "percent", "fraction"],
+    example: 'const half: WidgetLength = { unit: "percent", value: 50 }',
+    status: "implemented",
+    notes: ["Percentage values are greater than zero and at most 100; fraction values are greater than zero."]
+  },
+  {
+    name: "WidgetSpacing",
+    kind: "type",
+    summary: "Uniform or directional native spacing",
+    importPath: SDK_PACKAGE,
+    signature: "type WidgetSpacing = number | { horizontal?: number; vertical?: number; top?: number; right?: number; bottom?: number; left?: number }",
+    fields: ["horizontal", "vertical", "top", "right", "bottom", "left"],
+    example: "const padding: WidgetSpacing = { horizontal: 12, vertical: 8, top: 10 }",
+    status: "implemented",
+    notes: ["Padding values are non-negative; margin values may be finite and negative.", "Top and bottom fall back to vertical, while left and right fall back to horizontal; side-specific values win when both are present."]
+  },
+  {
+    name: "WidgetCornerRadii",
+    kind: "type",
+    summary: "Independent native radius for each corner",
+    importPath: SDK_PACKAGE,
+    signature: "interface WidgetCornerRadii { topLeft?: number; topRight?: number; bottomRight?: number; bottomLeft?: number }",
+    fields: ["topLeft", "topRight", "bottomRight", "bottomLeft"],
+    example: "const radius: WidgetCornerRadii = { topLeft: 16, bottomRight: 16 }",
+    status: "implemented",
+    notes: ["A numeric WidgetStyle radius remains the compatible uniform shorthand."]
+  },
+  {
+    name: "WidgetShadow",
+    kind: "type",
+    summary: "Serializable outset, inset, or text shadow",
+    importPath: SDK_PACKAGE,
+    signature: 'interface WidgetShadow { color?: string; radius?: number; x?: number; y?: number; opacity?: number; kind?: "outset" | "inset" | "text" }',
+    fields: ["color", "radius", "x", "y", "opacity", "kind"],
+    example: 'const shadow: WidgetShadow = { kind: "text", color: "#000000", radius: 2, y: 1 }',
+    status: "implemented",
+    notes: ["WidgetStyle shadow remains the compatible single-shadow field; shadows preserves ordered multiple shadows."]
+  },
+  {
+    name: "WidgetFont",
+    kind: "type",
+    summary: "Native font, line layout, numeral, and truncation styling",
+    importPath: SDK_PACKAGE,
+    signature: 'interface WidgetFont { family?: string; size?: number; weight?: WidgetFontWeight; monospace?: boolean; leading?: number; tracking?: number; alignment?: "leading" | "center" | "trailing" | "justified"; lineLimit?: number; tabularNumbers?: boolean; truncation?: "head" | "middle" | "tail" | "clip" }',
+    fields: ["family", "size", "weight", "monospace", "leading", "tracking", "alignment", "lineLimit", "tabularNumbers", "truncation"],
+    example: 'const font: WidgetFont = { size: 14, leading: 18, tracking: 0.2, lineLimit: 2, truncation: "tail" }',
+    status: "implemented",
+    notes: ["Leading and size are positive; tracking is any finite number; lineLimit is a positive integer."]
+  },
+  {
+    name: "WidgetInteractionStyle",
+    kind: "style",
+    summary: "Serializable native hover, press, focus, disabled, and cursor appearance",
+    importPath: SDK_PACKAGE,
+    signature: "interface WidgetInteractionStyle { cursor?: WidgetCursor; hover?: WidgetInteractionAppearance; pressed?: WidgetInteractionAppearance; focus?: WidgetInteractionAppearance; disabled?: WidgetInteractionAppearance }",
+    fields: ["cursor", "hover", "pressed", "focus", "disabled"],
+    example: 'const interaction: WidgetInteractionStyle = { cursor: "pointer", hover: { opacity: 0.9 }, pressed: { scale: 0.98 } }',
+    status: "implemented",
+    notes: ["The native renderer resolves appearance states without a Widget JavaScript round trip.", "Interactive state is inherited by descendant Text and Icon nodes so a pressed button can restyle its content."]
   },
   {
     name: "WidgetAction",
@@ -552,13 +630,15 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     importPath: SDK_PACKAGE,
     signature: "interface WidgetNode { kind: WidgetNodeKind; children?: WidgetNode[]; style?: WidgetStyle; ... }",
     fields: [
-      'kind: "column" | "row" | "stack" | "box" | "spacer" | "divider" | "text" | "textField" | "toggle" | "shape" | "icon" | "image" | "button" | "gauge" | "progress" | "grid" | "gradient" | "texture" | "clip" | "transform" | "segmentedProgress" | "spectrum"',
+      'kind: "column" | "row" | "stack" | "box" | "spacer" | "divider" | "text" | "textField" | "toggle" | "shape" | "icon" | "image" | "button" | "slider" | "gauge" | "progress" | "grid" | "gradient" | "texture" | "clip" | "transform" | "segmentedProgress" | "spectrum"',
       "children?: WidgetNode[]",
       "text?: string",
       "provider?: string",
       "style?: WidgetStyle",
       "value?: number",
+      "minimum?: number",
       "maximum?: number",
+      "step?: number",
       "orientation?: horizontal | vertical",
       "name?: string",
       "source?: ImageSource | WidgetTextureSource",
@@ -569,6 +649,7 @@ const SDK_CATALOG: SdkCatalogItem[] = [
       "values?: number[]",
       "animation?: WidgetAnimation",
       "action?: WidgetAction",
+      "disabled?: boolean",
       "columns?: number",
       "state?: WidgetStateReference"
     ],
@@ -581,7 +662,7 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     kind: "type",
     summary: "Allowed discriminators for declarative widget nodes",
     importPath: SDK_PACKAGE,
-    signature: 'type WidgetNodeKind = "column" | "row" | "stack" | "box" | "spacer" | "divider" | "text" | "textField" | "toggle" | "shape" | "icon" | "image" | "button" | "gauge" | "progress" | "grid" | "gradient" | "texture" | "clip" | "transform" | "segmentedProgress" | "spectrum"',
+    signature: 'type WidgetNodeKind = "column" | "row" | "stack" | "box" | "spacer" | "divider" | "text" | "textField" | "toggle" | "shape" | "icon" | "image" | "button" | "slider" | "gauge" | "progress" | "grid" | "gradient" | "texture" | "clip" | "transform" | "segmentedProgress" | "spectrum"',
     example: 'const kind: WidgetNodeKind = "box"',
     status: "implemented"
   },
@@ -602,6 +683,7 @@ const SDK_CATALOG: SdkCatalogItem[] = [
       'capabilities: Array<"network" | "filesystem.read" | "filesystem.write">',
       "subscribe: string[]",
       "assets?: string[]",
+      "fonts?: Array<{ asset: string; family?: string }>",
       "accounts?: WidgetAccountRequirement[]"
     ],
     example: 'widget({ "schemaVersion": 1, "name": "Example", "sdkVersion": "0.1.0", "size": { "width": 320, "height": 180 }, "anchor": { "corner": "top-left", "offset": { "x": 24, "y": 24 } }, "capabilities": [], "subscribe": [], "accounts": [] }, render)',

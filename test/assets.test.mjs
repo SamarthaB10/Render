@@ -59,3 +59,30 @@ test("preserves workspace assets through last-known-good snapshots", () => {
   assert.equal(readFileSync(path.join(workspace, "assets", "grain.png"), "utf8"), "original");
   assert.equal(existsSync(path.join(workspace, "assets", "candidate-only.png")), false);
 });
+
+test("validates local font declarations against declared assets", () => {
+  const workspace = mkdtempSync(path.join(os.tmpdir(), "render-fonts-"));
+  mkdirSync(path.join(workspace, "assets"));
+  writeFileSync(path.join(workspace, "assets", "Display.ttf"), "font placeholder");
+
+  assert.deepEqual(validateManifest({
+    ...baseManifest,
+    assets: ["Display.ttf"],
+    fonts: [{ asset: "Display.ttf", family: "Display" }]
+  }, { workspace }), []);
+});
+
+test("rejects undeclared, unsupported, and duplicate font assets", () => {
+  const workspace = mkdtempSync(path.join(os.tmpdir(), "render-fonts-"));
+  mkdirSync(path.join(workspace, "assets"));
+  writeFileSync(path.join(workspace, "assets", "Display.woff"), "font placeholder");
+
+  const issues = validateManifest({
+    ...baseManifest,
+    assets: ["Display.woff"],
+    fonts: [{ asset: "Display.woff" }, { asset: "Missing.ttf" }, { asset: "Missing.ttf" }]
+  }, { workspace });
+  assert.match(issues.find((issue) => issue.path === "fonts[0].asset").message, /ttf or \.otf/);
+  assert.match(issues.find((issue) => issue.path === "fonts[1].asset").message, /manifest\.assets/);
+  assert.match(issues.findLast((issue) => issue.path === "fonts[2].asset").message, /more than once/);
+});

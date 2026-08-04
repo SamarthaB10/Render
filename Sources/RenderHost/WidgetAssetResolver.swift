@@ -6,13 +6,20 @@ struct WidgetAssetResolver {
     let declaredAssets: Set<String>?
 
     func image(named name: String) -> NSImage? {
-        guard !name.isEmpty else { return nil }
+        guard !name.isEmpty else { return unavailable(name, reason: "asset name is empty") }
         guard let workspace else {
             return NSImage(named: name)
         }
-        if let declaredAssets, !declaredAssets.contains(name) { return nil }
-        guard let assetURL = safeAssetURL(name: name, workspace: workspace) else { return nil }
-        return NSImage(contentsOf: assetURL)
+        let normalizedName = name.replacingOccurrences(of: "\\", with: "/")
+        if let declaredAssets, !declaredAssets.contains(normalizedName) { return unavailable(name, reason: "asset is not declared in manifest.assets") }
+        guard let assetURL = safeAssetURL(name: normalizedName, workspace: workspace) else { return unavailable(name, reason: "asset is missing, not a file, or escapes the workspace assets directory") }
+        guard let image = NSImage(contentsOf: assetURL) else { return unavailable(name, reason: "AppKit could not decode the image file") }
+        return image
+    }
+
+    private func unavailable(_ name: String, reason: String) -> NSImage? {
+        NSLog("Render image unavailable: asset=%@; reason=%@; repair=declare a readable local image under assets/", name, reason)
+        return nil
     }
 
     private func safeAssetURL(name: String, workspace: URL) -> URL? {

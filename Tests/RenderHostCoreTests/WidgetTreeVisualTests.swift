@@ -4,6 +4,35 @@ import XCTest
 @testable import RenderHostCore
 
 final class WidgetTreeVisualTests: XCTestCase {
+    func testExpandedStyleWireContractDecodesAndRoundTrips() throws {
+        let data = Data(#"""
+        {"kind":"text","text":"1234","style":{
+          "width":{"unit":"percent","value":75},"height":"auto",
+          "minWidth":120,"maxWidth":"fill","aspectRatio":1.5,
+          "flexGrow":1,"flexShrink":0,"flexBasis":{"unit":"fraction","value":2},
+          "flexWrap":"wrap","alignSelf":"trailing","overflow":"clip",
+          "padding":{"horizontal":12,"vertical":8,"left":16},
+          "margin":{"top":-4},
+          "radius":{"topLeft":4,"topRight":8,"bottomRight":12,"bottomLeft":16},
+          "font":{"size":14,"leading":3,"tracking":0.5,"alignment":"center","lineLimit":2,"tabularNumbers":true,"truncation":"middle"},
+          "shadows":[{"kind":"inset","color":"#000000","radius":3},{"kind":"text","x":1,"y":1}]
+        }}
+        """#.utf8)
+
+        let tree = try JSONDecoder().decode(WidgetTree.self, from: data)
+        XCTAssertEqual(tree.style?.width, .percent(75))
+        XCTAssertEqual(tree.style?.height, .auto)
+        XCTAssertEqual(tree.style?.flexBasis, .fraction(2))
+        XCTAssertEqual(tree.style?.padding, .insets(WidgetInsets(left: 16, horizontal: 12, vertical: 8)))
+        XCTAssertEqual(tree.style?.radius, .corners(WidgetCornerRadii(topLeft: 4, topRight: 8, bottomRight: 12, bottomLeft: 16)))
+        XCTAssertEqual(tree.style?.font?.tabularNumbers, true)
+        XCTAssertEqual(tree.style?.shadows?.map(\.kind), ["inset", "text"])
+        XCTAssertTrue(tree.validationIssues().isEmpty)
+
+        let roundTrip = try JSONDecoder().decode(WidgetTree.self, from: JSONEncoder().encode(tree))
+        XCTAssertEqual(roundTrip, tree)
+    }
+
     func testVisualNodesRoundTripWithContractFields() throws {
         let animation = WidgetAnimation(
             property: "opacity",
@@ -98,6 +127,15 @@ final class WidgetTreeVisualTests: XCTestCase {
         XCTAssertEqual(tree.children[2].options?.fit, .cover)
         XCTAssertEqual(tree.children[3].animation?.duration, 600)
         XCTAssertEqual(tree.children[3].animation?.repeat, .count(2))
+        XCTAssertTrue(tree.validationIssues().isEmpty)
+    }
+
+    func testValidationHandlesDeepWidgetTreesWithoutRecursiveStackGrowth() {
+        var tree = WidgetTree(kind: .text, text: "leaf")
+        for _ in 0..<128 {
+            tree = WidgetTree(kind: .box, children: [tree])
+        }
+
         XCTAssertTrue(tree.validationIssues().isEmpty)
     }
 

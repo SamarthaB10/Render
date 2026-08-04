@@ -14,6 +14,7 @@ public enum WidgetNodeKind: String, Codable, Sendable {
     case icon
     case image
     case button
+    case slider
     case gauge
     case progress
     case grid
@@ -170,6 +171,9 @@ public enum WidgetLength: Codable, Equatable, Sendable {
     case points(Double)
     case fill
     case fit
+    case auto
+    case percent(Double)
+    case fraction(Double)
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
@@ -177,22 +181,43 @@ public enum WidgetLength: Codable, Equatable, Sendable {
             self = .points(points)
             return
         }
-        switch try container.decode(String.self) {
-        case "fill": self = .fill
-        case "fit": self = .fit
-        default:
-            throw DecodingError.dataCorruptedError(in: container, debugDescription: "length must be a number, fill, or fit")
+        if let value = try? container.decode(String.self) {
+            switch value {
+            case "fill": self = .fill
+            case "fit": self = .fit
+            case "auto": self = .auto
+            default:
+                throw DecodingError.dataCorruptedError(in: container, debugDescription: "length must be a number, fill, fit, auto, percent, or fraction")
+            }
+            return
+        }
+        let object = try decoder.container(keyedBy: ObjectCodingKeys.self)
+        let value = try object.decode(Double.self, forKey: .value)
+        switch try object.decode(String.self, forKey: .unit) {
+        case "percent": self = .percent(value)
+        case "fraction": self = .fraction(value)
+        default: throw DecodingError.dataCorruptedError(forKey: .unit, in: object, debugDescription: "length unit must be percent or fraction")
         }
     }
 
     public func encode(to encoder: Encoder) throws {
-        var container = encoder.singleValueContainer()
         switch self {
-        case .points(let value): try container.encode(value)
-        case .fill: try container.encode("fill")
-        case .fit: try container.encode("fit")
+        case .points(let value): var container = encoder.singleValueContainer(); try container.encode(value)
+        case .fill: var container = encoder.singleValueContainer(); try container.encode("fill")
+        case .fit: var container = encoder.singleValueContainer(); try container.encode("fit")
+        case .auto: var container = encoder.singleValueContainer(); try container.encode("auto")
+        case .percent(let value):
+            var container = encoder.container(keyedBy: ObjectCodingKeys.self)
+            try container.encode("percent", forKey: .unit)
+            try container.encode(value, forKey: .value)
+        case .fraction(let value):
+            var container = encoder.container(keyedBy: ObjectCodingKeys.self)
+            try container.encode("fraction", forKey: .unit)
+            try container.encode(value, forKey: .value)
         }
     }
+
+    private enum ObjectCodingKeys: String, CodingKey { case unit, value }
 }
 
 public struct WidgetInsets: Codable, Equatable, Sendable {
@@ -200,12 +225,16 @@ public struct WidgetInsets: Codable, Equatable, Sendable {
     public let right: Double?
     public let bottom: Double?
     public let left: Double?
+    public let horizontal: Double?
+    public let vertical: Double?
 
-    public init(top: Double? = nil, right: Double? = nil, bottom: Double? = nil, left: Double? = nil) {
+    public init(top: Double? = nil, right: Double? = nil, bottom: Double? = nil, left: Double? = nil, horizontal: Double? = nil, vertical: Double? = nil) {
         self.top = top
         self.right = right
         self.bottom = bottom
         self.left = left
+        self.horizontal = horizontal
+        self.vertical = vertical
     }
 }
 
@@ -241,6 +270,39 @@ public enum WidgetAlignment: String, Codable, Equatable, Sendable {
     case spaceBetween = "space-between"
 }
 
+public struct WidgetCornerRadii: Codable, Equatable, Sendable {
+    public let topLeft: Double?
+    public let topRight: Double?
+    public let bottomRight: Double?
+    public let bottomLeft: Double?
+
+    public init(topLeft: Double? = nil, topRight: Double? = nil, bottomRight: Double? = nil, bottomLeft: Double? = nil) {
+        self.topLeft = topLeft
+        self.topRight = topRight
+        self.bottomRight = bottomRight
+        self.bottomLeft = bottomLeft
+    }
+}
+
+public enum WidgetRadius: Codable, Equatable, Sendable {
+    case uniform(Double)
+    case corners(WidgetCornerRadii)
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if let value = try? container.decode(Double.self) { self = .uniform(value) }
+        else { self = .corners(try container.decode(WidgetCornerRadii.self)) }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        switch self {
+        case .uniform(let value): try container.encode(value)
+        case .corners(let value): try container.encode(value)
+        }
+    }
+}
+
 public enum WidgetFontWeight: String, Codable, Equatable, Sendable {
     case regular
     case medium
@@ -264,12 +326,24 @@ public struct WidgetFont: Codable, Equatable, Sendable {
     public let size: Double?
     public let weight: WidgetFontWeight?
     public let monospace: Bool?
+    public let leading: Double?
+    public let tracking: Double?
+    public let alignment: String?
+    public let lineLimit: Int?
+    public let tabularNumbers: Bool?
+    public let truncation: String?
 
-    public init(family: String? = nil, size: Double? = nil, weight: WidgetFontWeight? = nil, monospace: Bool? = nil) {
+    public init(family: String? = nil, size: Double? = nil, weight: WidgetFontWeight? = nil, monospace: Bool? = nil, leading: Double? = nil, tracking: Double? = nil, alignment: String? = nil, lineLimit: Int? = nil, tabularNumbers: Bool? = nil, truncation: String? = nil) {
         self.family = family
         self.size = size
         self.weight = weight
         self.monospace = monospace
+        self.leading = leading
+        self.tracking = tracking
+        self.alignment = alignment
+        self.lineLimit = lineLimit
+        self.tabularNumbers = tabularNumbers
+        self.truncation = truncation
     }
 }
 
@@ -286,18 +360,88 @@ public struct WidgetBorder: Codable, Equatable, Sendable {
 }
 
 public struct WidgetShadow: Codable, Equatable, Sendable {
+    public let kind: String
     public let color: String?
     public let radius: Double?
     public let x: Double?
     public let y: Double?
     public let opacity: Double?
 
-    public init(color: String? = nil, radius: Double? = nil, x: Double? = nil, y: Double? = nil, opacity: Double? = nil) {
+    public init(kind: String = "outset", color: String? = nil, radius: Double? = nil, x: Double? = nil, y: Double? = nil, opacity: Double? = nil) {
+        self.kind = kind
         self.color = color
         self.radius = radius
         self.x = x
         self.y = y
         self.opacity = opacity
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        kind = try container.decodeIfPresent(String.self, forKey: .kind) ?? "outset"
+        color = try container.decodeIfPresent(String.self, forKey: .color)
+        radius = try container.decodeIfPresent(Double.self, forKey: .radius)
+        x = try container.decodeIfPresent(Double.self, forKey: .x)
+        y = try container.decodeIfPresent(Double.self, forKey: .y)
+        opacity = try container.decodeIfPresent(Double.self, forKey: .opacity)
+    }
+
+    private enum CodingKeys: String, CodingKey { case kind, color, radius, x, y, opacity }
+}
+
+public enum WidgetCursor: String, Codable, Equatable, Sendable {
+    case `default`
+    case pointer
+    case text
+    case crosshair
+    case move
+    case notAllowed = "not-allowed"
+}
+
+public struct WidgetInteractionAppearance: Codable, Equatable, Sendable {
+    public let color: String?
+    public let backgroundColor: String?
+    public let opacity: Double?
+    public let borderColor: String?
+    public let shadow: WidgetShadow?
+    public let scale: Double?
+
+    public init(
+        color: String? = nil,
+        backgroundColor: String? = nil,
+        opacity: Double? = nil,
+        borderColor: String? = nil,
+        shadow: WidgetShadow? = nil,
+        scale: Double? = nil
+    ) {
+        self.color = color
+        self.backgroundColor = backgroundColor
+        self.opacity = opacity
+        self.borderColor = borderColor
+        self.shadow = shadow
+        self.scale = scale
+    }
+}
+
+public struct WidgetInteractionStyle: Codable, Equatable, Sendable {
+    public let cursor: WidgetCursor?
+    public let hover: WidgetInteractionAppearance?
+    public let pressed: WidgetInteractionAppearance?
+    public let focus: WidgetInteractionAppearance?
+    public let disabled: WidgetInteractionAppearance?
+
+    public init(
+        cursor: WidgetCursor? = nil,
+        hover: WidgetInteractionAppearance? = nil,
+        pressed: WidgetInteractionAppearance? = nil,
+        focus: WidgetInteractionAppearance? = nil,
+        disabled: WidgetInteractionAppearance? = nil
+    ) {
+        self.cursor = cursor
+        self.hover = hover
+        self.pressed = pressed
+        self.focus = focus
+        self.disabled = disabled
     }
 }
 
@@ -312,11 +456,24 @@ public struct WidgetStyle: Codable, Equatable, Sendable {
     public let gap: Double?
     public let alignItems: WidgetAlignment?
     public let justifyContent: WidgetAlignment?
-    public let radius: Double?
+    public let minWidth: WidgetLength?
+    public let maxWidth: WidgetLength?
+    public let minHeight: WidgetLength?
+    public let maxHeight: WidgetLength?
+    public let aspectRatio: Double?
+    public let flexGrow: Double?
+    public let flexShrink: Double?
+    public let flexBasis: WidgetLength?
+    public let flexWrap: String?
+    public let alignSelf: WidgetAlignment?
+    public let radius: WidgetRadius?
     public let border: WidgetBorder?
     public let shadow: WidgetShadow?
+    public let shadows: [WidgetShadow]?
     public let font: WidgetFont?
     public let tokens: [WidgetStyleToken]?
+    public let overflow: String?
+    public let interaction: WidgetInteractionStyle?
 
     // Numeric initializers preserve the original native-host call sites.
     public init(
@@ -334,7 +491,13 @@ public struct WidgetStyle: Codable, Equatable, Sendable {
         border: WidgetBorder? = nil,
         shadow: WidgetShadow? = nil,
         font: WidgetFont? = nil,
-        tokens: [WidgetStyleToken]? = nil
+        tokens: [WidgetStyleToken]? = nil,
+        minWidth: WidgetLength? = nil, maxWidth: WidgetLength? = nil,
+        minHeight: WidgetLength? = nil, maxHeight: WidgetLength? = nil,
+        aspectRatio: Double? = nil, flexGrow: Double? = nil, flexShrink: Double? = nil,
+        flexBasis: WidgetLength? = nil, flexWrap: String? = nil, alignSelf: WidgetAlignment? = nil,
+        shadows: [WidgetShadow]? = nil, overflow: String? = nil,
+        interaction: WidgetInteractionStyle? = nil
     ) {
         self.width = width.map(WidgetLength.points)
         self.height = height.map(WidgetLength.points)
@@ -346,11 +509,17 @@ public struct WidgetStyle: Codable, Equatable, Sendable {
         self.gap = gap
         self.alignItems = alignItems
         self.justifyContent = justifyContent
-        self.radius = radius
+        self.minWidth = minWidth; self.maxWidth = maxWidth; self.minHeight = minHeight; self.maxHeight = maxHeight
+        self.aspectRatio = aspectRatio; self.flexGrow = flexGrow; self.flexShrink = flexShrink
+        self.flexBasis = flexBasis; self.flexWrap = flexWrap; self.alignSelf = alignSelf
+        self.radius = radius.map(WidgetRadius.uniform)
         self.border = border
         self.shadow = shadow
+        self.shadows = shadows
         self.font = font
         self.tokens = tokens
+        self.overflow = overflow
+        self.interaction = interaction
     }
 
     public init(
@@ -368,7 +537,13 @@ public struct WidgetStyle: Codable, Equatable, Sendable {
         border: WidgetBorder? = nil,
         shadow: WidgetShadow? = nil,
         font: WidgetFont? = nil,
-        tokens: [WidgetStyleToken]? = nil
+        tokens: [WidgetStyleToken]? = nil,
+        minWidth: WidgetLength? = nil, maxWidth: WidgetLength? = nil,
+        minHeight: WidgetLength? = nil, maxHeight: WidgetLength? = nil,
+        aspectRatio: Double? = nil, flexGrow: Double? = nil, flexShrink: Double? = nil,
+        flexBasis: WidgetLength? = nil, flexWrap: String? = nil, alignSelf: WidgetAlignment? = nil,
+        shadows: [WidgetShadow]? = nil, overflow: String? = nil,
+        interaction: WidgetInteractionStyle? = nil
     ) {
         self.width = width
         self.height = height
@@ -380,11 +555,17 @@ public struct WidgetStyle: Codable, Equatable, Sendable {
         self.gap = gap
         self.alignItems = alignItems
         self.justifyContent = justifyContent
-        self.radius = radius
+        self.minWidth = minWidth; self.maxWidth = maxWidth; self.minHeight = minHeight; self.maxHeight = maxHeight
+        self.aspectRatio = aspectRatio; self.flexGrow = flexGrow; self.flexShrink = flexShrink
+        self.flexBasis = flexBasis; self.flexWrap = flexWrap; self.alignSelf = alignSelf
+        self.radius = radius.map(WidgetRadius.uniform)
         self.border = border
         self.shadow = shadow
+        self.shadows = shadows
         self.font = font
         self.tokens = tokens
+        self.overflow = overflow
+        self.interaction = interaction
     }
 }
 
@@ -521,12 +702,15 @@ public struct WidgetTree: Codable, Equatable, Sendable {
     public let provider: String?
     public let style: WidgetStyle?
     public let value: Double?
+    public let minimum: Double?
     public let maximum: Double?
+    public let step: Double?
     public let orientation: String?
     public let name: String?
     public let source: ImageSource?
     public let options: WidgetImageOptions?
     public let action: WidgetAction?
+    public let disabled: Bool?
     public let columns: Int?
     public let gradientStops: [WidgetGradientStop]?
     public let gradientDirection: String?
@@ -549,12 +733,15 @@ public struct WidgetTree: Codable, Equatable, Sendable {
         provider: String? = nil,
         style: WidgetStyle? = nil,
         value: Double? = nil,
+        minimum: Double? = nil,
         maximum: Double? = nil,
+        step: Double? = nil,
         orientation: String? = nil,
         name: String? = nil,
         source: ImageSource? = nil,
         options: WidgetImageOptions? = nil,
         action: WidgetAction? = nil,
+        disabled: Bool? = nil,
         columns: Int? = nil,
         gradientStops: [WidgetGradientStop]? = nil,
         gradientDirection: String? = nil,
@@ -576,12 +763,15 @@ public struct WidgetTree: Codable, Equatable, Sendable {
         self.provider = provider
         self.style = style
         self.value = value
+        self.minimum = minimum
         self.maximum = maximum
+        self.step = step
         self.orientation = orientation
         self.name = name
         self.source = source
         self.options = options
         self.action = action
+        self.disabled = disabled
         self.columns = columns
         self.gradientStops = gradientStops
         self.gradientDirection = gradientDirection
@@ -598,7 +788,7 @@ public struct WidgetTree: Codable, Equatable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case kind, key, children, text, provider, style, value, maximum, orientation, name, source, options, action, columns
+        case kind, key, children, text, provider, style, value, minimum, maximum, step, orientation, name, source, options, action, disabled, columns
         case stops, direction, textureSource, legacyGradientStops = "gradientStops", transform, animation
         case imageFit, imageRepeat, imagePosition, tint, segments, values, state
     }
@@ -612,7 +802,9 @@ public struct WidgetTree: Codable, Equatable, Sendable {
         provider = try container.decodeIfPresent(String.self, forKey: .provider)
         style = try container.decodeIfPresent(WidgetStyle.self, forKey: .style)
         value = try container.decodeIfPresent(Double.self, forKey: .value)
+        minimum = try container.decodeIfPresent(Double.self, forKey: .minimum)
         maximum = try container.decodeIfPresent(Double.self, forKey: .maximum)
+        step = try container.decodeIfPresent(Double.self, forKey: .step)
         orientation = try container.decodeIfPresent(String.self, forKey: .orientation)
         name = try container.decodeIfPresent(String.self, forKey: .name)
         if kind == .texture {
@@ -629,6 +821,7 @@ public struct WidgetTree: Codable, Equatable, Sendable {
         }
         options = try container.decodeIfPresent(WidgetImageOptions.self, forKey: .options)
         action = try container.decodeIfPresent(WidgetAction.self, forKey: .action)
+        disabled = try container.decodeIfPresent(Bool.self, forKey: .disabled)
         columns = try container.decodeIfPresent(Int.self, forKey: .columns)
         gradientStops = try container.decodeIfPresent([WidgetGradientStop].self, forKey: .stops)
             ?? container.decodeIfPresent([WidgetGradientStop].self, forKey: .legacyGradientStops)
@@ -653,7 +846,9 @@ public struct WidgetTree: Codable, Equatable, Sendable {
         try container.encodeIfPresent(provider, forKey: .provider)
         try container.encodeIfPresent(style, forKey: .style)
         try container.encodeIfPresent(value, forKey: .value)
+        try container.encodeIfPresent(minimum, forKey: .minimum)
         try container.encodeIfPresent(maximum, forKey: .maximum)
+        try container.encodeIfPresent(step, forKey: .step)
         try container.encodeIfPresent(orientation, forKey: .orientation)
         try container.encodeIfPresent(name, forKey: .name)
         if kind == .texture {
@@ -663,6 +858,7 @@ public struct WidgetTree: Codable, Equatable, Sendable {
         }
         try container.encodeIfPresent(options, forKey: .options)
         try container.encodeIfPresent(action, forKey: .action)
+        try container.encodeIfPresent(disabled, forKey: .disabled)
         try container.encodeIfPresent(columns, forKey: .columns)
         try container.encodeIfPresent(gradientStops, forKey: .stops)
         try container.encodeIfPresent(gradientDirection, forKey: .direction)
@@ -678,6 +874,21 @@ public struct WidgetTree: Codable, Equatable, Sendable {
     }
 
     public func validationIssues(path: String = "root") -> [WidgetTreeValidationIssue] {
+        var issues: [WidgetTreeValidationIssue] = []
+        var pending: [(node: WidgetTree, path: String)] = [(self, path)]
+        while let current = pending.popLast() {
+            issues.append(contentsOf: current.node.localValidationIssues(path: current.path))
+            for index in current.node.children.indices.reversed() {
+                pending.append((
+                    current.node.children[index],
+                    "\(current.path).children[\(index)]"
+                ))
+            }
+        }
+        return issues
+    }
+
+    private func localValidationIssues(path: String) -> [WidgetTreeValidationIssue] {
         var issues: [WidgetTreeValidationIssue] = []
         let isContainer = [.column, .row, .stack, .box, .grid, .button, .gradient, .clip, .transform].contains(kind)
 
@@ -704,11 +915,11 @@ public struct WidgetTree: Codable, Equatable, Sendable {
         if let state, state.key.isEmpty {
             issues.append(.init(path: "\(path).state.key", message: "state key must be non-empty"))
         }
-        if state != nil && ![.text, .textField, .toggle, .gauge, .progress, .segmentedProgress].contains(kind) {
-            issues.append(.init(path: "\(path).state", message: "state bindings are supported only by text, textField, toggle, gauge, progress, and segmentedProgress nodes"))
+        if state != nil && ![.text, .textField, .toggle, .slider, .gauge, .progress, .segmentedProgress].contains(kind) {
+            issues.append(.init(path: "\(path).state", message: "state bindings are supported only by text, textField, toggle, slider, gauge, progress, and segmentedProgress nodes"))
         }
         if let state {
-            validateStateValue(state.initial, for: kind, maximum: maximum, path: "\(path).state.initial", issues: &issues)
+            validateStateValue(state.initial, for: kind, minimum: minimum, maximum: maximum, path: "\(path).state.initial", issues: &issues)
         }
         if kind == .gauge || kind == .progress || kind == .segmentedProgress {
             if (value == nil && provider == nil) || maximum == nil {
@@ -719,6 +930,18 @@ public struct WidgetTree: Codable, Equatable, Sendable {
         }
         if kind == .segmentedProgress && (segments == nil || segments ?? 0 <= 0) {
             issues.append(.init(path: "\(path).segments", message: "segmentedProgress nodes require a positive segment count"))
+        }
+        if kind == .slider {
+            if minimum == nil || maximum == nil || value == nil {
+                issues.append(.init(path: path, message: "slider nodes require value, minimum, and maximum"))
+            } else if let minimum, let maximum, !minimum.isFinite || !maximum.isFinite || maximum <= minimum {
+                issues.append(.init(path: "\(path).maximum", message: "slider maximum must be greater than minimum"))
+            } else if let value, let minimum, let maximum, !value.isFinite || value < minimum || value > maximum {
+                issues.append(.init(path: "\(path).value", message: "slider value must be between minimum and maximum"))
+            }
+            if let step, !step.isFinite || step <= 0 {
+                issues.append(.init(path: "\(path).step", message: "slider step must be greater than zero"))
+            }
         }
         if kind == .spectrum && values == nil && provider == nil {
             issues.append(.init(path: path, message: "spectrum nodes require values or a provider"))
@@ -834,6 +1057,11 @@ public struct WidgetTree: Codable, Equatable, Sendable {
         if kind != .button && action != nil {
             issues.append(.init(path: "\(path).action", message: "only button nodes may define an action"))
         }
+        if disabled != nil && ![.button, .slider, .textField, .toggle].contains(kind) {
+            issues.append(.init(path: "\(path).disabled", message: "only interactive controls may be disabled"))
+        }
+        if kind != .slider && minimum != nil { issues.append(.init(path: "\(path).minimum", message: "only slider nodes may define minimum")) }
+        if kind != .slider && step != nil { issues.append(.init(path: "\(path).step", message: "only slider nodes may define step")) }
         if kind != .icon && name != nil { issues.append(.init(path: "\(path).name", message: "only icon nodes may define a name")) }
         if kind != .image && source != nil { issues.append(.init(path: "\(path).source", message: "only image nodes may define a source")) }
         if kind != .image && options != nil { issues.append(.init(path: "\(path).options", message: "only image nodes may define image options")) }
@@ -855,49 +1083,100 @@ public struct WidgetTree: Codable, Equatable, Sendable {
         case nil: break
         }
 
-        if let width = style?.width, case .points(let value) = width, value <= 0 {
-            issues.append(.init(path: "\(path).style.width", message: "width must be greater than zero"))
-        }
-        if let height = style?.height, case .points(let value) = height, value <= 0 {
-            issues.append(.init(path: "\(path).style.height", message: "height must be greater than zero"))
-        }
-        validateSpacing(style?.padding, path: "\(path).style.padding", issues: &issues)
-        validateSpacing(style?.margin, path: "\(path).style.margin", issues: &issues)
+        validateLength(style?.width, path: "\(path).style.width", issues: &issues)
+        validateLength(style?.height, path: "\(path).style.height", issues: &issues)
+        validateLength(style?.minWidth, path: "\(path).style.minWidth", issues: &issues)
+        validateLength(style?.maxWidth, path: "\(path).style.maxWidth", issues: &issues)
+        validateLength(style?.minHeight, path: "\(path).style.minHeight", issues: &issues)
+        validateLength(style?.maxHeight, path: "\(path).style.maxHeight", issues: &issues)
+        validateLength(style?.flexBasis, path: "\(path).style.flexBasis", issues: &issues)
+        validateSpacing(style?.padding, path: "\(path).style.padding", allowNegative: false, issues: &issues)
+        validateSpacing(style?.margin, path: "\(path).style.margin", allowNegative: true, issues: &issues)
         if let gap = style?.gap, gap < 0 { issues.append(.init(path: "\(path).style.gap", message: "gap must be zero or greater")) }
         if let opacity = style?.opacity, !(0...1).contains(opacity) { issues.append(.init(path: "\(path).style.opacity", message: "opacity must be between zero and one")) }
-        if let radius = style?.radius, radius < 0 { issues.append(.init(path: "\(path).style.radius", message: "radius must be zero or greater")) }
+        validateRadius(style?.radius, path: "\(path).style.radius", issues: &issues)
+        if let ratio = style?.aspectRatio, !ratio.isFinite || ratio <= 0 { issues.append(.init(path: "\(path).style.aspectRatio", message: "aspect ratio must be greater than zero")) }
+        if let grow = style?.flexGrow, !grow.isFinite || grow < 0 { issues.append(.init(path: "\(path).style.flexGrow", message: "flex grow must be zero or greater")) }
+        if let shrink = style?.flexShrink, !shrink.isFinite || shrink < 0 { issues.append(.init(path: "\(path).style.flexShrink", message: "flex shrink must be zero or greater")) }
+        if let wrap = style?.flexWrap, wrap != "nowrap" && wrap != "wrap" { issues.append(.init(path: "\(path).style.flexWrap", message: "flex wrap must be nowrap or wrap")) }
+        if let overflow = style?.overflow, !["visible", "hidden", "clip"].contains(overflow) { issues.append(.init(path: "\(path).style.overflow", message: "overflow must be visible, hidden, or clip")) }
         if let border = style?.border {
             if let width = border.width, width < 0 { issues.append(.init(path: "\(path).style.border.width", message: "border width must be zero or greater")) }
             if let radius = border.radius, radius < 0 { issues.append(.init(path: "\(path).style.border.radius", message: "border radius must be zero or greater")) }
         }
-        if let shadow = style?.shadow {
-            if let radius = shadow.radius, radius < 0 { issues.append(.init(path: "\(path).style.shadow.radius", message: "shadow radius must be zero or greater")) }
-            if let opacity = shadow.opacity, !(0...1).contains(opacity) { issues.append(.init(path: "\(path).style.shadow.opacity", message: "shadow opacity must be between zero and one")) }
+        let shadows = style?.shadow.map { [("\(path).style.shadow", $0)] } ?? []
+            + (style?.shadows ?? []).enumerated().map { ("\(path).style.shadows[\($0.offset)]", $0.element) }
+        for (shadowPath, shadow) in shadows {
+            if let radius = shadow.radius, !radius.isFinite || radius < 0 { issues.append(.init(path: "\(shadowPath).radius", message: "shadow radius must be zero or greater")) }
+            if let opacity = shadow.opacity, !opacity.isFinite || !(0...1).contains(opacity) { issues.append(.init(path: "\(shadowPath).opacity", message: "shadow opacity must be between zero and one")) }
+            if let x = shadow.x, !x.isFinite { issues.append(.init(path: "\(shadowPath).x", message: "shadow offset must be finite")) }
+            if let y = shadow.y, !y.isFinite { issues.append(.init(path: "\(shadowPath).y", message: "shadow offset must be finite")) }
+            if !["outset", "inset", "text"].contains(shadow.kind) { issues.append(.init(path: "\(shadowPath).kind", message: "shadow kind must be outset, inset, or text")) }
         }
-        if let font = style?.font, let size = font.size, size <= 0 { issues.append(.init(path: "\(path).style.font.size", message: "font size must be greater than zero")) }
+        if let font = style?.font {
+            if let size = font.size, !size.isFinite || size <= 0 { issues.append(.init(path: "\(path).style.font.size", message: "font size must be greater than zero")) }
+            if let leading = font.leading, !leading.isFinite || leading < 0 { issues.append(.init(path: "\(path).style.font.leading", message: "font leading must be zero or greater")) }
+            if let tracking = font.tracking, !tracking.isFinite { issues.append(.init(path: "\(path).style.font.tracking", message: "font tracking must be finite")) }
+            if let alignment = font.alignment, !["leading", "center", "trailing", "justified"].contains(alignment) { issues.append(.init(path: "\(path).style.font.alignment", message: "font alignment must be leading, center, trailing, or justified")) }
+            if let lineLimit = font.lineLimit, lineLimit <= 0 { issues.append(.init(path: "\(path).style.font.lineLimit", message: "font line limit must be greater than zero")) }
+            if let truncation = font.truncation, !["head", "middle", "tail", "clip"].contains(truncation) { issues.append(.init(path: "\(path).style.font.truncation", message: "font truncation must be head, middle, tail, or clip")) }
+        }
+        if let interaction = style?.interaction {
+            let states: [(String, WidgetInteractionAppearance?)] = [
+                ("hover", interaction.hover),
+                ("pressed", interaction.pressed),
+                ("focus", interaction.focus),
+                ("disabled", interaction.disabled)
+            ]
+            for (name, appearance) in states {
+                validateInteractionAppearance(appearance, path: "\(path).style.interaction.\(name)", issues: &issues)
+            }
+        }
 
-        for (index, child) in children.enumerated() {
-            issues.append(contentsOf: child.validationIssues(path: "\(path).children[\(index)]"))
-        }
         return issues
     }
 
-    private func validateSpacing(_ spacing: WidgetSpacing?, path: String, issues: inout [WidgetTreeValidationIssue]) {
+    private func validateSpacing(_ spacing: WidgetSpacing?, path: String, allowNegative: Bool, issues: inout [WidgetTreeValidationIssue]) {
         switch spacing {
-        case .points(let value) where value < 0:
+        case .points(let value) where !value.isFinite || (!allowNegative && value < 0):
             issues.append(.init(path: path, message: "spacing must be zero or greater"))
         case .insets(let insets):
-            let values = [("top", insets.top), ("right", insets.right), ("bottom", insets.bottom), ("left", insets.left)]
-            for (name, value) in values where value ?? 0 < 0 {
+            let values = [("top", insets.top), ("right", insets.right), ("bottom", insets.bottom), ("left", insets.left), ("horizontal", insets.horizontal), ("vertical", insets.vertical)]
+            for (name, value) in values where value.map({ !$0.isFinite || (!allowNegative && $0 < 0) }) == true {
                 issues.append(.init(path: "\(path).\(name)", message: "spacing must be zero or greater"))
             }
         default: break
         }
     }
 
+    private func validateLength(_ length: WidgetLength?, path: String, issues: inout [WidgetTreeValidationIssue]) {
+        switch length {
+        case .points(let value) where !value.isFinite || value <= 0:
+            issues.append(.init(path: path, message: "length must be greater than zero"))
+        case .percent(let value) where !value.isFinite || value < 0 || value > 100:
+            issues.append(.init(path: path, message: "percent length must be between zero and 100"))
+        case .fraction(let value) where !value.isFinite || value <= 0:
+            issues.append(.init(path: path, message: "fraction length must be greater than zero"))
+        default: break
+        }
+    }
+
+    private func validateRadius(_ radius: WidgetRadius?, path: String, issues: inout [WidgetTreeValidationIssue]) {
+        let values: [(String, Double?)]
+        switch radius {
+        case .uniform(let value): values = [("", value)]
+        case .corners(let radii): values = [(".topLeft", radii.topLeft), (".topRight", radii.topRight), (".bottomRight", radii.bottomRight), (".bottomLeft", radii.bottomLeft)]
+        case nil: return
+        }
+        for (suffix, value) in values where value.map({ !$0.isFinite || $0 < 0 }) == true {
+            issues.append(.init(path: path + suffix, message: "radius must be zero or greater"))
+        }
+    }
+
     private func validateStateValue(
         _ value: WidgetJSONValue,
         for kind: WidgetNodeKind,
+        minimum: Double?,
         maximum: Double?,
         path: String,
         issues: inout [WidgetTreeValidationIssue]
@@ -918,20 +1197,49 @@ public struct WidgetTree: Codable, Equatable, Sendable {
             if case .boolean = value {} else {
                 issues.append(.init(path: path, message: "toggle state must start as a boolean"))
             }
-        case .gauge, .progress, .segmentedProgress:
+        case .slider, .gauge, .progress, .segmentedProgress:
             guard case .number(let number) = value, number.isFinite else {
                 issues.append(.init(path: path, message: "\(kind.rawValue) state must start as a finite number"))
                 return
             }
-            guard let maximum else {
-                issues.append(.init(path: path, message: "\(kind.rawValue) state must be between zero and maximum"))
+            let lowerBound = kind == .slider ? minimum : 0
+            guard let lowerBound, let maximum else {
+                issues.append(.init(path: path, message: "\(kind.rawValue) state must be within its declared range"))
                 return
             }
-            if !maximum.isFinite || maximum <= 0 || number < 0 || number > maximum {
-                issues.append(.init(path: path, message: "\(kind.rawValue) state must be between zero and maximum"))
+            if !lowerBound.isFinite || !maximum.isFinite || maximum <= lowerBound || number < lowerBound || number > maximum {
+                issues.append(.init(path: path, message: "\(kind.rawValue) state must be within its declared range"))
             }
         default:
             break
+        }
+    }
+
+    private func validateInteractionAppearance(
+        _ appearance: WidgetInteractionAppearance?,
+        path: String,
+        issues: inout [WidgetTreeValidationIssue]
+    ) {
+        guard let appearance else { return }
+        for (name, value) in [
+            ("color", appearance.color),
+            ("backgroundColor", appearance.backgroundColor),
+            ("borderColor", appearance.borderColor)
+        ] where value?.isEmpty == true {
+            issues.append(.init(path: "\(path).\(name)", message: "color must be non-empty"))
+        }
+        if let opacity = appearance.opacity, !opacity.isFinite || !(0...1).contains(opacity) {
+            issues.append(.init(path: "\(path).opacity", message: "opacity must be between zero and one"))
+        }
+        if let scale = appearance.scale, !scale.isFinite || scale <= 0 {
+            issues.append(.init(path: "\(path).scale", message: "scale must be greater than zero"))
+        }
+        if let shadow = appearance.shadow {
+            if let radius = shadow.radius, !radius.isFinite || radius < 0 { issues.append(.init(path: "\(path).shadow.radius", message: "shadow radius must be zero or greater")) }
+            if let opacity = shadow.opacity, !opacity.isFinite || !(0...1).contains(opacity) { issues.append(.init(path: "\(path).shadow.opacity", message: "shadow opacity must be between zero and one")) }
+            if let x = shadow.x, !x.isFinite { issues.append(.init(path: "\(path).shadow.x", message: "shadow offset must be finite")) }
+            if let y = shadow.y, !y.isFinite { issues.append(.init(path: "\(path).shadow.y", message: "shadow offset must be finite")) }
+            if !["outset", "inset", "text"].contains(shadow.kind) { issues.append(.init(path: "\(path).shadow.kind", message: "shadow kind must be outset, inset, or text")) }
         }
     }
 }

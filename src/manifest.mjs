@@ -13,7 +13,8 @@ const ROOT_FIELDS = new Set([
   "capabilities",
   "subscribe",
   "accounts",
-  "assets"
+  "assets",
+  "fonts"
 ]);
 const CAPABILITIES = new Set(["network", "filesystem.read", "filesystem.write"]);
 const CORNERS = new Set(["top-left", "top-right", "bottom-left", "bottom-right"]);
@@ -134,6 +135,37 @@ export function validateManifest(manifest, options = {}) {
           issues.push({ path: issuePath, message: `asset path must point to a file: assets/${normalized}` });
         } else if (realAssetRoot && !isInside(realpathSync(resolved), realAssetRoot)) {
           issues.push({ path: issuePath, message: "asset symlinks must remain inside the workspace assets directory" });
+        }
+      });
+    }
+  }
+
+  if (manifest.fonts !== undefined) {
+    if (!Array.isArray(manifest.fonts)) {
+      issues.push({ path: "fonts", message: "must be an array of local font declarations" });
+    } else {
+      const declaredAssets = new Set(Array.isArray(manifest.assets) ? manifest.assets.map((item) => typeof item === "string" ? item.replaceAll("\\", "/") : item) : []);
+      const seenFonts = new Set();
+      manifest.fonts.forEach((font, index) => {
+        const issuePath = `fonts[${index}]`;
+        if (!isRecord(font)) {
+          issues.push({ path: issuePath, message: "must be an object with an asset path and optional family" });
+          return;
+        }
+        for (const field of Object.keys(font)) {
+          if (!new Set(["asset", "family"]).has(field)) issues.push({ path: `${issuePath}.${field}`, message: "unknown font declaration field" });
+        }
+        if (typeof font.asset !== "string" || font.asset.trim() === "") {
+          issues.push({ path: `${issuePath}.asset`, message: "must name a declared .ttf or .otf asset" });
+          return;
+        }
+        const asset = font.asset.replaceAll("\\", "/");
+        if (!/\.(?:ttf|otf)$/i.test(asset)) issues.push({ path: `${issuePath}.asset`, message: "font assets must use a .ttf or .otf extension" });
+        if (!declaredAssets.has(asset)) issues.push({ path: `${issuePath}.asset`, message: `font asset must also be listed in manifest.assets: ${asset}` });
+        if (seenFonts.has(asset)) issues.push({ path: `${issuePath}.asset`, message: "font asset must not be declared more than once" });
+        seenFonts.add(asset);
+        if (font.family !== undefined && (typeof font.family !== "string" || font.family.trim() === "")) {
+          issues.push({ path: `${issuePath}.family`, message: "family must be a non-empty string when provided" });
         }
       });
     }
