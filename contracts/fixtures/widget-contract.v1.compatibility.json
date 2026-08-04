@@ -1,0 +1,110 @@
+{
+  "artifact": {
+    "manifest": {
+      "schemaVersion": 1,
+      "name": "Cross-language compatibility",
+      "sdkVersion": "0.1.0",
+      "size": { "width": 360, "height": 480 },
+      "resizable": true,
+      "windowShape": "rectangle",
+      "anchor": { "corner": "top-left", "offset": { "x": 12, "y": 16 } },
+      "adjustable": {
+        "enabled": true,
+        "minSize": { "width": 240, "height": 240 },
+        "maxSize": { "width": 720, "height": 960 },
+        "responsive": {
+          "modes": { "compact": { "minWidth": 240, "minHeight": 240 } },
+          "default": "compact"
+        }
+      },
+      "capabilities": ["network"],
+      "subscribe": ["system.cpu"],
+      "assets": ["cover.svg", "display.ttf"],
+      "fonts": [{ "asset": "display.ttf", "family": "Display" }],
+      "accounts": [{ "connector": "spotify", "scopes": ["user-read-private"] }],
+      "theme": { "default": "dark-glass", "options": ["dark-glass", "light"] }
+    },
+    "tree": {
+      "kind": "column",
+      "key": "root",
+      "style": {
+        "width": "fill",
+        "height": { "unit": "percent", "value": 100 },
+        "minWidth": 240,
+        "maxWidth": 720,
+        "minHeight": 240,
+        "maxHeight": 960,
+        "aspectRatio": 0.75,
+        "color": "#ffffff",
+        "backgroundColor": "#111111",
+        "opacity": 0.95,
+        "padding": { "horizontal": 12, "vertical": 10 },
+        "margin": 4,
+        "gap": 8,
+        "alignItems": "center",
+        "justifyContent": "leading",
+        "alignSelf": "fill",
+        "flexGrow": 1,
+        "flexShrink": 0,
+        "flexBasis": "auto",
+        "flexWrap": "wrap",
+        "radius": { "topLeft": 16, "topRight": 16, "bottomRight": 12, "bottomLeft": 12 },
+        "border": { "color": "#333333", "width": 1, "radius": 16 },
+        "shadow": { "color": "#000000", "radius": 8, "x": 0, "y": 4, "opacity": 0.3, "kind": "outset" },
+        "shadows": [{ "color": "#ffffff", "radius": 1, "kind": "inset" }],
+        "font": { "family": "Display", "size": 14, "weight": "semibold", "monospace": false, "leading": 18, "tracking": 0.2, "alignment": "center", "lineLimit": 2, "tabularNumbers": true, "truncation": "tail" },
+        "overflow": "clip",
+        "interaction": { "cursor": "pointer", "hover": { "opacity": 0.9, "scale": 1.02 }, "pressed": { "opacity": 0.8 }, "focus": { "borderColor": "#ffffff" }, "disabled": { "opacity": 0.4 } },
+        "material": "thin",
+        "role": "panel",
+        "density": "compact",
+        "tokens": ["surface.panel", "text.primary"]
+      },
+      "children": [
+        { "kind": "text", "provider": "system.cpu" },
+        { "kind": "icon", "name": "activity" },
+        { "kind": "image", "source": { "kind": "asset", "name": "cover.svg" }, "options": { "fit": "cover", "repeat": "none", "position": "center", "tint": "#ffffff" } },
+        { "kind": "button", "disabled": false, "action": { "type": "invoke", "name": "widget.refresh", "payload": { "reason": "fixture" } }, "children": [{ "kind": "text", "text": "Refresh" }] },
+        { "kind": "slider", "value": 50, "minimum": 0, "maximum": 100, "step": 5, "state": { "key": "volume", "initial": 50 } },
+        { "kind": "divider", "orientation": "horizontal" },
+        { "kind": "grid", "columns": 2, "children": [{ "kind": "spacer" }] },
+        { "kind": "gradient", "stops": [{ "color": "#000000", "position": 0 }, { "color": "#ffffff", "position": 1 }], "direction": "horizontal", "children": [] },
+        { "kind": "texture", "source": { "kind": "builtin", "name": "grain" } },
+        { "kind": "transform", "transform": { "rotation": 1, "scale": 1, "offsetX": 2, "offsetY": 3 }, "animation": { "property": "opacity", "from": 0, "to": 1, "duration": 0.25, "delay": 0, "repeat": 1, "easing": "ease-out" }, "children": [] },
+        { "kind": "segmentedProgress", "value": 2, "maximum": 4, "segments": 4 },
+        { "kind": "spectrum", "values": [0.1, 0.5, 0.9], "maximum": 1 },
+        { "kind": "timer", "durationSeconds": 60 },
+        { "kind": "taskList", "tasks": [{ "id": "task-1", "text": "Default completion" }] },
+        { "kind": "list", "items": [{ "id": "item-1", "title": "Default completion", "subtitle": "Decoded in Swift" }] },
+        { "kind": "youtubePlayer", "videoId": "dQw4w9WgXcQ", "allowLinkInput": true, "autoplay": false, "controls": true, "startSeconds": 3 },
+        { "kind": "textEditor", "text": "Notes", "placeholder": "Write a note" },
+        { "kind": "dateTime", "dateTime": "2026-08-03T14:30:00.000Z", "dateTimeMode": "dateTime" },
+        { "kind": "visualizer", "provider": "system.cpu", "visualizerMode": "bars", "visualizerTempo": 120 }
+      ]
+    }
+  },
+  "workerMessages": [
+    { "protocolVersion": 1, "kind": "hello", "messageID": "hello-1", "workerID": "worker-1", "supportedVersions": [1] },
+    { "protocolVersion": 1, "kind": "helloAck", "messageID": "ack-1", "workerID": "supervisor", "selectedVersion": 1 },
+    { "protocolVersion": 1, "kind": "ready", "messageID": "ready-1", "workerID": "worker-1" },
+    { "protocolVersion": 1, "kind": "render", "messageID": "request-1", "workerID": "supervisor", "workspace": "/tmp/widget", "sourcePath": "/tmp/widget/widget.tsx", "state": { "count": 2, "flags": [true, null] }, "mode": "compact", "size": { "width": 360, "height": 480 } },
+    {
+      "protocolVersion": 1,
+      "kind": "render",
+      "messageID": "response-1",
+      "workerID": "worker-1",
+      "tree": { "kind": "taskList", "tasks": [{ "id": "task-1", "text": "Default completion" }] },
+      "manifest": {
+        "schemaVersion": 1,
+        "name": "Worker response",
+        "sdkVersion": "0.1.0",
+        "size": { "width": 240, "height": 120 },
+        "anchor": { "corner": "top-left", "offset": { "x": 0, "y": 0 } },
+        "capabilities": [],
+        "subscribe": []
+      }
+    },
+    { "protocolVersion": 1, "kind": "failure", "messageID": "failure-1", "workerID": "worker-1", "diagnostics": [{ "code": "fixture", "path": "worker", "message": "Compatibility failure" }] },
+    { "protocolVersion": 1, "kind": "shutdown", "messageID": "shutdown-1", "workerID": "supervisor" }
+  ]
+}

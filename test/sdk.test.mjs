@@ -176,7 +176,7 @@ test("SDK catalog gives agents exact contracts and canonical examples", async ()
     'anchor: { corner: "top-left" | "top-right" | "bottom-left" | "bottom-right"; offset: { x: number; y: number } }',
     "adjustable?: WidgetAdjustable",
     'capabilities: Array<"network" | "filesystem.read" | "filesystem.write">',
-    "subscribe: string[]",
+    'subscribe: Array<"system.cpu" | "system.memory" | "system.time" | "spotify.account" | "spotify.track.title" | "spotify.track.artist" | "spotify.playback.isPlaying" | "spotify.playback.progress" | "spotify.playback.volume" | "reminders.account" | "reminders.items" | "reminders.incompleteCount" | "reminders.next.title" | "reminders.next.dueDate">',
     "assets?: string[]",
     "fonts?: Array<{ asset: string; family?: string }>",
     "accounts?: WidgetAccountRequirement[]",
@@ -217,7 +217,7 @@ test("CLI exposes SDK catalog list and describe operations", () => {
   assert.deepEqual(described.item, {
     name: "system.cpu",
     kind: "provider",
-    summary: "Host CPU utilization percentage, sampled once per second",
+    summary: "Current CPU utilization",
     value: "number | loading | unavailable",
     importPath: "@render/sdk",
     signature: 'useProvider("system.cpu"): ProviderBinding',

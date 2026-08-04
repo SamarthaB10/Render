@@ -1,11 +1,36 @@
 import type {
+  WidgetAnchorCorner,
+  WidgetAction,
+  WidgetConnectorName,
   WidgetCornerRadii,
   WidgetFont,
   WidgetLength,
   WidgetShadow,
   WidgetSpacing,
-  WidgetStyle
+  WidgetStyle,
+  WidgetProviderName
 } from "../packages/sdk/src/index.ts";
+
+export const generatedWireTypes: {
+  invoke: WidgetAction;
+  set: WidgetAction;
+} = {
+  invoke: { type: "invoke", name: "widget.refresh" },
+  set: { type: "set", name: "spotify.set-volume", value: 50 }
+};
+
+// @ts-expect-error set operations are limited by the canonical action schema.
+export const invalidSetAction: WidgetAction = { type: "set", name: "widget.refresh", value: 1 };
+
+export const contractTypes: {
+  anchor: WidgetAnchorCorner;
+  connector: WidgetConnectorName;
+  provider: WidgetProviderName;
+} = {
+  anchor: "top-left",
+  connector: "spotify",
+  provider: "system.cpu"
+};
 
 const percent: WidgetLength = { unit: "percent", value: 50 };
 const fraction: WidgetLength = { unit: "fraction", value: 1 };

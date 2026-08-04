@@ -1,49 +1,10 @@
 import Foundation
 
-public enum WidgetNodeKind: String, Codable, CaseIterable, Sendable {
-    case column
-    case row
-    case stack
-    case box
-    case glassPanel
-    case mediaCard
-    case spacer
-    case divider
-    case text
-    case textField
-    case textArea
-    case toggle
-    case shape
-    case icon
-    case image
-    case button
-    case slider
-    case countdown
-    case gauge
-    case progress
-    case grid
-    case gradient
-    case texture
-    case clip
-    case transform
-    case segmentedProgress
-    case spectrum
-    case timer
-    case taskList
-    case list
-    case visualizer
-    case youtubePlayer
-    case scrollView
-    case textEditor
-    case dateTime
-    case dateTimePicker
-}
-
 public struct WidgetGradientStop: Codable, Equatable, Sendable {
     public let color: String
-    public let position: Double?
+    public let position: Double
 
-    public init(color: String, position: Double? = nil) {
+    public init(color: String, position: Double) {
         self.color = color
         self.position = position
     }
@@ -757,6 +718,15 @@ public struct WidgetTaskItem: Codable, Equatable, Identifiable, Sendable {
         self.text = text
         self.completed = completed
     }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        text = try container.decode(String.self, forKey: .text)
+        completed = try container.decodeIfPresent(Bool.self, forKey: .completed) ?? false
+    }
+
+    private enum CodingKeys: String, CodingKey { case id, text, completed }
 }
 
 public struct WidgetListItem: Codable, Equatable, Identifiable, Sendable {
@@ -771,6 +741,16 @@ public struct WidgetListItem: Codable, Equatable, Identifiable, Sendable {
         self.subtitle = subtitle
         self.completed = completed
     }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        title = try container.decode(String.self, forKey: .title)
+        subtitle = try container.decodeIfPresent(String.self, forKey: .subtitle)
+        completed = try container.decodeIfPresent(Bool.self, forKey: .completed) ?? false
+    }
+
+    private enum CodingKeys: String, CodingKey { case id, title, subtitle, completed }
 }
 
 public struct WidgetTree: Codable, Equatable, Sendable {
@@ -1007,10 +987,6 @@ public struct WidgetTree: Codable, Equatable, Sendable {
         try container.encodeIfPresent(gradientDirection, forKey: .direction)
         try container.encodeIfPresent(transform, forKey: .transform)
         try container.encodeIfPresent(animation, forKey: .animation)
-        try container.encodeIfPresent(imageFit, forKey: .imageFit)
-        try container.encodeIfPresent(imageRepeat, forKey: .imageRepeat)
-        try container.encodeIfPresent(imagePosition, forKey: .imagePosition)
-        try container.encodeIfPresent(tint, forKey: .tint)
         try container.encodeIfPresent(segments, forKey: .segments)
         try container.encodeIfPresent(values, forKey: .values)
         try container.encodeIfPresent(state, forKey: .state)
@@ -1184,7 +1160,7 @@ public struct WidgetTree: Codable, Equatable, Sendable {
                     if stop.color.isEmpty {
                         issues.append(.init(path: "\(path).gradientStops[\(index)].color", message: "gradient stop color must be non-empty"))
                     }
-                    if let position = stop.position, !(0...1).contains(position) {
+                    if !(0...1).contains(stop.position) {
                         issues.append(.init(path: "\(path).gradientStops[\(index)].position", message: "gradient stop position must be between zero and one"))
                     }
                 }

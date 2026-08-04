@@ -307,6 +307,8 @@ private struct WidgetTreeContainer: View {
 }
 
 struct RuntimeManifest: Decodable {
+    let schemaVersion: Int
+    let sdkVersion: String
     let name: String
     let size: Size
     let anchor: Anchor
@@ -320,7 +322,9 @@ struct RuntimeManifest: Decodable {
     let adjustable: Adjustable?
     let theme: Theme?
 
-    init(name: String, size: Size, anchor: Anchor, capabilities: [String], subscribe: [String], accounts: [WidgetAccountRequirement], assets: [String]? = nil, fonts: [WidgetFontDeclaration] = [], resizable: Bool = true, windowShape: WidgetWindowShape = .rectangle, adjustable: Adjustable? = nil, theme: Theme? = nil) {
+    init(name: String, size: Size, anchor: Anchor, capabilities: [String], subscribe: [String], accounts: [WidgetAccountRequirement], assets: [String]? = nil, fonts: [WidgetFontDeclaration] = [], resizable: Bool = true, windowShape: WidgetWindowShape = .rectangle, adjustable: Adjustable? = nil, theme: Theme? = nil, schemaVersion: Int = 1, sdkVersion: String = "0.1.0") {
+        self.schemaVersion = schemaVersion
+        self.sdkVersion = sdkVersion
         self.name = name
         self.size = size
         self.anchor = anchor
@@ -337,7 +341,9 @@ struct RuntimeManifest: Decodable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        name = try container.decodeIfPresent(String.self, forKey: .name) ?? "Render Widget"
+        schemaVersion = try container.decode(Int.self, forKey: .schemaVersion)
+        sdkVersion = try container.decode(String.self, forKey: .sdkVersion)
+        name = try container.decode(String.self, forKey: .name)
         size = try container.decode(Size.self, forKey: .size)
         anchor = try container.decode(Anchor.self, forKey: .anchor)
         capabilities = try container.decode([String].self, forKey: .capabilities)
@@ -352,6 +358,8 @@ struct RuntimeManifest: Decodable {
     }
 
     private enum CodingKeys: String, CodingKey {
+        case schemaVersion
+        case sdkVersion
         case size
         case name
         case anchor

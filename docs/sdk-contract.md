@@ -99,6 +99,12 @@ Widgets declare connector scopes in the manifest. The host owns credentials and 
 | `reminders.complete` | `invoke` | `reminders` | Complete or reopen a macOS Reminder |
 | `reminders.delete` | `invoke` | `reminders` | Delete a macOS Reminder |
 
+## Worker protocol
+
+Protocol version: `1`
+
+Message kinds: `hello`, `helloAck`, `ready`, `render`, `failure`, `shutdown`
+
 ## Contract evolution
 
 Changes within contract version 1 must be additive. Breaking changes require a new contract version and an explicit compatibility check. Generated outputs are checked into the repository and CI must reject drift.

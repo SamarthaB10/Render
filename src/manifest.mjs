@@ -4,8 +4,10 @@ import { existsSync, realpathSync, statSync } from "node:fs";
 import {
   WIDGET_ANCHOR_CORNERS,
   WIDGET_CAPABILITIES,
+  WIDGET_PROVIDER_NAMES,
   WIDGET_THEME_NAMES
 } from "../packages/sdk/src/widget-contract.generated.ts";
+import { validateContractDefinition } from "./widget-contract.mjs";
 
 const ROOT_FIELDS = new Set([
   "schemaVersion",
@@ -25,6 +27,7 @@ const ROOT_FIELDS = new Set([
 ]);
 const CAPABILITIES = new Set(WIDGET_CAPABILITIES);
 const CORNERS = new Set(WIDGET_ANCHOR_CORNERS);
+const PROVIDERS = new Set(WIDGET_PROVIDER_NAMES);
 const THEMES = new Set(WIDGET_THEME_NAMES);
 
 export function extractManifest(source) {
@@ -110,6 +113,15 @@ export function validateManifest(manifest, options = {}) {
 
   if (!Array.isArray(manifest.subscribe) || manifest.subscribe.some((item) => typeof item !== "string")) {
     issues.push({ path: "subscribe", message: "must be an array of strings" });
+  } else {
+    manifest.subscribe.forEach((provider, index) => {
+      if (!PROVIDERS.has(provider)) {
+        issues.push({
+          path: `subscribe[${index}]`,
+          message: `unsupported provider '${provider}'; use render sdk list to choose a host provider`
+        });
+      }
+    });
   }
 
   if (manifest.assets !== undefined) {
@@ -196,6 +208,13 @@ export function validateManifest(manifest, options = {}) {
       issues.push({ path: field, message: "unknown manifest field" });
     }
   }
+  const semanticPaths = new Set(issues.map((issue) => issue.path));
+  issues.push(...validateContractDefinition("WidgetManifest", manifest)
+    .map((issue) => ({
+      ...issue,
+      path: issue.path === "root" ? "manifest" : issue.path.replace(/^root\./, "")
+    }))
+    .filter((issue) => !semanticPaths.has(issue.path)));
   return issues;
 }
 

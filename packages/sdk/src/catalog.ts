@@ -1,3 +1,14 @@
+import {
+  WIDGET_ACTION_NAMES,
+  WIDGET_ANCHOR_CORNERS,
+  WIDGET_CAPABILITIES,
+  WIDGET_CONNECTOR_NAMES,
+  WIDGET_CONTRACT_CATALOG,
+  WIDGET_NODE_KINDS,
+  WIDGET_PROVIDER_NAMES,
+  WIDGET_THEME_NAMES
+} from "./widget-contract.generated.ts";
+
 export type SdkCatalogKind = "primitive" | "style" | "provider" | "connector" | "capability" | "action" | "function" | "type";
 
 export const SDK_PACKAGE = "@render/sdk" as const;
@@ -9,6 +20,7 @@ export interface SdkCatalogItem {
   summary: string;
   importPath: typeof SDK_PACKAGE;
   signature?: string;
+  wireName?: string;
   inputs?: string[];
   fields?: string[];
   value?: string;
@@ -38,7 +50,7 @@ export const CANONICAL_WIDGET_SOURCE = [
   ""
 ].join("\n");
 
-const SDK_CATALOG: SdkCatalogItem[] = [
+const SDK_CATALOG_DETAILS: SdkCatalogItem[] = [
   {
     name: "widget",
     kind: "function",
@@ -1415,6 +1427,82 @@ const SDK_CATALOG: SdkCatalogItem[] = [
   }
 ];
 
+const CONTRACT_CATALOG_BY_NAME = new Map<string, (typeof WIDGET_CONTRACT_CATALOG)[number]>(
+  WIDGET_CONTRACT_CATALOG.map((item) => [item.name, item])
+);
+const INVOKE_ACTION_NAMES = WIDGET_CONTRACT_CATALOG
+  .filter((item) => item.kind === "action" && "actionKind" in item && item.actionKind === "invoke")
+  .map((item) => item.name);
+const SET_ACTION_NAMES = WIDGET_CONTRACT_CATALOG
+  .filter((item) => item.kind === "action" && "actionKind" in item && item.actionKind === "set")
+  .map((item) => item.name);
+const CONTRACT_DETAIL_OVERRIDES = new Map<string, Partial<SdkCatalogItem>>([
+  ["WidgetNodeKind", literalTypeDetail("WidgetNodeKind", WIDGET_NODE_KINDS)],
+  ["WidgetThemeName", literalTypeDetail("WidgetThemeName", WIDGET_THEME_NAMES)],
+  ["WidgetActionName", literalTypeDetail("WidgetActionName", WIDGET_ACTION_NAMES)],
+  ["WidgetCapability", literalTypeDetail("WidgetCapability", WIDGET_CAPABILITIES)],
+  ["WidgetAccountRequirement", {
+    signature: `interface WidgetAccountRequirement { connector: ${literalUnion(WIDGET_CONNECTOR_NAMES)}; scopes: string[] }`,
+    fields: [`connector: ${literalUnion(WIDGET_CONNECTOR_NAMES)}`, "scopes: string[]"]
+  }],
+  ["WidgetAccountBinding", {
+    signature: `interface WidgetAccountBinding { kind: "account"; connector: ${literalUnion(WIDGET_CONNECTOR_NAMES)} }`,
+    fields: ['kind: "account"', `connector: ${literalUnion(WIDGET_CONNECTOR_NAMES)}`]
+  }],
+  ["useAccount", { signature: `useAccount(connector: ${literalUnion(WIDGET_CONNECTOR_NAMES)}): WidgetAccountBinding` }],
+  ["widgetAccountRequirement", { signature: `widgetAccountRequirement(connector: ${literalUnion(WIDGET_CONNECTOR_NAMES)}, scopes: string[]): WidgetAccountRequirement` }],
+  ["ProviderBinding", {
+    signature: `interface ProviderBinding { kind: "provider"; name: ${literalUnion(WIDGET_PROVIDER_NAMES)} }`,
+    fields: ['kind: "provider"', `name: ${literalUnion(WIDGET_PROVIDER_NAMES)}`]
+  }],
+  ["useProvider", { signature: `useProvider(name: ${literalUnion(WIDGET_PROVIDER_NAMES)}): ProviderBinding` }],
+  ["WidgetAction", {
+    signature: `type WidgetAction = { type: "invoke"; name: ${literalUnion(INVOKE_ACTION_NAMES)}; payload?: WidgetJsonValue } | { type: "set"; name: ${literalUnion(SET_ACTION_NAMES)}; value: number }`
+  }],
+  ["WidgetManifest", {
+    fields: [
+      "schemaVersion: 1",
+      "name: string",
+      "sdkVersion: string",
+      "size: { width: number; height: number }",
+      "resizable?: boolean",
+      'windowShape?: "rectangle" | "circle"',
+      `anchor: { corner: ${literalUnion(WIDGET_ANCHOR_CORNERS)}; offset: { x: number; y: number } }`,
+      "adjustable?: WidgetAdjustable",
+      `capabilities: Array<${literalUnion(WIDGET_CAPABILITIES)}>`,
+      `subscribe: Array<${literalUnion(WIDGET_PROVIDER_NAMES)}>`,
+      "assets?: string[]",
+      "fonts?: Array<{ asset: string; family?: string }>",
+      "accounts?: WidgetAccountRequirement[]",
+      "theme?: WidgetThemeConfig"
+    ]
+  }]
+]);
+const catalogDetailNames = new Set<string>(SDK_CATALOG_DETAILS.map((item) => item.name));
+const SDK_CATALOG: SdkCatalogItem[] = [
+  ...SDK_CATALOG_DETAILS.map((item) => {
+    const contractItem = CONTRACT_CATALOG_BY_NAME.get(item.name);
+    const override = CONTRACT_DETAIL_OVERRIDES.get(item.name);
+    if (!contractItem) return { ...item, ...override };
+    const wireName = "wireName" in contractItem ? contractItem.wireName : undefined;
+    return { ...item, ...override, name: contractItem.name, wireName, kind: contractItem.kind, summary: contractItem.summary };
+  }),
+  ...WIDGET_CONTRACT_CATALOG
+    .filter((item) => !catalogDetailNames.has(item.name))
+    .map((item) => {
+      const wireName = "wireName" in item ? item.wireName : undefined;
+      return {
+        name: item.name,
+        wireName,
+        kind: item.kind,
+        summary: item.summary,
+        importPath: SDK_PACKAGE,
+        example: wireName ? `${item.name}({})` : item.name,
+        status: "contract-only" as const
+      };
+    })
+];
+
 export function listSdkCatalog(): SdkCatalogItem[] {
   return SDK_CATALOG.map(cloneItem);
 }
@@ -1426,4 +1514,12 @@ export function describeSdkCatalog(name: string): SdkCatalogItem | null {
 
 function cloneItem(item: SdkCatalogItem): SdkCatalogItem {
   return JSON.parse(JSON.stringify(item));
+}
+
+function literalTypeDetail(name: string, values: readonly string[]): Partial<SdkCatalogItem> {
+  return { signature: `type ${name} = ${literalUnion(values)}`, fields: [...values] };
+}
+
+function literalUnion(values: readonly string[]): string {
+  return values.map((value) => JSON.stringify(value)).join(" | ");
 }

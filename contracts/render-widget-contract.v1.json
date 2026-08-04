@@ -48,7 +48,7 @@
       { "name": "transform", "summary": "Native transformed container", "container": true },
       { "name": "list", "summary": "Static or provider-backed list", "container": false },
       { "name": "visualizer", "summary": "Provider-backed visualizer surface", "container": false },
-      { "name": "youtubePlayer", "summary": "Native YouTube playback surface", "container": false }
+      { "name": "youtubePlayer", "sdkName": "YouTubePlayer", "summary": "Native YouTube playback surface", "container": false }
     ],
     "capabilities": ["network", "filesystem.read", "filesystem.write"],
     "anchorCorners": ["top-left", "top-right", "bottom-left", "bottom-right"],
@@ -86,33 +86,126 @@
     "connectorScopes": {
       "spotify": ["user-read-private", "user-read-playback-state", "user-read-currently-playing", "user-modify-playback-state"],
       "reminders": ["reminders.read", "reminders.write"]
+    },
+    "workerProtocol": {
+      "version": 1,
+      "messageKinds": ["hello", "helloAck", "ready", "render", "failure", "shutdown"]
     }
   },
   "$defs": {
     "WidgetLength": {
-      "description": "A positive point value or a layout keyword.",
-      "oneOf": [{ "type": "number", "exclusiveMinimum": 0 }, { "enum": ["fill", "fit"] }]
-    },
-    "WidgetSpacing": {
+      "description": "A positive point value, layout keyword, percentage, or fractional layout value.",
       "oneOf": [
-        { "type": "number", "minimum": 0 },
+        { "type": "number", "exclusiveMinimum": 0 },
+        { "enum": ["fill", "fit", "auto"] },
         {
           "type": "object",
+          "required": ["unit", "value"],
           "properties": {
-            "top": { "type": "number", "minimum": 0 },
-            "right": { "type": "number", "minimum": 0 },
-            "bottom": { "type": "number", "minimum": 0 },
-            "left": { "type": "number", "minimum": 0 }
+            "unit": { "enum": ["percent", "fraction"] },
+            "value": { "type": "number" }
           },
           "additionalProperties": false
         }
       ]
+    },
+    "WidgetSpacing": {
+      "oneOf": [
+        { "type": "number" },
+        {
+          "type": "object",
+          "properties": {
+            "horizontal": { "type": "number" },
+            "vertical": { "type": "number" },
+            "top": { "type": "number" },
+            "right": { "type": "number" },
+            "bottom": { "type": "number" },
+            "left": { "type": "number" }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "WidgetCornerRadii": {
+      "type": "object",
+      "properties": {
+        "topLeft": { "type": "number", "minimum": 0 },
+        "topRight": { "type": "number", "minimum": 0 },
+        "bottomRight": { "type": "number", "minimum": 0 },
+        "bottomLeft": { "type": "number", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "WidgetBorder": {
+      "type": "object",
+      "properties": {
+        "color": { "type": "string" },
+        "width": { "type": "number", "minimum": 0 },
+        "radius": { "type": "number", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "WidgetShadow": {
+      "type": "object",
+      "properties": {
+        "color": { "type": "string" },
+        "radius": { "type": "number", "minimum": 0 },
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "opacity": { "type": "number", "minimum": 0, "maximum": 1 },
+        "kind": { "enum": ["outset", "inset", "text"] }
+      },
+      "additionalProperties": false
+    },
+    "WidgetFont": {
+      "type": "object",
+      "properties": {
+        "family": { "type": "string" },
+        "size": { "type": "number", "exclusiveMinimum": 0 },
+        "weight": { "enum": ["regular", "medium", "semibold", "bold"] },
+        "monospace": { "type": "boolean" },
+        "leading": { "type": "number", "minimum": 0 },
+        "tracking": { "type": "number" },
+        "alignment": { "enum": ["leading", "center", "trailing", "justified"] },
+        "lineLimit": { "type": "integer", "minimum": 1 },
+        "tabularNumbers": { "type": "boolean" },
+        "truncation": { "enum": ["head", "middle", "tail", "clip"] }
+      },
+      "additionalProperties": false
+    },
+    "WidgetInteractionAppearance": {
+      "type": "object",
+      "properties": {
+        "color": { "type": "string" },
+        "backgroundColor": { "type": "string" },
+        "opacity": { "type": "number", "minimum": 0, "maximum": 1 },
+        "borderColor": { "type": "string" },
+        "shadow": { "$ref": "#/$defs/WidgetShadow" },
+        "scale": { "type": "number", "exclusiveMinimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "WidgetInteractionStyle": {
+      "type": "object",
+      "properties": {
+        "cursor": { "enum": ["default", "pointer", "text", "crosshair", "move", "not-allowed"] },
+        "hover": { "$ref": "#/$defs/WidgetInteractionAppearance" },
+        "pressed": { "$ref": "#/$defs/WidgetInteractionAppearance" },
+        "focus": { "$ref": "#/$defs/WidgetInteractionAppearance" },
+        "disabled": { "$ref": "#/$defs/WidgetInteractionAppearance" }
+      },
+      "additionalProperties": false
     },
     "WidgetStyle": {
       "type": "object",
       "properties": {
         "width": { "$ref": "#/$defs/WidgetLength" },
         "height": { "$ref": "#/$defs/WidgetLength" },
+        "minWidth": { "$ref": "#/$defs/WidgetLength" },
+        "maxWidth": { "$ref": "#/$defs/WidgetLength" },
+        "minHeight": { "$ref": "#/$defs/WidgetLength" },
+        "maxHeight": { "$ref": "#/$defs/WidgetLength" },
+        "aspectRatio": { "type": "number", "exclusiveMinimum": 0 },
         "color": { "type": "string" },
         "backgroundColor": { "type": "string" },
         "opacity": { "type": "number", "minimum": 0, "maximum": 1 },
@@ -121,37 +214,18 @@
         "gap": { "type": "number", "minimum": 0 },
         "alignItems": { "enum": ["leading", "center", "trailing", "top", "bottom", "fill", "space-between"] },
         "justifyContent": { "enum": ["leading", "center", "trailing", "top", "bottom", "fill", "space-between"] },
-        "radius": { "type": "number", "minimum": 0 },
-        "border": {
-          "type": "object",
-          "properties": {
-            "color": { "type": "string" },
-            "width": { "type": "number", "minimum": 0 },
-            "radius": { "type": "number", "minimum": 0 }
-          },
-          "additionalProperties": false
-        },
-        "shadow": {
-          "type": "object",
-          "properties": {
-            "color": { "type": "string" },
-            "radius": { "type": "number" },
-            "x": { "type": "number" },
-            "y": { "type": "number" },
-            "opacity": { "type": "number", "minimum": 0, "maximum": 1 }
-          },
-          "additionalProperties": false
-        },
-        "font": {
-          "type": "object",
-          "properties": {
-            "family": { "type": "string" },
-            "size": { "type": "number", "exclusiveMinimum": 0 },
-            "weight": { "enum": ["regular", "medium", "semibold", "bold"] },
-            "monospace": { "type": "boolean" }
-          },
-          "additionalProperties": false
-        },
+        "alignSelf": { "enum": ["leading", "center", "trailing", "top", "bottom", "fill", "space-between"] },
+        "flexGrow": { "type": "number", "minimum": 0 },
+        "flexShrink": { "type": "number", "minimum": 0 },
+        "flexBasis": { "$ref": "#/$defs/WidgetLength" },
+        "flexWrap": { "enum": ["nowrap", "wrap"] },
+        "radius": { "oneOf": [{ "type": "number", "minimum": 0 }, { "$ref": "#/$defs/WidgetCornerRadii" }] },
+        "border": { "$ref": "#/$defs/WidgetBorder" },
+        "shadow": { "$ref": "#/$defs/WidgetShadow" },
+        "shadows": { "type": "array", "items": { "$ref": "#/$defs/WidgetShadow" } },
+        "font": { "$ref": "#/$defs/WidgetFont" },
+        "overflow": { "enum": ["visible", "hidden", "clip"] },
+        "interaction": { "$ref": "#/$defs/WidgetInteractionStyle" },
         "material": { "enum": ["solid", "thin", "thick"] },
         "role": { "enum": ["surface", "panel", "control", "status", "media"] },
         "density": { "enum": ["compact", "comfortable"] },
@@ -169,9 +243,67 @@
         { "type": "object", "required": ["kind", "name"], "properties": { "kind": { "const": "provider" }, "name": { "type": "string", "minLength": 1 } }, "additionalProperties": false }
       ]
     },
+    "WidgetTextureSource": {
+      "oneOf": [
+        { "type": "object", "required": ["kind", "name"], "properties": { "kind": { "const": "builtin" }, "name": { "enum": ["grain", "grid"] } }, "additionalProperties": false },
+        { "type": "object", "required": ["kind", "name"], "properties": { "kind": { "const": "asset" }, "name": { "type": "string", "minLength": 1 } }, "additionalProperties": false }
+      ]
+    },
+    "WidgetImageOptions": {
+      "type": "object",
+      "properties": {
+        "fit": { "enum": ["contain", "cover", "fill"] },
+        "repeat": { "enum": ["none", "x", "y", "both"] },
+        "position": { "enum": ["leading", "center", "trailing"] },
+        "tint": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "WidgetGradientStop": {
+      "type": "object",
+      "required": ["color", "position"],
+      "properties": {
+        "color": { "type": "string", "minLength": 1 },
+        "position": { "type": "number", "minimum": 0, "maximum": 1 }
+      },
+      "additionalProperties": false
+    },
+    "WidgetTransform": {
+      "type": "object",
+      "properties": {
+        "rotation": { "type": "number" },
+        "scale": { "type": "number", "exclusiveMinimum": 0 },
+        "offsetX": { "type": "number" },
+        "offsetY": { "type": "number" }
+      },
+      "additionalProperties": false
+    },
+    "WidgetAnimation": {
+      "type": "object",
+      "required": ["property", "from", "to", "duration"],
+      "properties": {
+        "property": { "enum": ["opacity", "rotation", "scale", "offsetX", "offsetY"] },
+        "from": { "type": "number" },
+        "to": { "type": "number" },
+        "duration": { "type": "number", "exclusiveMinimum": 0 },
+        "delay": { "type": "number", "minimum": 0 },
+        "repeat": { "oneOf": [{ "type": "integer", "minimum": 0 }, { "const": "forever" }] },
+        "easing": { "enum": ["linear", "ease-in", "ease-out", "ease-in-out"] }
+      },
+      "additionalProperties": false
+    },
+    "WidgetStateReference": {
+      "type": "object",
+      "required": ["key", "initial"],
+      "properties": {
+        "key": { "type": "string", "minLength": 1 },
+        "initial": { "oneOf": [{ "type": "string" }, { "type": "number" }, { "type": "boolean" }] }
+      },
+      "additionalProperties": false
+    },
     "WidgetAction": {
       "oneOf": [
-        { "type": "object", "required": ["type", "name"], "properties": { "type": { "const": "invoke" }, "name": { "type": "string", "enum": ["widget.refresh", "widget.reload", "spotify.play", "spotify.pause", "spotify.next", "spotify.previous", "reminders.create", "reminders.update", "reminders.complete", "reminders.delete"] }, "payload": {} }, "additionalProperties": false },
+        { "type": "object", "required": ["type", "name"], "properties": { "type": { "const": "invoke" }, "name": { "type": "string", "enum": ["widget.refresh", "widget.reload", "spotify.play", "spotify.pause", "spotify.next", "spotify.previous", "reminders.create", "reminders.update", "reminders.complete", "reminders.delete"] }, "payload": { "$ref": "#/$defs/WidgetJSONValue" } }, "additionalProperties": false },
         { "type": "object", "required": ["type", "name", "value"], "properties": { "type": { "const": "set" }, "name": { "const": "spotify.set-volume" }, "value": { "type": "integer", "minimum": 0, "maximum": 100 } }, "additionalProperties": false }
       ]
     },
@@ -198,12 +330,23 @@
         "provider": { "type": "string", "enum": ["system.cpu", "system.memory", "system.time", "spotify.account", "spotify.track.title", "spotify.track.artist", "spotify.playback.isPlaying", "spotify.playback.progress", "spotify.playback.volume", "reminders.account", "reminders.items", "reminders.incompleteCount", "reminders.next.title", "reminders.next.dueDate"] },
         "style": { "$ref": "#/$defs/WidgetStyle" },
         "value": { "type": "number" },
+        "minimum": { "type": "number" },
         "maximum": { "type": "number", "exclusiveMinimum": 0 },
+        "step": { "type": "number", "exclusiveMinimum": 0 },
         "orientation": { "enum": ["horizontal", "vertical"] },
         "name": { "type": "string", "minLength": 1 },
-        "source": { "$ref": "#/$defs/ImageSource" },
+        "source": { "anyOf": [{ "$ref": "#/$defs/ImageSource" }, { "$ref": "#/$defs/WidgetTextureSource" }] },
+        "options": { "$ref": "#/$defs/WidgetImageOptions" },
+        "stops": { "type": "array", "items": { "$ref": "#/$defs/WidgetGradientStop" } },
+        "direction": { "type": "string", "minLength": 1 },
+        "transform": { "$ref": "#/$defs/WidgetTransform" },
+        "animation": { "$ref": "#/$defs/WidgetAnimation" },
         "action": { "$ref": "#/$defs/WidgetAction" },
+        "disabled": { "type": "boolean" },
         "columns": { "type": "integer", "minimum": 1 },
+        "segments": { "type": "integer", "minimum": 1 },
+        "values": { "type": "array", "items": { "type": "number" } },
+        "state": { "$ref": "#/$defs/WidgetStateReference" },
         "durationSeconds": { "type": "integer", "exclusiveMinimum": 0 },
         "tasks": { "type": "array", "items": { "$ref": "#/$defs/WidgetTaskItem" } },
         "items": { "type": "array", "items": { "$ref": "#/$defs/WidgetListItem" } },
@@ -234,6 +377,8 @@
         "name": { "type": "string", "minLength": 1 },
         "sdkVersion": { "type": "string", "minLength": 1 },
         "size": { "$ref": "#/$defs/WidgetSize" },
+        "resizable": { "type": "boolean" },
+        "windowShape": { "enum": ["rectangle", "circle"] },
         "anchor": {
           "type": "object",
           "required": ["corner", "offset"],
@@ -268,11 +413,127 @@
           "additionalProperties": false
         },
         "capabilities": { "type": "array", "items": { "enum": ["network", "filesystem.read", "filesystem.write"] } },
-        "subscribe": { "type": "array", "items": { "type": "string" } },
+        "subscribe": { "type": "array", "items": { "enum": ["system.cpu", "system.memory", "system.time", "spotify.account", "spotify.track.title", "spotify.track.artist", "spotify.playback.isPlaying", "spotify.playback.progress", "spotify.playback.volume", "reminders.account", "reminders.items", "reminders.incompleteCount", "reminders.next.title", "reminders.next.dueDate"] } },
+        "assets": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "fonts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["asset"],
+            "properties": {
+              "asset": { "type": "string", "minLength": 1 },
+              "family": { "type": "string", "minLength": 1 }
+            },
+            "additionalProperties": false
+          }
+        },
         "accounts": { "type": "array", "items": { "type": "object", "required": ["connector", "scopes"], "properties": { "connector": { "type": "string", "enum": ["spotify", "reminders"] }, "scopes": { "type": "array", "items": { "type": "string", "minLength": 1 } } }, "additionalProperties": false } },
         "theme": { "type": "object", "required": ["default"], "properties": { "default": { "enum": ["dark-glass", "light", "monochrome", "retro"] }, "options": { "type": "array", "items": { "enum": ["dark-glass", "light", "monochrome", "retro"] } } }, "additionalProperties": false }
       },
       "additionalProperties": false
+    },
+    "WidgetJSONValue": {
+      "oneOf": [
+        { "type": "string" },
+        { "type": "number" },
+        { "type": "boolean" },
+        { "type": "null" },
+        { "type": "array", "items": { "$ref": "#/$defs/WidgetJSONValue" } },
+        { "type": "object", "additionalProperties": { "$ref": "#/$defs/WidgetJSONValue" } }
+      ]
+    },
+    "WorkerDiagnostic": {
+      "type": "object",
+      "required": ["code", "path", "message"],
+      "properties": {
+        "code": { "type": "string", "minLength": 1 },
+        "path": { "type": "string", "minLength": 1 },
+        "message": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "WorkerRenderSize": {
+      "type": "object",
+      "required": ["width", "height"],
+      "properties": {
+        "width": { "type": "number", "exclusiveMinimum": 0 },
+        "height": { "type": "number", "exclusiveMinimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "WorkerMessage": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["protocolVersion", "kind", "messageID", "workerID", "supportedVersions"],
+          "properties": {
+            "protocolVersion": { "const": 1 }, "kind": { "const": "hello" },
+            "messageID": { "type": "string", "minLength": 1 }, "workerID": { "type": "string", "minLength": 1 },
+            "supportedVersions": { "type": "array", "minItems": 1, "items": { "type": "integer", "minimum": 1 } }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["protocolVersion", "kind", "messageID", "workerID", "selectedVersion"],
+          "properties": {
+            "protocolVersion": { "const": 1 }, "kind": { "const": "helloAck" },
+            "messageID": { "type": "string", "minLength": 1 }, "workerID": { "type": "string", "minLength": 1 },
+            "selectedVersion": { "type": "integer", "minimum": 1 }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["protocolVersion", "kind", "messageID", "workerID"],
+          "properties": {
+            "protocolVersion": { "const": 1 }, "kind": { "const": "ready" },
+            "messageID": { "type": "string", "minLength": 1 }, "workerID": { "type": "string", "minLength": 1 }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["protocolVersion", "kind", "messageID", "workerID", "sourcePath"],
+          "properties": {
+            "protocolVersion": { "const": 1 }, "kind": { "const": "render" },
+            "messageID": { "type": "string", "minLength": 1 }, "workerID": { "type": "string", "minLength": 1 },
+            "workspace": { "type": "string", "minLength": 1 }, "sourcePath": { "type": "string", "minLength": 1 },
+            "state": { "type": "object", "additionalProperties": { "$ref": "#/$defs/WidgetJSONValue" } },
+            "mode": { "type": "string", "minLength": 1 }, "size": { "$ref": "#/$defs/WorkerRenderSize" }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["protocolVersion", "kind", "messageID", "workerID", "tree", "manifest"],
+          "properties": {
+            "protocolVersion": { "const": 1 }, "kind": { "const": "render" },
+            "messageID": { "type": "string", "minLength": 1 }, "workerID": { "type": "string", "minLength": 1 },
+            "tree": { "$ref": "#/$defs/WidgetNode" }, "manifest": { "$ref": "#/$defs/WidgetManifest" }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["protocolVersion", "kind", "messageID", "workerID", "diagnostics"],
+          "properties": {
+            "protocolVersion": { "const": 1 }, "kind": { "const": "failure" },
+            "messageID": { "type": "string", "minLength": 1 }, "workerID": { "type": "string", "minLength": 1 },
+            "diagnostics": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/WorkerDiagnostic" } }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["protocolVersion", "kind", "messageID", "workerID"],
+          "properties": {
+            "protocolVersion": { "const": 1 }, "kind": { "const": "shutdown" },
+            "messageID": { "type": "string", "minLength": 1 }, "workerID": { "type": "string", "minLength": 1 }
+          },
+          "additionalProperties": false
+        }
+      ]
     }
   }
 }
