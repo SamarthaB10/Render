@@ -9,6 +9,7 @@ public enum WidgetNodeKind: String, Codable, Sendable {
     case divider
     case text
     case textField
+    case textArea
     case toggle
     case shape
     case icon
@@ -712,7 +713,6 @@ public struct WidgetTree: Codable, Equatable, Sendable {
     public let options: WidgetImageOptions?
     public let action: WidgetAction?
     public let disabled: Bool?
-    public let multiline: Bool?
     public let columns: Int?
     public let gradientStops: [WidgetGradientStop]?
     public let gradientDirection: String?
@@ -744,7 +744,6 @@ public struct WidgetTree: Codable, Equatable, Sendable {
         options: WidgetImageOptions? = nil,
         action: WidgetAction? = nil,
         disabled: Bool? = nil,
-        multiline: Bool? = nil,
         columns: Int? = nil,
         gradientStops: [WidgetGradientStop]? = nil,
         gradientDirection: String? = nil,
@@ -775,7 +774,6 @@ public struct WidgetTree: Codable, Equatable, Sendable {
         self.options = options
         self.action = action
         self.disabled = disabled
-        self.multiline = multiline
         self.columns = columns
         self.gradientStops = gradientStops
         self.gradientDirection = gradientDirection
@@ -792,7 +790,7 @@ public struct WidgetTree: Codable, Equatable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case kind, key, children, text, provider, style, value, minimum, maximum, step, orientation, name, source, options, action, disabled, multiline, columns
+        case kind, key, children, text, provider, style, value, minimum, maximum, step, orientation, name, source, options, action, disabled, columns
         case stops, direction, textureSource, legacyGradientStops = "gradientStops", transform, animation
         case imageFit, imageRepeat, imagePosition, tint, segments, values, state
     }
@@ -826,7 +824,6 @@ public struct WidgetTree: Codable, Equatable, Sendable {
         options = try container.decodeIfPresent(WidgetImageOptions.self, forKey: .options)
         action = try container.decodeIfPresent(WidgetAction.self, forKey: .action)
         disabled = try container.decodeIfPresent(Bool.self, forKey: .disabled)
-        multiline = try container.decodeIfPresent(Bool.self, forKey: .multiline)
         columns = try container.decodeIfPresent(Int.self, forKey: .columns)
         gradientStops = try container.decodeIfPresent([WidgetGradientStop].self, forKey: .stops)
             ?? container.decodeIfPresent([WidgetGradientStop].self, forKey: .legacyGradientStops)
@@ -864,7 +861,6 @@ public struct WidgetTree: Codable, Equatable, Sendable {
         try container.encodeIfPresent(options, forKey: .options)
         try container.encodeIfPresent(action, forKey: .action)
         try container.encodeIfPresent(disabled, forKey: .disabled)
-        try container.encodeIfPresent(multiline, forKey: .multiline)
         try container.encodeIfPresent(columns, forKey: .columns)
         try container.encodeIfPresent(gradientStops, forKey: .stops)
         try container.encodeIfPresent(gradientDirection, forKey: .direction)
@@ -904,12 +900,12 @@ public struct WidgetTree: Codable, Equatable, Sendable {
         if !isContainer && !children.isEmpty {
             issues.append(.init(path: path, message: "leaf nodes cannot define children"))
         }
-        if kind == .text || kind == .textField {
+        if kind == .text || kind == .textField || kind == .textArea {
             if (text == nil || text?.isEmpty == true) && provider == nil && state == nil {
                 issues.append(.init(path: path, message: "\(kind.rawValue) nodes require non-empty text"))
             }
-            if kind == .textField && provider != nil {
-                issues.append(.init(path: "\(path).provider", message: "textField nodes cannot bind to a provider"))
+            if [.textField, .textArea].contains(kind) && provider != nil {
+                issues.append(.init(path: "\(path).provider", message: "editable text nodes cannot bind to a provider"))
             }
         }
         if kind == .toggle && value != 0 && value != 1 {
@@ -921,8 +917,8 @@ public struct WidgetTree: Codable, Equatable, Sendable {
         if let state, state.key.isEmpty {
             issues.append(.init(path: "\(path).state.key", message: "state key must be non-empty"))
         }
-        if state != nil && ![.text, .textField, .toggle, .slider, .countdown, .gauge, .progress, .segmentedProgress].contains(kind) {
-            issues.append(.init(path: "\(path).state", message: "state bindings are supported only by text, textField, toggle, slider, countdown, gauge, progress, and segmentedProgress nodes"))
+        if state != nil && ![.text, .textField, .textArea, .toggle, .slider, .countdown, .gauge, .progress, .segmentedProgress].contains(kind) {
+            issues.append(.init(path: "\(path).state", message: "state bindings are supported only by text, textField, textArea, toggle, slider, countdown, gauge, progress, and segmentedProgress nodes"))
         }
         if let state {
             validateStateValue(state.initial, for: kind, minimum: minimum, maximum: maximum, path: "\(path).state.initial", issues: &issues)
@@ -1077,11 +1073,8 @@ public struct WidgetTree: Codable, Equatable, Sendable {
         if kind != .button && action != nil {
             issues.append(.init(path: "\(path).action", message: "only button nodes may define an action"))
         }
-        if disabled != nil && ![.button, .slider, .countdown, .textField, .toggle].contains(kind) {
+        if disabled != nil && ![.button, .slider, .countdown, .textField, .textArea, .toggle].contains(kind) {
             issues.append(.init(path: "\(path).disabled", message: "only interactive controls may be disabled"))
-        }
-        if multiline != nil && kind != .textField {
-            issues.append(.init(path: "\(path).multiline", message: "only textField nodes may define multiline"))
         }
         if ![.slider, .countdown].contains(kind) && minimum != nil { issues.append(.init(path: "\(path).minimum", message: "only slider and countdown nodes may define minimum")) }
         if ![.slider, .countdown].contains(kind) && step != nil { issues.append(.init(path: "\(path).step", message: "only slider and countdown nodes may define step")) }
@@ -1212,9 +1205,9 @@ public struct WidgetTree: Codable, Equatable, Sendable {
             default:
                 issues.append(.init(path: path, message: "text state must be a string, number, or boolean"))
             }
-        case .textField:
+        case .textField, .textArea:
             if case .string = value {} else {
-                issues.append(.init(path: path, message: "textField state must start as a string"))
+                issues.append(.init(path: path, message: "\(kind.rawValue) state must start as a string"))
             }
         case .toggle:
             if case .boolean = value {} else {

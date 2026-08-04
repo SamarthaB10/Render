@@ -276,7 +276,7 @@ node bin/render.mjs sdk describe system.memory --json
 The catalog currently exposes these implemented families:
 
 - Layout: `Column`, `Row`, `Stack`, `Box`, `Spacer`, `Divider`, `Grid`.
-- Content and visuals: `Text`, editable native `TextField`, native `Toggle`, `Shape`, `Icon`, native asset `Image`, `Gradient`, `Texture`, `Clip`, and `Transform`.
+- Content and visuals: `Text`, editable native `TextField`, multiline `TextArea`, native `Toggle`, `Shape`, `Icon`, native asset `Image`, `Gradient`, `Texture`, `Clip`, and `Transform`.
 - Controls and progress: `Button`, `Slider`, user-selectable `Countdown`, `Gauge`, `Progress`, `SegmentedProgress`, and `Spectrum`.
 - Motion: host-owned declarative `Animate` for bounded opacity, transform, and offset changes.
 - Data and lifecycle: `useProvider`, `useWidgetState`, typed provider states, `widget.refresh`, `widget.reload`, and the worker protocol types.
@@ -289,7 +289,7 @@ The catalog also marks contract-only and planned items. Current limitations are 
 - Spotify is the first implemented authenticated connector. It currently covers account status, current playback metadata, play/pause, previous/next, and volume; playlists, search, library, history, and artwork retrieval are separate future connector surfaces.
 - Spotify requires a local client ID and user consent; without either, the host reports the reason instead of using fake data.
 - One active widget, local development, and a locally built host are the current scope; packaging, notarization, and distribution are future work.
-- `TextField`, `Toggle`, `Slider`, and `Countdown` support persistent widget-owned state when bound with `useWidgetState(key, initial)`. The host stores JSON-safe values in the widget workspace and restores them before rendering; widget source never writes state files.
+- `TextField`, `TextArea`, `Toggle`, `Slider`, and `Countdown` support persistent widget-owned state when bound with `useWidgetState(key, initial)`. The host stores JSON-safe values in the widget workspace and restores them before rendering; widget source never writes state files.
 - State bindings currently cover text, text fields, toggles, sliders, countdown duration, gauges, progress, and segmented progress. Collection editing and arbitrary state mutation actions remain planned.
 
 If the catalog cannot express a requested feature, the agent should report the missing contract instead of generating a fake integration or falling back to web technology.
@@ -311,7 +311,7 @@ Column([
 ]);
 ```
 
-The native host restores saved values before rendering and persists edits from bound `TextField`, `Toggle`, `Slider`, and `Countdown` controls. State is scoped to the widget workspace, accepts only JSON-safe scalar values, and does not require a filesystem capability. If a saved value no longer matches its binding, the host uses the declared initial value so a stale preference cannot prevent relaunch. Use distinct keys for independent values; arbitrary state writes and collection mutation are not yet exposed.
+The native host restores saved values before rendering and persists edits from bound `TextField`, `TextArea`, `Toggle`, `Slider`, and `Countdown` controls. State is scoped to the widget workspace, accepts only JSON-safe scalar values, and does not require a filesystem capability. If a saved value no longer matches its binding, the host uses the declared initial value so a stale preference cannot prevent relaunch. Use distinct keys for independent values; arbitrary state writes and collection mutation are not yet exposed.
 
 ## Visual SDK direction
 

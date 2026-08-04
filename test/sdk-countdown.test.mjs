@@ -29,19 +29,40 @@ test("countdown is a persistent native timer control", async () => {
   assert.match(item.notes.join(" "), /one-second schedule/i);
 });
 
-test("text fields expose a persistent multiline notes surface", async () => {
+test("text areas expose a persistent multiline notes surface", async () => {
   const sdk = await import("../packages/sdk/src/index.ts");
-  assert.deepEqual(sdk.TextField({
+  assert.deepEqual(sdk.TextArea({
     text: sdk.useWidgetState("notes", "Write here"),
-    multiline: true,
     style: { height: 140 }
   }), {
-    kind: "textField",
+    kind: "textArea",
     text: "",
     state: { key: "notes", initial: "Write here" },
-    multiline: true,
     style: { height: 140 }
   });
+});
+
+test("runtime materializes persisted multiline text area state", () => {
+  const source = `
+    import { TextArea, useWidgetState, widget } from "@render/sdk";
+    export default widget({
+      "schemaVersion": 1,
+      "name": "Notes",
+      "sdkVersion": "0.1.0",
+      "size": { "width": 360, "height": 240 },
+      "anchor": { "corner": "top-left", "offset": { "x": 24, "y": 24 } },
+      "capabilities": [],
+      "subscribe": []
+    }, () => TextArea({
+      text: useWidgetState("notes", "Line one\\nLine two"),
+      style: { width: 320, height: 160 }
+    }));
+  `;
+
+  const tree = buildRuntimeTree(source, "widget.tsx", { state: { notes: "Saved\nacross relaunch" } });
+  assert.equal(tree.kind, "textArea");
+  assert.equal(tree.text, "Saved\nacross relaunch");
+  assert.deepEqual(tree.state, { key: "notes", initial: "Line one\nLine two" });
 });
 
 test("runtime validates countdown ranges and state bindings", () => {

@@ -99,11 +99,10 @@ final class WidgetTreeInteractionTests: XCTestCase {
         XCTAssertTrue(issues.contains { $0.path == "root.step" && $0.message.contains("greater than zero") })
     }
 
-    func testMultilineTextFieldWireContract() throws {
+    func testTextAreaWireContract() throws {
         let field = WidgetTree(
-            kind: .textField,
+            kind: .textArea,
             text: "Notes",
-            multiline: true,
             state: WidgetStateReference(key: "notes", initial: .string("Notes"))
         )
 

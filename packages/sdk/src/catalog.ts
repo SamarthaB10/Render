@@ -125,16 +125,31 @@ const SDK_CATALOG: SdkCatalogItem[] = [
   {
     name: "TextField",
     kind: "primitive",
-    summary: "Native editable single-line or multiline text control",
+    summary: "Native editable single-line text control",
     importPath: SDK_PACKAGE,
-    signature: "TextField(text: string | WidgetStateBinding<string>, style?: WidgetStyle): WidgetNode | TextField({ text, multiline?, disabled?, style? }): WidgetNode",
-    inputs: ["text", "multiline", "disabled", "style"],
+    signature: "TextField(text: string | WidgetStateBinding<string>, style?: WidgetStyle): WidgetNode",
+    inputs: ["text", "disabled", "style"],
     example: 'TextField("Write a task", { backgroundColor: "#172126" })',
     status: "implemented",
     notes: [
       "The native renderer provides an editable text control.",
       "Pass useWidgetState(key, initial) to persist edits in the widget workspace across relaunches.",
-      "Set multiline to true for native notes and other multi-line editing surfaces.",
+      "The host owns persistence; widget source must not write state files."
+    ]
+  },
+  {
+    name: "TextArea",
+    kind: "primitive",
+    summary: "Native editable multiline writing surface",
+    importPath: SDK_PACKAGE,
+    signature: "TextArea(text: string | WidgetStateBinding<string>, style?: WidgetStyle): WidgetNode | TextArea({ text, disabled?, style? }): WidgetNode",
+    inputs: ["text", "disabled", "style"],
+    example: 'TextArea({ text: useWidgetState("notes", ""), style: { width: 320, height: 160 } })',
+    status: "implemented",
+    notes: [
+      "The native renderer provides a scrolling multiline editor for notes, drafts, and scratchpads.",
+      "Pass useWidgetState(key, initial) to persist the complete text in the widget workspace across relaunches.",
+      "Give the writing surface an explicit height; point or fill widths are supported by the native host.",
       "The host owns persistence; widget source must not write state files."
     ]
   },
@@ -349,7 +364,7 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     status: "implemented",
     notes: [
       "State is scoped to the installed widget workspace and survives relaunches; initial values are strings, numbers, or booleans.",
-      "Use the binding with Text, TextField, Toggle, Slider, Countdown, Gauge, Progress, or SegmentedProgress; the host owns persistence and widget source never writes files."
+      "Use the binding with Text, TextField, TextArea, Toggle, Slider, Countdown, Gauge, Progress, or SegmentedProgress; the host owns persistence and widget source never writes files."
     ]
   },
   {
@@ -642,7 +657,7 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     importPath: SDK_PACKAGE,
     signature: "interface WidgetNode { kind: WidgetNodeKind; children?: WidgetNode[]; style?: WidgetStyle; ... }",
     fields: [
-      'kind: "column" | "row" | "stack" | "box" | "spacer" | "divider" | "text" | "textField" | "toggle" | "shape" | "icon" | "image" | "button" | "slider" | "countdown" | "gauge" | "progress" | "grid" | "gradient" | "texture" | "clip" | "transform" | "segmentedProgress" | "spectrum"',
+      'kind: "column" | "row" | "stack" | "box" | "spacer" | "divider" | "text" | "textField" | "textArea" | "toggle" | "shape" | "icon" | "image" | "button" | "slider" | "countdown" | "gauge" | "progress" | "grid" | "gradient" | "texture" | "clip" | "transform" | "segmentedProgress" | "spectrum"',
       "children?: WidgetNode[]",
       "text?: string",
       "provider?: string",
@@ -662,7 +677,6 @@ const SDK_CATALOG: SdkCatalogItem[] = [
       "animation?: WidgetAnimation",
       "action?: WidgetAction",
       "disabled?: boolean",
-      "multiline?: boolean",
       "columns?: number",
       "state?: WidgetStateReference"
     ],
@@ -675,7 +689,7 @@ const SDK_CATALOG: SdkCatalogItem[] = [
     kind: "type",
     summary: "Allowed discriminators for declarative widget nodes",
     importPath: SDK_PACKAGE,
-    signature: 'type WidgetNodeKind = "column" | "row" | "stack" | "box" | "spacer" | "divider" | "text" | "textField" | "toggle" | "shape" | "icon" | "image" | "button" | "slider" | "countdown" | "gauge" | "progress" | "grid" | "gradient" | "texture" | "clip" | "transform" | "segmentedProgress" | "spectrum"',
+    signature: 'type WidgetNodeKind = "column" | "row" | "stack" | "box" | "spacer" | "divider" | "text" | "textField" | "textArea" | "toggle" | "shape" | "icon" | "image" | "button" | "slider" | "countdown" | "gauge" | "progress" | "grid" | "gradient" | "texture" | "clip" | "transform" | "segmentedProgress" | "spectrum"',
     example: 'const kind: WidgetNodeKind = "box"',
     status: "implemented"
   },

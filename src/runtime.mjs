@@ -483,7 +483,7 @@ function validateRuntimeTree(node, pathName, subscriptions, capabilities, accoun
     throw new Error(`${pathName}: render() must return a widget node`);
   }
   const kinds = new Set([
-    "column", "row", "stack", "box", "spacer", "divider", "text", "textField", "toggle", "shape",
+    "column", "row", "stack", "box", "spacer", "divider", "text", "textField", "textArea", "toggle", "shape",
     "icon", "image", "button", "slider", "countdown", "gauge", "progress", "grid", "gradient", "texture", "clip", "transform",
     "segmentedProgress", "spectrum"
   ]);
@@ -516,7 +516,7 @@ function validateRuntimeTree(node, pathName, subscriptions, capabilities, accoun
   if (node.provider?.startsWith("spotify.") && !accounts.has("spotify")) {
     throw new Error(`${pathName}.provider: ${node.provider} requires a spotify account requirement; add manifest.accounts and ask the user for permission`);
   }
-  if ((node.kind === "text" || node.kind === "textField") && (typeof node.text !== "string" || node.text.length === 0) && node.provider === undefined && node.state === undefined) {
+  if (["text", "textField", "textArea"].includes(node.kind) && (typeof node.text !== "string" || node.text.length === 0) && node.provider === undefined && node.state === undefined) {
     throw new Error(`${pathName}.text: text nodes require text or a provider`);
   }
   if (node.kind === "toggle" && node.value !== 0 && node.value !== 1) {
@@ -564,14 +564,10 @@ function validateRuntimeTree(node, pathName, subscriptions, capabilities, accoun
   if (node.kind === "spectrum") validateSpectrum(node, pathName);
   if (node.state !== undefined) validateStateReference(node, pathName);
   if (node.disabled !== undefined) {
-    if (!["button", "slider", "countdown", "textField", "toggle"].includes(node.kind)) {
+    if (!["button", "slider", "countdown", "textField", "textArea", "toggle"].includes(node.kind)) {
       throw new Error(`${pathName}.disabled: only interactive controls may be disabled`);
     }
     if (typeof node.disabled !== "boolean") throw new Error(`${pathName}.disabled: disabled must be boolean`);
-  }
-  if (node.multiline !== undefined) {
-    if (node.kind !== "textField") throw new Error(`${pathName}.multiline: only textField nodes may define multiline`);
-    if (typeof node.multiline !== "boolean") throw new Error(`${pathName}.multiline: multiline must be boolean`);
   }
   if (node.minimum !== undefined && !["slider", "countdown"].includes(node.kind)) throw new Error(`${pathName}.minimum: only slider and countdown nodes may define minimum`);
   if (node.step !== undefined && !["slider", "countdown"].includes(node.kind)) throw new Error(`${pathName}.step: only slider and countdown nodes may define step`);
@@ -595,11 +591,11 @@ function validateStateReference(node, pathName) {
   if (!isJsonValue(node.state.initial)) {
     throw new Error(`${statePath}.initial: state defaults must be JSON-compatible`);
   }
-  if (!["text", "textField", "toggle", "slider", "countdown", "gauge", "progress", "segmentedProgress"].includes(node.kind)) {
+  if (!["text", "textField", "textArea", "toggle", "slider", "countdown", "gauge", "progress", "segmentedProgress"].includes(node.kind)) {
     throw new Error(`${statePath}: state bindings are not supported by ${node.kind} nodes`);
   }
-  if (node.kind === "textField" && typeof node.state.initial !== "string") {
-    throw new Error(`${statePath}.initial: textField state must start as a string`);
+  if (["textField", "textArea"].includes(node.kind) && typeof node.state.initial !== "string") {
+    throw new Error(`${statePath}.initial: ${node.kind} state must start as a string`);
   }
   if (node.kind === "toggle" && typeof node.state.initial !== "boolean") {
     throw new Error(`${statePath}.initial: toggle state must start as a boolean`);
@@ -636,7 +632,7 @@ function materializeWidgetState(node, persisted, pathName) {
     : node.state.initial;
   if (node.kind === "text") {
     next.text = String(value);
-  } else if (node.kind === "textField") {
+  } else if (node.kind === "textField" || node.kind === "textArea") {
     next.text = value;
   } else if (node.kind === "toggle") {
     next.value = value ? 1 : 0;
@@ -651,7 +647,7 @@ function isValidStateValue(node, value) {
     return ["string", "number", "boolean"].includes(typeof value)
       && (typeof value !== "number" || Number.isFinite(value));
   }
-  if (node.kind === "textField") return typeof value === "string";
+  if (node.kind === "textField" || node.kind === "textArea") return typeof value === "string";
   if (node.kind === "toggle") return typeof value === "boolean";
   const minimum = ["slider", "countdown"].includes(node.kind) ? node.minimum : 0;
   return typeof value === "number"

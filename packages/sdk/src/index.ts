@@ -7,6 +7,7 @@ export type WidgetNodeKind =
   | "divider"
   | "text"
   | "textField"
+  | "textArea"
   | "toggle"
   | "shape"
   | "icon"
@@ -283,7 +284,6 @@ export interface WidgetNode {
   animation?: WidgetAnimation;
   action?: WidgetAction;
   disabled?: boolean;
-  multiline?: boolean;
   columns?: number;
   state?: WidgetStateReference;
 }
@@ -305,7 +305,11 @@ export interface TextProps extends WidgetComponentProps {
 export interface TextFieldProps extends WidgetComponentProps {
   text?: string | WidgetStateBinding<string>;
   disabled?: boolean;
-  multiline?: boolean;
+}
+
+export interface TextAreaProps extends WidgetComponentProps {
+  text?: string | WidgetStateBinding<string>;
+  disabled?: boolean;
 }
 
 export interface ToggleProps extends WidgetComponentProps {
@@ -536,18 +540,41 @@ export function TextField(input: string | WidgetStateBinding<string> | TextField
         kind: "textField",
         text: "",
         state: stateReference(props.text),
-        ...(props.disabled === undefined ? {} : { disabled: props.disabled }),
-        ...(props.multiline === undefined ? {} : { multiline: props.multiline })
+        ...(props.disabled === undefined ? {} : { disabled: props.disabled })
       }, props.style);
     }
     return nodeWithOptionalStyle({
       kind: "textField",
       text: String(props.text ?? firstChild(props.children) ?? ""),
-      ...(props.disabled === undefined ? {} : { disabled: props.disabled }),
-      ...(props.multiline === undefined ? {} : { multiline: props.multiline })
+      ...(props.disabled === undefined ? {} : { disabled: props.disabled })
     }, props.style);
   }
   return nodeWithOptionalStyle({ kind: "textField", text: input as string }, style);
+}
+
+export function TextArea(text: string | WidgetStateBinding<string>, style?: WidgetStyle): WidgetNode;
+export function TextArea(props: TextAreaProps): WidgetNode;
+export function TextArea(input: string | WidgetStateBinding<string> | TextAreaProps, style?: WidgetStyle): WidgetNode {
+  if (isProps(input)) {
+    const props = input as TextAreaProps;
+    if (isStateBinding(props.text)) {
+      return nodeWithOptionalStyle({
+        kind: "textArea",
+        text: "",
+        state: stateReference(props.text),
+        ...(props.disabled === undefined ? {} : { disabled: props.disabled })
+      }, props.style);
+    }
+    return nodeWithOptionalStyle({
+      kind: "textArea",
+      text: String(props.text ?? firstChild(props.children) ?? ""),
+      ...(props.disabled === undefined ? {} : { disabled: props.disabled })
+    }, props.style);
+  }
+  if (isStateBinding(input)) {
+    return nodeWithOptionalStyle({ kind: "textArea", text: "", state: stateReference(input) }, style);
+  }
+  return nodeWithOptionalStyle({ kind: "textArea", text: input as string }, style);
 }
 
 export function Toggle(checked: boolean | WidgetStateBinding<boolean>, style?: WidgetStyle): WidgetNode;
