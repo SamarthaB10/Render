@@ -533,6 +533,32 @@ export function rollbackWorkspace(workspace, version, requestId = randomUUID(), 
   if (isNativeHost(hostPath) && options.supervised !== false) {
     const launched = launchNativeSupervisor(root, hostPath);
     if (!launched.ok) {
+      if (status.state.running === true && status.state.activeVersion === target && status.state.processId) {
+        const fallbackState = updateState(root, {
+          ...status.state,
+          status: "running",
+          running: true,
+          lifecycleState: "running",
+          stopRequested: false,
+          lastFailure: { at: new Date().toISOString(), diagnostics: launched.diagnostics }
+        }, {
+          requestId,
+          event: "rollback.failed",
+          reason: "last-known-good files restored while the existing host remained active",
+          to: "running",
+          diagnostics: launched.diagnostics
+        });
+        return {
+          ...launched,
+          operation: "rollback",
+          workspace: root,
+          state: fallbackState,
+          running: true,
+          processId: status.state.processId,
+          activeVersion: target,
+          lastKnownGoodVersion: target
+        };
+      }
       recordFailure(root, launched.diagnostics, requestId);
       return {
         ...launched,

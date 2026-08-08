@@ -21,6 +21,12 @@ import {
   PERFORMANCE_WORKLOADS,
   validatePerformanceReceipt
 } from "../src/performance-contract.mjs";
+import {
+  FAILED_REMIX_CANDIDATE_SOURCE,
+  measureFailedRemix
+} from "../src/performance-scenarios.mjs";
+import { rollbackWorkspace, stopWorkspace } from "../src/runtime.mjs";
+import { statusWorkspace } from "../src/workspace.mjs";
 
 export function summarizeSamples(samples) {
   const sorted = [...samples].sort((left, right) => left - right);
@@ -83,7 +89,11 @@ async function main() {
   const options = parseOptions(process.argv.slice(2));
   const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
   const workload = findWorkload(options.workload);
-  const sourceWorkspace = path.resolve(options.workspace);
+  const sourceWorkspace = path.resolve(
+    options.workloadSpecified && !options.workspaceSpecified
+      ? path.dirname(path.join(repoRoot, workload.fixture))
+      : options.workspace
+  );
   const sourcePath = path.join(sourceWorkspace, "widget.tsx");
   if (!existsSync(sourcePath)) {
     throw new Error(`workspace must contain widget.tsx: ${sourceWorkspace}`);
@@ -129,6 +139,14 @@ async function measure({ repoRoot, workspace, options, workload }) {
   if (!run.ok) throw new Error(run.stderr || "could not start performance workspace");
 
   const processSamples = [];
+  let activeProcessId = run.processId;
+  let preserveActiveProcess = false;
+  let recovery = {
+    state: "unavailable",
+    reason: workload.id === "failed-remix"
+      ? "failed-remix requires an active last-known-good snapshot"
+      : "recovery measurement adapter is not instrumented for this workload"
+  };
   try {
     await delay(options.intervalMs);
     for (let index = 0; index < options.samples; index += 1) {
@@ -136,8 +154,56 @@ async function measure({ repoRoot, workspace, options, workload }) {
       const sample = sampleProcess(run.processId);
       if (sample) processSamples.push(sample);
     }
+    if (workload.id === "failed-remix" && run.activeVersion) {
+      recovery = measureFailedRemix({
+        workspace,
+        candidateSource: FAILED_REMIX_CANDIDATE_SOURCE,
+        activeVersion: run.activeVersion,
+        runCandidate: () => {
+          const candidate = runWorkspace(repoRoot, workspace);
+          if (candidate.processId) activeProcessId = candidate.processId;
+          return candidate;
+        },
+        restoreActive: (version) => {
+          let restored;
+          try {
+            restored = rollbackWorkspace(workspace, version, "performance-failed-remix-restore");
+          } catch (error) {
+            preserveActiveProcess = true;
+            throw error;
+          }
+          if (restored.ok && restored.running && restored.processId) {
+            activeProcessId = restored.processId;
+          } else {
+            preserveActiveProcess = true;
+          }
+          return restored;
+        },
+        verifyRestored: (restored) => {
+          const status = statusWorkspace(workspace);
+          if (!status.ok) return status;
+          if (status.state.lifecycleState !== "running" || status.state.activeVersion !== run.activeVersion) {
+            return {
+              ok: false,
+              diagnostics: [{
+                message: "last-known-good snapshot was not active in the running lifecycle state after rollback"
+              }]
+            };
+          }
+          return processIsAlive(restored.processId)
+            ? { ok: true }
+            : {
+              ok: false,
+              diagnostics: [{ message: "restored last-known-good Widget process was not running after rollback" }]
+            };
+        }
+      });
+    }
   } finally {
-    stopProcess(run.processId);
+    if (!preserveActiveProcess) {
+      const stopped = stopWorkspace(workspace, "performance-complete");
+      if (!stopped.ok) stopProcess(activeProcessId);
+    }
   }
 
   const frameCadence = measureFrameCadence(repoRoot);
@@ -168,10 +234,7 @@ async function measure({ repoRoot, workspace, options, workload }) {
           ? "frame cadence is available, but native presentation acknowledgement is not instrumented"
           : frameCadence.message
       },
-      recoveryMs: {
-        state: "unavailable",
-        reason: "recovery measurement adapter is not instrumented"
-      }
+      recoveryMs: recovery
     },
     artifacts: {
       frameCadence,
@@ -205,8 +268,11 @@ function runWorkspace(repoRoot, workspace) {
     [path.join(repoRoot, "bin/render.mjs"), "run", "--workspace", workspace, "--json"],
     { cwd: repoRoot, encoding: "utf8" }
   );
-  if (result.status !== 0) return { ok: false, stderr: result.stderr };
-  return JSON.parse(result.stdout);
+  try {
+    return JSON.parse(result.stdout);
+  } catch {
+    return { ok: false, stderr: result.stderr || "render run did not return JSON" };
+  }
 }
 
 function sampleProcess(processId) {
@@ -278,7 +344,9 @@ function delay(milliseconds) {
 function parseOptions(args) {
   const options = {
     workspace: path.join(os.homedir(), "RenderPreview"),
+    workspaceSpecified: false,
     workload: "static-widget",
+    workloadSpecified: false,
     output: null,
     samples: 5,
     intervalMs: 1_000,
@@ -287,8 +355,10 @@ function parseOptions(args) {
   for (let index = 0; index < args.length; index += 1) {
     if (args[index] === "--workspace" && args[index + 1]) {
       options.workspace = args[++index];
+      options.workspaceSpecified = true;
     } else if (args[index] === "--workload" && args[index + 1]) {
       options.workload = args[++index];
+      options.workloadSpecified = true;
     } else if (args[index] === "--output" && args[index + 1]) {
       options.output = path.resolve(args[++index]);
     } else if (args[index] === "--samples" && args[index + 1]) {
@@ -329,6 +399,16 @@ function normalizeSignal(signal, name) {
     };
   }
   return { state: "unavailable", reason: `${name} measurement is unavailable` };
+}
+
+function processIsAlive(processId) {
+  if (!Number.isInteger(processId) || processId <= 0) return false;
+  try {
+    process.kill(processId, 0);
+    return true;
+  } catch (error) {
+    return error.code === "EPERM";
+  }
 }
 
 function positiveInteger(rawValue, name) {
