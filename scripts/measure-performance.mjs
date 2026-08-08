@@ -16,6 +16,11 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildRuntimeTree } from "../src/runtime.mjs";
+import {
+  PERFORMANCE_RECEIPT_SCHEMA_VERSION,
+  PERFORMANCE_WORKLOADS,
+  validatePerformanceReceipt
+} from "../src/performance-contract.mjs";
 
 export function summarizeSamples(samples) {
   const sorted = [...samples].sort((left, right) => left - right);
@@ -30,6 +35,46 @@ export function summarizeSamples(samples) {
   };
 }
 
+export function buildPerformanceReceipt({
+  workload,
+  measuredAt,
+  commit,
+  system,
+  settings,
+  observations,
+  artifacts = {}
+}) {
+  const receipt = {
+    schemaVersion: PERFORMANCE_RECEIPT_SCHEMA_VERSION,
+    measuredAt,
+    commit,
+    system,
+    workload: { id: workload.id, fixture: workload.fixture },
+    settings,
+    signals: {
+      fullTreeUpdateMs: {
+        state: "unavailable",
+        reason: "full-tree update adapter is not instrumented; runtime-tree build samples are recorded separately"
+      },
+      cpuPercent: availableSignal(observations.cpuPercent, "cpuPercent"),
+      residentMemoryKB: availableSignal(observations.residentMemoryKB, "residentMemoryKB"),
+      wakeups: normalizeSignal(observations.wakeups, "wakeups"),
+      latencyMs: availableSignal(observations.latencyMs, "latencyMs"),
+      nativePresentationMs: normalizeSignal(observations.nativePresentationMs, "nativePresentationMs"),
+      recoveryMs: normalizeSignal(observations.recoveryMs, "recoveryMs")
+    },
+    artifacts: {
+      ...artifacts,
+      runtimeTreeBuildMs: summarizeSamples(observations.runtimeTreeBuildMs ?? [])
+    }
+  };
+  const validation = validatePerformanceReceipt(receipt);
+  if (!validation.ok) {
+    throw new Error(validation.diagnostics.map((diagnostic) => `${diagnostic.path}: ${diagnostic.message}`).join("; "));
+  }
+  return receipt;
+}
+
 function percentile(sorted, rank) {
   return sorted[Math.min(sorted.length - 1, Math.ceil(rank * sorted.length) - 1)];
 }
@@ -37,6 +82,7 @@ function percentile(sorted, rank) {
 async function main() {
   const options = parseOptions(process.argv.slice(2));
   const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+  const workload = findWorkload(options.workload);
   const sourceWorkspace = path.resolve(options.workspace);
   const sourcePath = path.join(sourceWorkspace, "widget.tsx");
   if (!existsSync(sourcePath)) {
@@ -46,7 +92,7 @@ async function main() {
   const temporaryWorkspace = mkdtempSync(path.join(os.tmpdir(), "render-performance-"));
   try {
     initTemporaryWorkspace(repoRoot, temporaryWorkspace, sourcePath);
-    const receipt = await measure({ repoRoot, workspace: temporaryWorkspace, options });
+    const receipt = await measure({ repoRoot, workspace: temporaryWorkspace, options, workload });
     const output = JSON.stringify(receipt, null, 2);
     if (options.output) {
       mkdirSync(path.dirname(options.output), { recursive: true });
@@ -74,10 +120,12 @@ function initTemporaryWorkspace(repoRoot, workspace, sourcePath) {
   }
 }
 
-async function measure({ repoRoot, workspace, options }) {
+async function measure({ repoRoot, workspace, options, workload }) {
   const source = readFileSync(path.join(workspace, "widget.tsx"), "utf8");
   const treeBuild = measureTreeBuild(source, options.treeIterations);
+  const runStartedAt = performance.now();
   const run = runWorkspace(repoRoot, workspace);
+  const runLatencyMs = performance.now() - runStartedAt;
   if (!run.ok) throw new Error(run.stderr || "could not start performance workspace");
 
   const processSamples = [];
@@ -94,29 +142,47 @@ async function measure({ repoRoot, workspace, options }) {
 
   const frameCadence = measureFrameCadence(repoRoot);
   const system = readSystemInfo(repoRoot);
-  return {
-    schemaVersion: 1,
+  return buildPerformanceReceipt({
+    workload,
     measuredAt: new Date().toISOString(),
     commit: gitHead(repoRoot),
     system,
-    widget: {
+    settings: {
+      sampleCount: options.samples,
+      warmupIntervalMs: options.intervalMs,
+      sampleIntervalMs: options.intervalMs,
+      treeIterations: options.treeIterations
+    },
+    observations: {
+      runtimeTreeBuildMs: treeBuild.samples,
+      cpuPercent: processSamples.map((sample) => sample.cpuPercent),
+      residentMemoryKB: processSamples.map((sample) => sample.residentMemoryKB),
+      latencyMs: [runLatencyMs],
+      wakeups: {
+        state: "unavailable",
+        reason: "powermetrics requires superuser privileges on this Mac"
+      },
+      nativePresentationMs: {
+        state: "unavailable",
+        reason: frameCadence.state === "available"
+          ? "frame cadence is available, but native presentation acknowledgement is not instrumented"
+          : frameCadence.message
+      },
+      recoveryMs: {
+        state: "unavailable",
+        reason: "recovery measurement adapter is not instrumented"
+      }
+    },
+    artifacts: {
+      frameCadence,
+      widget: {
       sourceBytes: Buffer.byteLength(source),
       runtimeTreeBytes: fileSize(path.join(workspace, ".render/runtime/tree.json")),
       snapshotDiskBytes: directorySize(path.join(workspace, ".render/snapshots"))
-    },
-    runtimeTreeBuild: treeBuild,
-    hostProcess: {
-      sampleIntervalMs: options.intervalMs,
-      warmupIntervalMs: options.intervalMs,
-      cpuPercent: summarizeSamples(processSamples.map((sample) => sample.cpuPercent)),
-      residentMemoryKB: summarizeSamples(processSamples.map((sample) => sample.residentMemoryKB))
-    },
-    wakeups: {
-      state: "unavailable",
-      message: "powermetrics requires superuser privileges on this Mac"
-    },
-    frameCadence
-  };
+      },
+      runtimeTreeBuild: treeBuild
+    }
+  });
 }
 
 function measureTreeBuild(source, iterations) {
@@ -128,6 +194,7 @@ function measureTreeBuild(source, iterations) {
   }
   return {
     iterations,
+    samples,
     durationMs: summarizeSamples(samples)
   };
 }
@@ -211,6 +278,7 @@ function delay(milliseconds) {
 function parseOptions(args) {
   const options = {
     workspace: path.join(os.homedir(), "RenderPreview"),
+    workload: "static-widget",
     output: null,
     samples: 5,
     intervalMs: 1_000,
@@ -219,6 +287,8 @@ function parseOptions(args) {
   for (let index = 0; index < args.length; index += 1) {
     if (args[index] === "--workspace" && args[index + 1]) {
       options.workspace = args[++index];
+    } else if (args[index] === "--workload" && args[index + 1]) {
+      options.workload = args[++index];
     } else if (args[index] === "--output" && args[index + 1]) {
       options.output = path.resolve(args[++index]);
     } else if (args[index] === "--samples" && args[index + 1]) {
@@ -230,6 +300,35 @@ function parseOptions(args) {
     }
   }
   return options;
+}
+
+function findWorkload(id) {
+  const workload = PERFORMANCE_WORKLOADS.find((candidate) => candidate.id === id);
+  if (!workload) {
+    throw new Error(`unknown workload '${id}'; choose one of ${PERFORMANCE_WORKLOADS.map((candidate) => candidate.id).join(", ")}`);
+  }
+  return workload;
+}
+
+function availableSignal(samples, name) {
+  if (!Array.isArray(samples) || samples.length === 0) {
+    return { state: "unavailable", reason: `${name} measurement produced no samples` };
+  }
+  return { state: "available", samples: [...samples] };
+}
+
+function normalizeSignal(signal, name) {
+  if (signal?.state === "available") return availableSignal(signal.samples, name);
+  if (signal?.state === "unavailable") {
+    const reason = signal.reason ?? signal.message;
+    return {
+      state: "unavailable",
+      reason: typeof reason === "string" && reason.trim().length > 0
+        ? reason
+        : `${name} measurement is unavailable`
+    };
+  }
+  return { state: "unavailable", reason: `${name} measurement is unavailable` };
 }
 
 function positiveInteger(rawValue, name) {
