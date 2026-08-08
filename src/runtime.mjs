@@ -16,6 +16,7 @@ import { persistLifecycleState } from "./lifecycle.mjs";
 import { extractManifest, updateManifest, validateManifest } from "./manifest.mjs";
 import { canonicalIconName } from "../packages/sdk/src/icon-catalog.ts";
 import { readPreferences, writePreferences } from "./preferences.mjs";
+import { validateContractDefinition } from "./widget-contract.mjs";
 
 // Receipt: perf/receipts/phase8-worker.json
 const SUPERVISOR_STARTUP_TIMEOUT_MS = 5000;
@@ -24,11 +25,15 @@ const SUPPORTED_PROVIDERS = new Set(sdk.WIDGET_PROVIDER_NAMES);
 
 export function buildRuntimeTree(source, filename = "widget.tsx", options = {}) {
   const manifest = extractManifest(source);
+  const [manifestIssue] = validateManifest(manifest);
+  if (manifestIssue) throw new Error(`${manifestIssue.path}: ${manifestIssue.message}`);
   const mode = options.mode ?? manifest.adjustable?.responsive?.default ?? "auto";
   const tree = buildTsxRuntimeTree(source, { sdk, filename, renderContext: { mode, size: options.size } });
   const subscriptions = new Set(manifest.subscribe);
   const accounts = new Map((manifest.accounts ?? []).map((account) => [account.connector, new Set(account.scopes)]));
   validateRuntimeTree(tree, "root", subscriptions, new Set(manifest.capabilities), accounts, new Set(manifest.assets ?? []));
+  const [contractIssue] = validateContractDefinition("WidgetNode", tree);
+  if (contractIssue) throw new Error(`${contractIssue.path}: ${contractIssue.message}`);
   return JSON.parse(JSON.stringify(materializeWidgetState(tree, options.state ?? {}, "root")));
 }
 

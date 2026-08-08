@@ -5,6 +5,7 @@ import { createInterface } from "node:readline";
 import { readFileSync } from "node:fs";
 import { buildRuntimeTree } from "./runtime.mjs";
 import { extractManifest } from "./manifest.mjs";
+import { validateContractDefinition } from "./widget-contract.mjs";
 import { RENDER_WORKER_PROTOCOL_VERSION } from "../packages/sdk/src/worker-protocol.ts";
 
 const workerID = randomUUID();
@@ -25,6 +26,14 @@ input.on("line", (line) => {
     message = JSON.parse(line);
   } catch {
     sendFailure("invalid-message", "worker protocol input must be valid JSON");
+    return;
+  }
+  const [contractIssue] = validateContractDefinition("WorkerMessage", message);
+  if (contractIssue) {
+    const requestID = typeof message.messageID === "string" && message.messageID.length > 0
+      ? message.messageID
+      : undefined;
+    sendFailure("invalid-message", `${contractIssue.path}: ${contractIssue.message}`, requestID);
     return;
   }
 
@@ -76,12 +85,15 @@ function render(message) {
 }
 
 function send(fields) {
-  process.stdout.write(`${JSON.stringify({
+  const message = {
     protocolVersion,
     messageID: randomUUID(),
     workerID,
     ...fields
-  })}\n`);
+  };
+  const [contractIssue] = validateContractDefinition("WorkerMessage", message);
+  if (contractIssue) throw new Error(`invalid worker output: ${contractIssue.path}: ${contractIssue.message}`);
+  process.stdout.write(`${JSON.stringify(message)}\n`);
 }
 
 function sendFailure(code, message, requestID = randomUUID()) {

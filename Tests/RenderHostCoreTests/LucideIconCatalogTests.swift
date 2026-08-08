@@ -6,7 +6,7 @@ final class LucideIconCatalogTests: XCTestCase {
     func testPinnedCatalogResolvesBroadNamesAndCompatibilityAliases() {
         XCTAssertNotNil(LucideIconCatalog.scalar(for: "activity"))
         XCTAssertNotNil(LucideIconCatalog.scalar(for: "badge-check"))
-        XCTAssertNotNil(LucideIconCatalog.scalar(for: "github"))
+        XCTAssertNotNil(LucideIconCatalog.scalar(for: "git-branch"))
         XCTAssertEqual(LucideIconCatalog.codePoint(for: "play.fill"), LucideIconCatalog.codePoint(for: "play"))
         XCTAssertNil(LucideIconCatalog.scalar(for: "host-only-symbol"))
     }

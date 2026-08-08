@@ -131,6 +131,45 @@ test("worker rejects an incompatible negotiated protocol version", async () => {
   }
 });
 
+test("worker rejects messages outside the canonical wire schema", async () => {
+  const worker = spawn(process.execPath, [workerPath], { stdio: ["pipe", "pipe", "pipe"] });
+  const lines = createInterface({ input: worker.stdout, crlfDelay: Infinity });
+  const messages = readMessages(lines);
+
+  try {
+    await messages.nextMessage();
+    send(worker, { kind: "helloAck", selectedVersion: 1, hostOnly: true });
+    const failure = await messages.nextMessage();
+    assert.equal(failure.kind, "failure");
+    assert.equal(failure.diagnostics[0].code, "invalid-message");
+    assert.match(failure.diagnostics[0].message, /root\.hostOnly: field is not declared by the WorkerMessage contract/);
+  } finally {
+    if (worker.exitCode === null && worker.signalCode === null) worker.kill();
+    await waitForExit(worker);
+    lines.close();
+  }
+});
+
+test("worker reports an invalid message ID without crashing", async () => {
+  const worker = spawn(process.execPath, [workerPath], { stdio: ["pipe", "pipe", "pipe"] });
+  const lines = createInterface({ input: worker.stdout, crlfDelay: Infinity });
+  const messages = readMessages(lines);
+
+  try {
+    await messages.nextMessage();
+    send(worker, { kind: "helloAck", messageID: 42, selectedVersion: 1 });
+    const failure = await messages.nextMessage();
+    assert.equal(failure.kind, "failure");
+    assert.equal(failure.diagnostics[0].code, "invalid-message");
+    send(worker, { kind: "helloAck", selectedVersion: 1 });
+    assert.equal((await messages.nextMessage()).kind, "ready");
+  } finally {
+    send(worker, { kind: "shutdown" });
+    await waitForExit(worker);
+    lines.close();
+  }
+});
+
 function readMessages(lines) {
   const pending = [];
   const waiting = [];
@@ -150,7 +189,12 @@ function readMessages(lines) {
 }
 
 function send(worker, fields) {
-  worker.stdin.write(`${JSON.stringify(fields)}\n`);
+  worker.stdin.write(`${JSON.stringify({
+    protocolVersion: 1,
+    messageID: "supervisor-message",
+    workerID: "supervisor",
+    ...fields
+  })}\n`);
 }
 
 function waitForExit(worker) {

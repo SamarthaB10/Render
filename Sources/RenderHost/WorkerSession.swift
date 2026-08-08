@@ -147,8 +147,9 @@ final class WorkerSession {
         ))
 
         let ready = try readMessage()
-        guard ready.kind == .ready else {
-            throw WorkerSessionError.protocolViolation(ready.validationIssues())
+        let readyIssues = ready.validationIssues()
+        guard ready.kind == .ready, readyIssues.isEmpty else {
+            throw WorkerSessionError.protocolViolation(readyIssues)
         }
         return try renderCurrentTree()
     }
@@ -165,6 +166,10 @@ final class WorkerSession {
         ))
 
         let rendered = try readMessage()
+        let renderedIssues = rendered.validationIssues()
+        guard renderedIssues.isEmpty else {
+            throw WorkerSessionError.protocolViolation(renderedIssues)
+        }
         if rendered.kind == .failure {
             throw WorkerSessionError.workerFailure(rendered.diagnostics ?? [])
         }

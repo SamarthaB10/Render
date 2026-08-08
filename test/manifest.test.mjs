@@ -39,6 +39,23 @@ test("reports unknown fields and invalid dimensions", () => {
   ]);
 });
 
+test("reports independent semantic and structural manifest issues together", () => {
+  const issues = validateManifest({
+    schemaVersion: 1,
+    name: "Broken",
+    sdkVersion: "0.1.0",
+    size: { width: 0, height: 180, hostOnly: true },
+    anchor: { corner: "top-left", offset: { x: 0, y: 0 } },
+    capabilities: [],
+    subscribe: []
+  });
+
+  assert.deepEqual(issues, [
+    { path: "size.width", message: "must be greater than zero" },
+    { path: "size.hostOnly", message: "field is not declared by the WidgetSize contract" }
+  ]);
+});
+
 test("accepts a declarative connector account requirement", () => {
   const manifest = {
     schemaVersion: 1,
@@ -47,7 +64,7 @@ test("accepts a declarative connector account requirement", () => {
     size: { width: 320, height: 180 },
     anchor: { corner: "top-left", offset: { x: 0, y: 0 } },
     capabilities: [],
-    subscribe: ["spotify.playback"],
+    subscribe: ["spotify.account"],
     accounts: [{
       connector: "spotify",
       scopes: ["user-read-playback-state", "user-modify-playback-state"]
@@ -55,6 +72,23 @@ test("accepts a declarative connector account requirement", () => {
   };
 
   assert.deepEqual(validateManifest(manifest), []);
+});
+
+test("rejects subscriptions outside the canonical provider contract", () => {
+  const issues = validateManifest({
+    schemaVersion: 1,
+    name: "Unknown Provider",
+    sdkVersion: "0.1.0",
+    size: { width: 320, height: 180 },
+    anchor: { corner: "top-left", offset: { x: 0, y: 0 } },
+    capabilities: [],
+    subscribe: ["host.private"]
+  });
+
+  assert.deepEqual(issues, [{
+    path: "subscribe[0]",
+    message: "unsupported provider 'host.private'; use render sdk list to choose a host provider"
+  }]);
 });
 
 test("accepts adjustable bounds and responsive modes", () => {

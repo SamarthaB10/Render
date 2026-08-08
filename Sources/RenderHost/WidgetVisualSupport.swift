@@ -14,10 +14,10 @@ struct WidgetGradientDescriptor {
 
     init?(tree: WidgetTree) {
         guard let source = tree.gradientStops, !source.isEmpty else { return nil }
-        stops = source.enumerated().map { index, stop in
+        stops = source.map { stop in
             NativeGradientStop(
                 color: stop.color,
-                location: stop.position ?? Double(index) / Double(max(source.count - 1, 1))
+                location: stop.position
             )
         }
         direction = tree.gradientDirection ?? "topBottom"

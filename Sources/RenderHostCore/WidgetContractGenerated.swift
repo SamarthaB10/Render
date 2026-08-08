@@ -2,8 +2,23 @@
 
 import Foundation
 
+public struct WorkerMessageShape: Sendable {
+    public let requiredFields: Set<String>
+    public let allowedFields: Set<String>
+
+    public init(requiredFields: Set<String>, allowedFields: Set<String>) {
+        self.requiredFields = requiredFields
+        self.allowedFields = allowedFields
+    }
+}
+
 public enum RenderWidgetContract {
     public static let version = 1
+    public static let workerProtocolVersion = 1
+    public static let widgetNodeFields: Set<String> = ["kind", "key", "children", "text", "provider", "style", "value", "minimum", "maximum", "step", "orientation", "name", "source", "options", "stops", "direction", "transform", "animation", "action", "disabled", "columns", "segments", "values", "state", "durationSeconds", "tasks", "items", "videoId", "allowLinkInput", "autoplay", "controls", "startSeconds", "placeholder", "dateTime", "dateTimeMode", "visualizerMode", "visualizerTempo"]
+    public static let workerMessageFields: Set<String> = ["protocolVersion", "kind", "messageID", "workerID", "supportedVersions", "selectedVersion", "workspace", "sourcePath", "state", "mode", "size", "tree", "manifest", "diagnostics"]
+    public static let workerMessageShapes: [String: [WorkerMessageShape]] = ["hello": [.init(requiredFields: ["protocolVersion", "kind", "messageID", "workerID", "supportedVersions"], allowedFields: ["protocolVersion", "kind", "messageID", "workerID", "supportedVersions"])], "helloAck": [.init(requiredFields: ["protocolVersion", "kind", "messageID", "workerID", "selectedVersion"], allowedFields: ["protocolVersion", "kind", "messageID", "workerID", "selectedVersion"])], "ready": [.init(requiredFields: ["protocolVersion", "kind", "messageID", "workerID"], allowedFields: ["protocolVersion", "kind", "messageID", "workerID"])], "render": [.init(requiredFields: ["protocolVersion", "kind", "messageID", "workerID", "sourcePath"], allowedFields: ["protocolVersion", "kind", "messageID", "workerID", "workspace", "sourcePath", "state", "mode", "size"]), .init(requiredFields: ["protocolVersion", "kind", "messageID", "workerID", "tree", "manifest"], allowedFields: ["protocolVersion", "kind", "messageID", "workerID", "tree", "manifest"])], "failure": [.init(requiredFields: ["protocolVersion", "kind", "messageID", "workerID", "diagnostics"], allowedFields: ["protocolVersion", "kind", "messageID", "workerID", "diagnostics"])], "shutdown": [.init(requiredFields: ["protocolVersion", "kind", "messageID", "workerID"], allowedFields: ["protocolVersion", "kind", "messageID", "workerID"])]]
+    public static let workerMessageKinds: Set<String> = ["hello", "helloAck", "ready", "render", "failure", "shutdown"]
     public static let nodeKinds: Set<String> = ["column", "row", "stack", "box", "glassPanel", "mediaCard", "scrollView", "spacer", "divider", "text", "textField", "textArea", "textEditor", "dateTime", "dateTimePicker", "toggle", "timer", "taskList", "shape", "icon", "image", "button", "slider", "countdown", "gauge", "progress", "segmentedProgress", "spectrum", "grid", "gradient", "texture", "clip", "transform", "list", "visualizer", "youtubePlayer"]
     public static let capabilities: Set<String> = ["network", "filesystem.read", "filesystem.write"]
     public static let anchorCorners: Set<String> = ["top-left", "top-right", "bottom-left", "bottom-right"]
@@ -14,4 +29,52 @@ public enum RenderWidgetContract {
     public static let connectorScopes: [String: Set<String>] = ["spotify": ["user-read-private", "user-read-playback-state", "user-read-currently-playing", "user-modify-playback-state"], "reminders": ["reminders.read", "reminders.write"]]
     public static let providerConnectors: [String: String] = ["spotify.account": "spotify", "spotify.track.title": "spotify", "spotify.track.artist": "spotify", "spotify.playback.isPlaying": "spotify", "spotify.playback.progress": "spotify", "spotify.playback.volume": "spotify", "reminders.account": "reminders", "reminders.items": "reminders", "reminders.incompleteCount": "reminders", "reminders.next.title": "reminders", "reminders.next.dueDate": "reminders"]
     public static let actionConnectors: [String: String] = ["spotify.play": "spotify", "spotify.pause": "spotify", "spotify.next": "spotify", "spotify.previous": "spotify", "spotify.set-volume": "spotify", "reminders.create": "reminders", "reminders.update": "reminders", "reminders.complete": "reminders", "reminders.delete": "reminders"]
+}
+
+public enum WidgetNodeKind: String, Codable, CaseIterable, Sendable {
+    case column
+    case row
+    case stack
+    case box
+    case glassPanel
+    case mediaCard
+    case scrollView
+    case spacer
+    case divider
+    case text
+    case textField
+    case textArea
+    case textEditor
+    case dateTime
+    case dateTimePicker
+    case toggle
+    case timer
+    case taskList
+    case shape
+    case icon
+    case image
+    case button
+    case slider
+    case countdown
+    case gauge
+    case progress
+    case segmentedProgress
+    case spectrum
+    case grid
+    case gradient
+    case texture
+    case clip
+    case transform
+    case list
+    case visualizer
+    case youtubePlayer
+}
+
+public enum WorkerMessageKind: String, Codable, CaseIterable, Sendable {
+    case hello
+    case helloAck
+    case ready
+    case render
+    case failure
+    case shutdown
 }

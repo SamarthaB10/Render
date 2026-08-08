@@ -1,12 +1,3 @@
-public enum WorkerMessageKind: String, Codable, Sendable {
-    case hello
-    case helloAck
-    case ready
-    case render
-    case failure
-    case shutdown
-}
-
 public struct WorkerDiagnostic: Codable, Equatable, Sendable {
     public let code: String
     public let path: String
@@ -30,7 +21,7 @@ public struct WorkerRenderSize: Codable, Equatable, Sendable {
 }
 
 public struct WorkerMessage: Codable, Equatable, Sendable {
-    public static let currentProtocolVersion = 1
+    public static let currentProtocolVersion = RenderWidgetContract.workerProtocolVersion
 
     public let protocolVersion: Int
     public let kind: WorkerMessageKind
@@ -44,6 +35,7 @@ public struct WorkerMessage: Codable, Equatable, Sendable {
     public let mode: String?
     public let size: WorkerRenderSize?
     public let tree: WidgetTree?
+    public let manifest: WidgetJSONValue?
     public let diagnostics: [WorkerDiagnostic]?
 
     public init(
@@ -58,6 +50,7 @@ public struct WorkerMessage: Codable, Equatable, Sendable {
         mode: String? = nil,
         size: WorkerRenderSize? = nil,
         tree: WidgetTree? = nil,
+        manifest: WidgetJSONValue? = nil,
         diagnostics: [WorkerDiagnostic]? = nil,
         protocolVersion: Int = WorkerMessage.currentProtocolVersion
     ) {
@@ -73,6 +66,7 @@ public struct WorkerMessage: Codable, Equatable, Sendable {
         self.mode = mode
         self.size = size
         self.tree = tree
+        self.manifest = manifest
         self.diagnostics = diagnostics
     }
 
@@ -87,19 +81,65 @@ public struct WorkerMessage: Codable, Equatable, Sendable {
         if workerID.isEmpty {
             issues.append(.init(path: "workerID", message: "workerID must be non-empty"))
         }
+        let kindIssueStart = issues.count
         if kind == .hello && supportedVersions?.isEmpty != false {
             issues.append(.init(path: "supportedVersions", message: "hello messages require at least one supported protocol version"))
         }
         if kind == .helloAck && selectedVersion != Self.currentProtocolVersion {
             issues.append(.init(path: "selectedVersion", message: "helloAck must select the current worker protocol version"))
         }
-        let hasSourcePath = sourcePath?.isEmpty == false
-        if kind == .render && tree == nil && diagnostics == nil && !hasSourcePath {
-            issues.append(.init(path: "sourcePath", message: "render requests require sourcePath; render responses require a tree or diagnostics"))
+        if kind == .render {
+            let isRequest = sourcePath?.isEmpty == false && tree == nil && manifest == nil
+            let isResponse = sourcePath == nil && tree != nil && manifest != nil
+            if !isRequest && !isResponse {
+                issues.append(.init(
+                    path: "render",
+                    message: "render messages must be a sourcePath request or a tree and manifest response"
+                ))
+            }
         }
         if kind == .failure && diagnostics?.isEmpty != false {
             issues.append(.init(path: "diagnostics", message: "failure messages require diagnostics"))
         }
+        if let manifest {
+            if case .object = manifest {} else {
+                issues.append(.init(path: "manifest", message: "worker manifests must be objects"))
+            }
+        }
+        let shapeStatus = canonicalShapeStatus()
+        if !shapeStatus.unexpectedFields.isEmpty {
+            issues.append(.init(
+                path: "kind",
+                message: "canonical \(kind.rawValue) messages forbid fields: \(shapeStatus.unexpectedFields.sorted().joined(separator: ", "))"
+            ))
+        } else if issues.count == kindIssueStart && !shapeStatus.matches {
+            issues.append(.init(
+                path: "kind",
+                message: "worker message fields do not match the canonical \(kind.rawValue) shape"
+            ))
+        }
         return issues
+    }
+
+    private func canonicalShapeStatus() -> (matches: Bool, unexpectedFields: Set<String>) {
+        var fields: Set<String> = ["protocolVersion", "kind", "messageID", "workerID"]
+        if supportedVersions != nil { fields.insert("supportedVersions") }
+        if selectedVersion != nil { fields.insert("selectedVersion") }
+        if workspace != nil { fields.insert("workspace") }
+        if sourcePath != nil { fields.insert("sourcePath") }
+        if state != nil { fields.insert("state") }
+        if mode != nil { fields.insert("mode") }
+        if size != nil { fields.insert("size") }
+        if tree != nil { fields.insert("tree") }
+        if manifest != nil { fields.insert("manifest") }
+        if diagnostics != nil { fields.insert("diagnostics") }
+        let shapes = RenderWidgetContract.workerMessageShapes[kind.rawValue] ?? []
+        let allowedFields = shapes.reduce(into: Set<String>()) { result, shape in
+            result.formUnion(shape.allowedFields)
+        }
+        let matches = shapes.contains(where: { shape in
+            shape.requiredFields.isSubset(of: fields) && fields.isSubset(of: shape.allowedFields)
+        })
+        return (matches, fields.subtracting(allowedFields))
     }
 }

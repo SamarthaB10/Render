@@ -1,40 +1,45 @@
-export type WidgetNodeKind =
-  | "column"
-  | "row"
-  | "stack"
-  | "box"
-  | "spacer"
-  | "divider"
-  | "text"
-  | "textField"
-  | "textArea"
-  | "toggle"
-  | "shape"
-  | "icon"
-  | "image"
-  | "button"
-  | "slider"
-  | "countdown"
-  | "gauge"
-  | "progress"
-  | "grid"
-  | "gradient"
-  | "texture"
-  | "clip"
-  | "transform"
-  | "segmentedProgress"
-  | "spectrum"
-  | "timer"
-  | "taskList"
-  | "list"
-  | "glassPanel"
-  | "mediaCard"
-  | "visualizer"
-  | "youtubePlayer"
-  | "scrollView"
-  | "textEditor"
-  | "dateTime"
-  | "dateTimePicker";
+import type {
+  ImageSourceContract,
+  WidgetActionName,
+  WidgetAnchorCorner,
+  WidgetCapability,
+  WidgetConnectorName,
+  WidgetActionContract,
+  WidgetAnimationContract,
+  WidgetBorderContract,
+  WidgetCornerRadiiContract,
+  WidgetFontContract,
+  WidgetGradientStopContract,
+  WidgetImageOptionsContract,
+  WidgetInteractionAppearanceContract,
+  WidgetInteractionStyleContract,
+  WidgetJSONValueContract,
+  WidgetLengthContract,
+  WidgetListItemContract,
+  WidgetManifestContract,
+  WidgetNodeContract,
+  WidgetNodeKind,
+  WidgetProviderName,
+  WidgetShadowContract,
+  WidgetSizeContract,
+  WidgetSpacingContract,
+  WidgetStateReferenceContract,
+  WidgetStyleContract,
+  WidgetTaskItemContract,
+  WidgetTextureSourceContract,
+  WidgetThemeName,
+  WidgetTransformContract
+} from "./widget-contract.generated.ts";
+
+export type {
+  WidgetActionName,
+  WidgetAnchorCorner,
+  WidgetCapability,
+  WidgetConnectorName,
+  WidgetNodeKind,
+  WidgetProviderName,
+  WidgetThemeName
+} from "./widget-contract.generated.ts";
 
 export {
   RENDER_WIDGET_CONTRACT_VERSION,
@@ -59,13 +64,8 @@ export { SDK_ICON_NAMES, canonicalIconName } from "./icon-catalog.ts";
 export type { SdkIconName } from "./icon-catalog.ts";
 export type { WidgetComponent, WidgetElementType } from "./jsx-runtime.ts";
 
-export interface WidgetRelativeLength {
-  unit: "percent" | "fraction";
-  value: number;
-}
-
-export type WidgetLength = number | "fill" | "fit" | "auto" | WidgetRelativeLength;
-export type WidgetSpacing = number | WidgetInsets;
+export type WidgetLength = WidgetLengthContract;
+export type WidgetSpacing = WidgetSpacingContract;
 export type WidgetAlignment =
   | "leading"
   | "center"
@@ -75,7 +75,6 @@ export type WidgetAlignment =
   | "fill"
   | "space-between";
 export type WidgetFontWeight = "regular" | "medium" | "semibold" | "bold";
-export type WidgetThemeName = "dark-glass" | "light" | "monochrome" | "retro";
 export type WidgetDensity = "compact" | "comfortable";
 export type WidgetMaterial = "solid" | "thin" | "thick";
 export type WidgetSemanticRole = "surface" | "panel" | "control" | "status" | "media";
@@ -95,11 +94,7 @@ export type WidgetStyleToken =
   | "success"
   | "mono";
 
-export type WidgetCapability = "network" | "filesystem.read" | "filesystem.write";
-export interface WidgetSize {
-  width: number;
-  height: number;
-}
+export type WidgetSize = WidgetSizeContract;
 
 export interface WidgetResponsiveMode {
   minWidth: number;
@@ -133,13 +128,13 @@ export type WidgetAccountState =
   | "unavailable";
 
 export interface WidgetAccountRequirement {
-  connector: string;
+  connector: WidgetConnectorName;
   scopes: string[];
 }
 
 export interface WidgetAccountBinding {
   kind: "account";
-  connector: string;
+  connector: WidgetConnectorName;
 }
 
 export interface ProviderValue {
@@ -158,104 +153,22 @@ export interface WidgetInsets {
   left?: number;
 }
 
-export interface WidgetCornerRadii {
-  topLeft?: number;
-  topRight?: number;
-  bottomRight?: number;
-  bottomLeft?: number;
-}
+export type WidgetCornerRadii = WidgetCornerRadiiContract;
 
 export type WidgetTextAlignment = "leading" | "center" | "trailing" | "justified";
 export type WidgetTextTruncation = "head" | "middle" | "tail" | "clip";
 
-export interface WidgetFont {
-  family?: string;
-  size?: number;
-  weight?: WidgetFontWeight;
-  monospace?: boolean;
-  leading?: number;
-  tracking?: number;
-  alignment?: WidgetTextAlignment;
-  lineLimit?: number;
-  tabularNumbers?: boolean;
-  truncation?: WidgetTextTruncation;
-}
-
-export interface WidgetBorder {
-  color?: string;
-  width?: number;
-  radius?: number;
-}
-
-export interface WidgetShadow {
-  color?: string;
-  radius?: number;
-  x?: number;
-  y?: number;
-  opacity?: number;
-  kind?: "outset" | "inset" | "text";
-}
+export type WidgetFont = WidgetFontContract;
+export type WidgetBorder = WidgetBorderContract;
+export type WidgetShadow = WidgetShadowContract;
 
 export type WidgetCursor = "default" | "pointer" | "text" | "crosshair" | "move" | "not-allowed";
 
-export interface WidgetInteractionAppearance {
-  color?: string;
-  backgroundColor?: string;
-  opacity?: number;
-  borderColor?: string;
-  shadow?: WidgetShadow;
-  scale?: number;
-}
+export type WidgetInteractionAppearance = WidgetInteractionAppearanceContract;
+export type WidgetInteractionStyle = WidgetInteractionStyleContract;
+export type WidgetStyle = WidgetStyleContract;
 
-export interface WidgetInteractionStyle {
-  cursor?: WidgetCursor;
-  hover?: WidgetInteractionAppearance;
-  pressed?: WidgetInteractionAppearance;
-  focus?: WidgetInteractionAppearance;
-  disabled?: WidgetInteractionAppearance;
-}
-
-export interface WidgetStyle {
-  width?: WidgetLength;
-  height?: WidgetLength;
-  minWidth?: WidgetLength;
-  maxWidth?: WidgetLength;
-  minHeight?: WidgetLength;
-  maxHeight?: WidgetLength;
-  aspectRatio?: number;
-  color?: string;
-  backgroundColor?: string;
-  opacity?: number;
-  padding?: WidgetSpacing;
-  margin?: WidgetSpacing;
-  gap?: number;
-  alignItems?: WidgetAlignment;
-  justifyContent?: WidgetAlignment;
-  alignSelf?: WidgetAlignment;
-  flexGrow?: number;
-  flexShrink?: number;
-  flexBasis?: WidgetLength;
-  flexWrap?: "nowrap" | "wrap";
-  radius?: number | WidgetCornerRadii;
-  border?: WidgetBorder;
-  shadow?: WidgetShadow;
-  shadows?: WidgetShadow[];
-  font?: WidgetFont;
-  overflow?: "visible" | "hidden" | "clip";
-  interaction?: WidgetInteractionStyle;
-  material?: WidgetMaterial;
-  role?: WidgetSemanticRole;
-  density?: WidgetDensity;
-  tokens?: WidgetStyleToken[];
-}
-
-export type WidgetJsonValue =
-  | string
-  | number
-  | boolean
-  | null
-  | WidgetJsonValue[]
-  | { [key: string]: WidgetJsonValue };
+export type WidgetJsonValue = WidgetJSONValueContract;
 
 type WidgetStateValue = string | number | boolean;
 
@@ -265,23 +178,7 @@ export interface WidgetStateBinding<T extends WidgetStateValue = WidgetStateValu
   initial: T;
 }
 
-export interface WidgetStateReference {
-  key: string;
-  initial: WidgetStateValue;
-}
-
-export type WidgetActionName =
-  | "widget.refresh"
-  | "widget.reload"
-  | "spotify.play"
-  | "spotify.pause"
-  | "spotify.next"
-  | "spotify.previous"
-  | "spotify.set-volume"
-  | "reminders.create"
-  | "reminders.update"
-  | "reminders.complete"
-  | "reminders.delete";
+export type WidgetStateReference = WidgetStateReferenceContract;
 
 export interface ReminderCreateActionPayload {
   title: string;
@@ -304,93 +201,24 @@ export interface ReminderCompleteActionPayload {
 export interface ReminderDeleteActionPayload {
   id: string;
 }
-export type WidgetAction =
-  | { type: "invoke"; name: WidgetActionName; payload?: WidgetJsonValue }
-  | { type: "set"; name: WidgetActionName; value: WidgetJsonValue };
+export type WidgetAction = WidgetActionContract;
 
 export type WidgetImageFit = "contain" | "cover" | "fill";
 export type WidgetImageRepeat = "none" | "x" | "y" | "both";
 export type WidgetImagePosition = "leading" | "center" | "trailing";
 
-export interface WidgetImageOptions {
-  fit?: WidgetImageFit;
-  repeat?: WidgetImageRepeat;
-  position?: WidgetImagePosition;
-  tint?: string;
-}
-
-export type ImageSource =
-  | { kind: "asset"; name: string }
-  | { kind: "url"; url: string }
-  | { kind: "provider"; name: string };
-
-export interface WidgetGradientStop {
-  color: string;
-  position: number;
-}
-
-export type WidgetTextureSource =
-  | { kind: "builtin"; name: "grain" | "grid" }
-  | { kind: "asset"; name: string };
-
-export interface WidgetTransform {
-  rotation?: number;
-  scale?: number;
-  offsetX?: number;
-  offsetY?: number;
-}
+export type WidgetImageOptions = WidgetImageOptionsContract;
+export type ImageSource = ImageSourceContract;
+export type WidgetGradientStop = WidgetGradientStopContract;
+export type WidgetTextureSource = WidgetTextureSourceContract;
+export type WidgetTransform = WidgetTransformContract;
 
 export type WidgetAnimationProperty = "opacity" | "rotation" | "scale" | "offsetX" | "offsetY";
 export type WidgetAnimationEasing = "linear" | "ease-in" | "ease-out" | "ease-in-out";
 
-export interface WidgetAnimation {
-  property: WidgetAnimationProperty;
-  from: number;
-  to: number;
-  duration: number;
-  delay?: number;
-  repeat?: number | "forever";
-  easing?: WidgetAnimationEasing;
-}
+export type WidgetAnimation = WidgetAnimationContract;
 
-export interface WidgetNode {
-  kind: WidgetNodeKind;
-  key?: string | number;
-  children?: WidgetNode[];
-  text?: string;
-  provider?: string;
-  style?: WidgetStyle;
-  value?: number;
-  minimum?: number;
-  maximum?: number;
-  step?: number;
-  orientation?: "horizontal" | "vertical";
-  name?: string;
-  source?: ImageSource | WidgetTextureSource;
-  options?: WidgetImageOptions;
-  stops?: WidgetGradientStop[];
-  transform?: WidgetTransform;
-  segments?: number;
-  values?: number[];
-  animation?: WidgetAnimation;
-  action?: WidgetAction;
-  disabled?: boolean;
-  columns?: number;
-  state?: WidgetStateReference;
-  durationSeconds?: number;
-  tasks?: WidgetTaskItem[];
-  items?: WidgetListItem[];
-  videoId?: string;
-  allowLinkInput?: boolean;
-  autoplay?: boolean;
-  controls?: boolean;
-  startSeconds?: number;
-  placeholder?: string;
-  dateTime?: string;
-  dateTimeMode?: WidgetDateTimeMode;
-  visualizerMode?: WidgetVisualizerMode;
-  visualizerTempo?: number;
-}
+export type WidgetNode = WidgetNodeContract;
 
 export type WidgetChild = WidgetNode | string | number | null | boolean | undefined;
 export type WidgetChildren = WidgetChild | WidgetChild[];
@@ -468,18 +296,8 @@ export interface TimerProps extends WidgetComponentProps {
   durationSeconds: number;
 }
 
-export interface WidgetTaskItem {
-  id: string;
-  text: string;
-  completed?: boolean;
-}
-
-export interface WidgetListItem {
-  id: string;
-  title: string;
-  subtitle?: string;
-  completed?: boolean;
-}
+export type WidgetTaskItem = WidgetTaskItemContract;
+export type WidgetListItem = WidgetListItemContract;
 
 export interface TaskListProps extends WidgetComponentProps {
   items: WidgetTaskItem[];
@@ -586,25 +404,7 @@ export interface AnimateProps {
   animation: WidgetAnimation;
 }
 
-export interface WidgetManifest {
-  schemaVersion: 1;
-  name: string;
-  sdkVersion: string;
-  size: WidgetSize;
-  resizable?: boolean;
-  windowShape?: "rectangle" | "circle";
-  anchor: {
-    corner: "top-left" | "top-right" | "bottom-left" | "bottom-right";
-    offset: { x: number; y: number };
-  };
-  capabilities: WidgetCapability[];
-  subscribe: string[];
-  assets?: string[];
-  fonts?: WidgetFontAsset[];
-  adjustable?: WidgetAdjustable;
-  accounts?: WidgetAccountRequirement[];
-  theme?: WidgetThemeConfig;
-}
+export type WidgetManifest = WidgetManifestContract;
 
 export interface WidgetThemeConfig {
   default: WidgetThemeName;
@@ -623,18 +423,18 @@ export interface WidgetDefinition {
 
 export interface ProviderBinding {
   kind: "provider";
-  name: string;
+  name: WidgetProviderName;
 }
 
 export function useWidgetState<T extends WidgetStateValue>(key: string, initial: T): WidgetStateBinding<T> {
   return { kind: "state", key, initial };
 }
 
-export function useAccount(connector: string): WidgetAccountBinding {
+export function useAccount(connector: WidgetConnectorName): WidgetAccountBinding {
   return { kind: "account", connector };
 }
 
-export function widgetAccountRequirement(connector: string, scopes: string[]): WidgetAccountRequirement {
+export function widgetAccountRequirement(connector: WidgetConnectorName, scopes: string[]): WidgetAccountRequirement {
   return { connector, scopes: [...scopes] };
 }
 
@@ -1174,7 +974,7 @@ export function Animate(input: WidgetNode | AnimateProps, animation?: WidgetAnim
   return { ...(input as WidgetNode), animation };
 }
 
-export function useProvider(name: string): ProviderBinding {
+export function useProvider(name: WidgetProviderName): ProviderBinding {
   return { kind: "provider", name };
 }
 
