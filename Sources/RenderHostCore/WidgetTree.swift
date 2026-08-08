@@ -932,16 +932,28 @@ public struct WidgetTree: Codable, Equatable, Sendable {
         gradientDirection = try container.decodeIfPresent(String.self, forKey: .direction)
         transform = try container.decodeIfPresent(WidgetTransform.self, forKey: .transform)
         animation = try container.decodeIfPresent(WidgetAnimation.self, forKey: .animation)
-        imageFit = try container.decodeIfPresent(WidgetImageFit.self, forKey: .imageFit)
-        imageRepeat = try container.decodeIfPresent(WidgetImageRepeat.self, forKey: .imageRepeat)
-        imagePosition = try container.decodeIfPresent(String.self, forKey: .imagePosition)
-        tint = try container.decodeIfPresent(String.self, forKey: .tint)
-        options = decodedOptions ?? Self.legacyImageOptions(
-            fit: imageFit,
-            repeat: imageRepeat,
-            position: imagePosition,
-            tint: tint
-        )
+        let legacyImageFit = try container.decodeIfPresent(WidgetImageFit.self, forKey: .imageFit)
+        let legacyImageRepeat = try container.decodeIfPresent(WidgetImageRepeat.self, forKey: .imageRepeat)
+        let legacyImagePosition = try container.decodeIfPresent(String.self, forKey: .imagePosition)
+        let legacyTint = try container.decodeIfPresent(String.self, forKey: .tint)
+        if let decodedOptions {
+            options = decodedOptions
+            imageFit = decodedOptions.fit
+            imageRepeat = decodedOptions.repeat
+            imagePosition = decodedOptions.position
+            tint = decodedOptions.tint
+        } else {
+            imageFit = legacyImageFit
+            imageRepeat = legacyImageRepeat
+            imagePosition = legacyImagePosition
+            tint = legacyTint
+            options = Self.legacyImageOptions(
+                fit: legacyImageFit,
+                repeat: legacyImageRepeat,
+                position: legacyImagePosition,
+                tint: legacyTint
+            )
+        }
         segments = try container.decodeIfPresent(Int.self, forKey: .segments)
         values = try container.decodeIfPresent([Double].self, forKey: .values)
         state = try container.decodeIfPresent(WidgetStateReference.self, forKey: .state)

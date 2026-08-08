@@ -81,6 +81,10 @@ final class WidgetTreeVisualTests: XCTestCase {
         let decoded = try JSONDecoder().decode(WidgetTree.self, from: data)
 
         XCTAssertEqual(decoded, tree)
+        XCTAssertEqual(decoded.children[5].imageFit, .cover)
+        XCTAssertEqual(decoded.children[5].imageRepeat, .both)
+        XCTAssertEqual(decoded.children[5].imagePosition, "center")
+        XCTAssertEqual(decoded.children[5].tint, "#ffffff")
         XCTAssertTrue(decoded.validationIssues().isEmpty)
 
         let json = try XCTUnwrap(try JSONSerialization.jsonObject(with: data) as? [String: Any])
@@ -105,6 +109,19 @@ final class WidgetTreeVisualTests: XCTestCase {
         XCTAssertNil(tree.transform)
         XCTAssertNil(tree.animation)
         XCTAssertTrue(tree.validationIssues().isEmpty)
+    }
+
+    func testCanonicalImageOptionsPopulateAndOverrideLegacyAliases() throws {
+        let data = Data(##"{"kind":"image","source":{"kind":"asset","name":"cover"},"options":{"fit":"cover","repeat":"both","position":"center","tint":"#ffffff"},"imageFit":"contain","imageRepeat":"none","imagePosition":"leading","tint":"#000000"}"##.utf8)
+
+        let tree = try JSONDecoder().decode(WidgetTree.self, from: data)
+
+        XCTAssertEqual(tree.options?.fit, .cover)
+        XCTAssertEqual(tree.options?.repeat, .both)
+        XCTAssertEqual(tree.imageFit, .cover)
+        XCTAssertEqual(tree.imageRepeat, .both)
+        XCTAssertEqual(tree.imagePosition, "center")
+        XCTAssertEqual(tree.tint, "#ffffff")
     }
 
     func testWorkerWireKeysDecodeVisualNodes() throws {
